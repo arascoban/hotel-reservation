@@ -17,11 +17,11 @@ import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/cn'
 
 const NAV = [
-  { href: '/',           label: 'Calendar',           icon: CalendarDays },
-  { href: '/checkins',   label: "Today's Arrivals",   icon: LogIn },
-  { href: '/checkouts',  label: "Today's Departures", icon: LogOut },
-  { href: '/unpaid',     label: 'Unpaid',             icon: CreditCard },
-  { href: '/search',     label: 'Search',             icon: Search },
+  { href: '/',           label: 'Kalender',           icon: CalendarDays },
+  { href: '/checkins',   label: 'Heutige Ankünfte',   icon: LogIn },
+  { href: '/checkouts',  label: 'Heutige Abreisen',   icon: LogOut },
+  { href: '/unpaid',     label: 'Offene Zahlungen',   icon: CreditCard },
+  { href: '/search',     label: 'Suche',              icon: Search },
   { href: '/sync',       label: 'iCal Sync',          icon: RefreshCw },
 ]
 
@@ -43,7 +43,7 @@ export default function Sidebar() {
         <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500 flex-shrink-0">
           <Hotel className="w-4 h-4 text-white" />
         </div>
-        <span className="font-semibold text-sm leading-tight">Hotel Reception</span>
+        <span className="font-semibold text-sm leading-tight">Hotelrezeption</span>
       </div>
 
       {/* New Reservation CTA */}
@@ -53,7 +53,7 @@ export default function Sidebar() {
           className="flex items-center justify-center gap-2 w-full rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-2 text-sm font-medium transition-colors"
         >
           <Plus className="w-4 h-4" />
-          New Reservation
+          Neue Reservierung
         </Link>
       </div>
 
@@ -89,7 +89,7 @@ export default function Sidebar() {
           className="flex items-center gap-3 w-full rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
         >
           <LogOut className="w-4 h-4" />
-          Sign out
+          Abmelden
         </button>
       </div>
     </aside>

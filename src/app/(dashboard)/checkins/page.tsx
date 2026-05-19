@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { format } from 'date-fns'
+import { de } from 'date-fns/locale'
 import ReservationTable from '@/components/Reservations/ReservationTable'
 import type { ReservationWithRoom } from '@/types/database'
 
@@ -9,7 +10,6 @@ export default async function CheckInsPage() {
   const supabase = await createClient()
   const today = format(new Date(), 'yyyy-MM-dd')
 
-  // Reservations checking in today (checkin date = today, not yet checked in)
   const { data, error } = await supabase
     .from('reservations')
     .select('*, rooms(*, room_types(*))')
@@ -26,23 +26,22 @@ export default async function CheckInsPage() {
   return (
     <div className="px-6 py-8 max-w-6xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Today's Arrivals</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Heutige Ankünfte</h1>
         <p className="text-slate-500 mt-1">
-          {format(new Date(), 'EEEE, d MMMM yyyy')} · {reservations.length} arrival{reservations.length !== 1 ? 's' : ''}
+          {format(new Date(), 'EEEE, d. MMMM yyyy', { locale: de })} · {reservations.length} Ankunft{reservations.length !== 1 ? 'en' : ''}
         </p>
       </div>
 
       {error && (
         <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-3 mb-4">
-          Failed to load arrivals.
+          Fehler beim Laden der Ankünfte.
         </div>
       )}
 
-      {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <StatCard label="Expected today"  value={reservations.length} color="blue" />
-        <StatCard label="Still arriving"  value={arriving.length}     color="amber" />
-        <StatCard label="Already checked in" value={checkedIn.length} color="green" />
+        <StatCard label="Erwartet heute"      value={reservations.length} color="blue" />
+        <StatCard label="Noch ausstehend"      value={arriving.length}     color="amber" />
+        <StatCard label="Bereits eingecheckt" value={checkedIn.length}    color="green" />
       </div>
 
       <ReservationTable reservations={reservations} />

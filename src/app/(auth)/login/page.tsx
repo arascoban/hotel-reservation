@@ -21,7 +21,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
-      setError('Invalid email or password.')
+      setError('Ungültige E-Mail-Adresse oder Passwort.')
       setLoading(false)
       return
     }
@@ -40,8 +40,8 @@ export default function LoginPage() {
                 d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">Hotel Reception</h1>
-          <p className="text-slate-500 mt-1">Staff login</p>
+          <h1 className="text-2xl font-bold text-slate-900">Hotelrezeption</h1>
+          <p className="text-slate-500 mt-1">Mitarbeiter-Login</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
@@ -53,7 +53,7 @@ export default function LoginPage() {
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Email address
+              E-Mail-Adresse
             </label>
             <input
               type="email"
@@ -68,7 +68,7 @@ export default function LoginPage() {
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Password
+              Passwort
             </label>
             <input
               type="password"
@@ -86,7 +86,7 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? 'Anmeldung läuft…' : 'Anmelden'}
           </button>
         </form>
       </div>

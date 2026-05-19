@@ -24,23 +24,22 @@ export default async function UnpaidPage() {
   return (
     <div className="px-6 py-8 max-w-6xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Unpaid Reservations</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Offene Zahlungen</h1>
         <p className="text-slate-500 mt-1">
-          Active reservations with outstanding or partial payments.
+          Aktive Reservierungen mit offenen oder Teilzahlungen.
         </p>
       </div>
 
       {error && (
         <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-3 mb-4">
-          Failed to load unpaid reservations.
+          Fehler beim Laden der offenen Zahlungen.
         </div>
       )}
 
-      {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <StatCard label="Fully unpaid"    value={unpaid.length}   suffix="reservations" color="red" />
-        <StatCard label="Deposit only"    value={deposits.length} suffix="reservations" color="amber" />
-        <StatCard label="Total outstanding" value={totalOwed}     suffix="€"            color="slate" money />
+        <StatCard label="Vollständig unbezahlt" value={unpaid.length}   suffix="Reservierungen" color="red" />
+        <StatCard label="Nur Anzahlung"          value={deposits.length} suffix="Reservierungen" color="amber" />
+        <StatCard label="Offener Betrag"         value={totalOwed}       suffix="€"              color="slate" money />
       </div>
 
       <ReservationTable reservations={reservations} />

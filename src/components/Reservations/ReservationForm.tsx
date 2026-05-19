@@ -19,25 +19,25 @@ const SOURCES: { value: ReservationSource; label: string }[] = [
   { value: 'booking_com', label: 'Booking.com' },
   { value: 'expedia',     label: 'Expedia' },
   { value: 'airbnb',      label: 'Airbnb' },
-  { value: 'walk_in',     label: 'Walk-in' },
-  { value: 'phone',       label: 'Phone' },
+  { value: 'walk_in',     label: 'Laufkundschaft' },
+  { value: 'phone',       label: 'Telefon' },
   { value: 'website',     label: 'Website' },
-  { value: 'other',       label: 'Other' },
+  { value: 'other',       label: 'Sonstige' },
 ]
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
-  { value: 'cash',        label: 'Cash' },
-  { value: 'ec_card',     label: 'EC Card' },
-  { value: 'credit_card', label: 'Credit Card' },
+  { value: 'cash',        label: 'Bargeld' },
+  { value: 'ec_card',     label: 'EC-Karte' },
+  { value: 'credit_card', label: 'Kreditkarte' },
   { value: 'online',      label: 'Online' },
-  { value: 'unpaid',      label: 'Not paid yet' },
+  { value: 'unpaid',      label: 'Noch nicht bezahlt' },
 ]
 
 const PAYMENT_STATUSES: { value: PaymentStatus; label: string }[] = [
-  { value: 'unpaid',       label: 'Unpaid' },
-  { value: 'deposit_paid', label: 'Deposit paid' },
-  { value: 'paid',         label: 'Fully paid' },
-  { value: 'refunded',     label: 'Refunded' },
+  { value: 'unpaid',       label: 'Unbezahlt' },
+  { value: 'deposit_paid', label: 'Anzahlung bezahlt' },
+  { value: 'paid',         label: 'Vollständig bezahlt' },
+  { value: 'refunded',     label: 'Erstattet' },
 ]
 
 interface Props {
@@ -197,12 +197,12 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
       {/* ── Guest Information ─── */}
       <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
         <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">
-          Guest Information
+          Gastinformationen
         </h2>
 
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5">
-            Full Name <span className="text-red-500">*</span>
+            Vollständiger Name <span className="text-red-500">*</span>
           </label>
           <input type="text" required value={guestName}
             onChange={e => setGuestName(e.target.value)}
@@ -234,13 +234,13 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
       {/* ── Dates & Room ─── */}
       <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
         <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">
-          Stay Details
+          Aufenthaltsdetails
         </h2>
 
         <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Check-in <span className="text-red-500">*</span>
+              Anreise <span className="text-red-500">*</span>
             </label>
             <input type="date" required value={checkinDate}
               onChange={e => setCheckinDate(e.target.value)}
@@ -253,7 +253,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Check-out <span className="text-red-500">*</span>
+              Abreise <span className="text-red-500">*</span>
             </label>
             <input type="date" required value={checkoutDate}
               onChange={e => setCheckoutDate(e.target.value)}
@@ -267,7 +267,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Guests <span className="text-red-500">*</span>
+              Personen <span className="text-red-500">*</span>
             </label>
             <input type="number" min={1} max={4} required value={guestCount}
               onChange={e => setGuestCount(Number(e.target.value))}
@@ -281,15 +281,15 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         {/* Room selector */}
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5">
-            Room <span className="text-red-500">*</span>
+            Zimmer <span className="text-red-500">*</span>
           </label>
           {loadingRooms ? (
             <div className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-400 bg-slate-50">
-              Checking availability…
+              Verfügbarkeit wird geprüft…
             </div>
           ) : !checkinDate || !checkoutDate ? (
             <div className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-400 bg-slate-50">
-              Select dates first to see available rooms.
+              Bitte Datum wählen um verfügbare Zimmer zu sehen.
             </div>
           ) : (
             <select
@@ -308,7 +308,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
 
           {availableRooms.length === 0 && checkinDate && checkoutDate && !loadingRooms && (
             <p className="mt-1 text-xs text-red-600">
-              No rooms available for {guestCount} guest{guestCount !== 1 ? 's' : ''} on these dates.
+              Keine Zimmer verfügbar für {guestCount} Person{guestCount !== 1 ? 'en' : ''} an diesen Daten.
             </p>
           )}
 
@@ -332,7 +332,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
             className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
           />
           <label htmlFor="breakfast" className="text-sm text-slate-700 cursor-pointer">
-            Breakfast included
+            Frühstück inklusive
           </label>
         </div>
       </section>
@@ -340,12 +340,12 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
       {/* ── Booking Source & Payment ─── */}
       <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
         <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">
-          Source &amp; Payment
+          Quelle &amp; Zahlung
         </h2>
 
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">Source</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Buchungsquelle</label>
             <select value={source} onChange={e => setSource(e.target.value as ReservationSource)}
               className={cn(fieldClass('source'), 'cursor-pointer')}>
               {SOURCES.map(s => (
@@ -355,7 +355,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">Payment Method</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Zahlungsmethode</label>
             <select value={payMethod} onChange={e => setPayMethod(e.target.value as PaymentMethod)}
               className={cn(fieldClass('payment_method'), 'cursor-pointer')}>
               {PAYMENT_METHODS.map(m => (
@@ -365,7 +365,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">Payment Status</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Zahlungsstatus</label>
             <select value={payStatus} onChange={e => setPayStatus(e.target.value as PaymentStatus)}
               className={cn(fieldClass('payment_status'), 'cursor-pointer')}>
               {PAYMENT_STATUSES.map(s => (
@@ -378,7 +378,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Total Price (€)
+              Gesamtpreis (€)
             </label>
             <input type="number" min={0} step={0.01} value={totalPrice}
               onChange={e => setTotalPrice(e.target.value)}
@@ -387,7 +387,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              External ID
+              Externe ID
               <span className="ml-1 text-slate-400 font-normal">(Booking.com / Expedia / etc.)</span>
             </label>
             <input type="text" value={extId}
@@ -399,11 +399,11 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
 
       {/* ── Notes ─── */}
       <section className="bg-white rounded-xl border border-slate-200 p-5">
-        <label className="block text-sm font-medium text-slate-700 mb-1.5">Notes</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1.5">Notizen</label>
         <textarea rows={3} value={notes}
           onChange={e => setNotes(e.target.value)}
           className={cn(fieldClass('notes'), 'resize-none')}
-          placeholder="Allergies, special requests, late arrival…" />
+          placeholder="Allergien, Sonderwünsche, Spätanreise…" />
       </section>
 
       {/* ── Submit ─── */}
@@ -416,11 +416,11 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
       <div className="flex gap-3 justify-end">
         <button type="button" onClick={() => router.back()}
           className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
-          Cancel
+          Abbrechen
         </button>
         <button type="submit" disabled={submitting || !!conflictMsg}
           className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-          {submitting ? 'Creating…' : 'Create Reservation'}
+          {submitting ? 'Wird erstellt…' : 'Reservierung erstellen'}
         </button>
       </div>
     </form>

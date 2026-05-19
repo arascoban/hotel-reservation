@@ -1,9 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import type { ReservationWithRoom, ReservationStatus, PaymentStatus } from '@/types/database'
-import { formatReservationDate, getSourceLabel, getSourceColor } from '@/lib/reservations'
+import { getSourceLabel, getSourceColor } from '@/lib/reservations'
 import { cn } from '@/lib/cn'
 import ReservationDetailModal from './ReservationDetailModal'
 
@@ -16,11 +15,11 @@ const STATUS_STYLES: Record<ReservationStatus, string> = {
 }
 
 const STATUS_LABELS: Record<ReservationStatus, string> = {
-  confirmed:   'Confirmed',
-  checked_in:  'Checked In',
-  checked_out: 'Checked Out',
-  cancelled:   'Cancelled',
-  no_show:     'No Show',
+  confirmed:   'Bestätigt',
+  checked_in:  'Eingecheckt',
+  checked_out: 'Ausgecheckt',
+  cancelled:   'Storniert',
+  no_show:     'Nicht erschienen',
 }
 
 const PAY_STYLES: Record<PaymentStatus, string> = {
@@ -31,10 +30,10 @@ const PAY_STYLES: Record<PaymentStatus, string> = {
 }
 
 const PAY_LABELS: Record<PaymentStatus, string> = {
-  paid:         'Paid',
-  deposit_paid: 'Deposit',
-  unpaid:       'Unpaid',
-  refunded:     'Refunded',
+  paid:         'Bezahlt',
+  deposit_paid: 'Anzahlung',
+  unpaid:       'Unbezahlt',
+  refunded:     'Erstattet',
 }
 
 interface Props {
@@ -48,7 +47,7 @@ export default function ReservationTable({ reservations, onRefresh }: Props) {
   if (reservations.length === 0) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
-        <p className="text-slate-500">No reservations found.</p>
+        <p className="text-slate-500">Keine Reservierungen gefunden.</p>
       </div>
     )
   }
@@ -60,15 +59,15 @@ export default function ReservationTable({ reservations, onRefresh }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-left">
-                <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Guest</th>
-                <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Room</th>
-                <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Check-in</th>
-                <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Check-out</th>
-                <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Guests</th>
-                <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Source</th>
+                <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Gast</th>
+                <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Zimmer</th>
+                <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Anreise</th>
+                <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Abreise</th>
+                <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Personen</th>
+                <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Quelle</th>
                 <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Status</th>
-                <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Payment</th>
-                <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Total</th>
+                <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Zahlung</th>
+                <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Gesamt</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -89,12 +88,12 @@ export default function ReservationTable({ reservations, onRefresh }: Props) {
                     <span className="ml-1 text-slate-400">#{r.rooms.room_number}</span>
                   </td>
                   <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
-                    {new Date(r.checkin_at).toLocaleDateString('en-GB', {
+                    {new Date(r.checkin_at).toLocaleDateString('de-DE', {
                       day: '2-digit', month: 'short', year: 'numeric',
                     })}
                   </td>
                   <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
-                    {new Date(r.checkout_at).toLocaleDateString('en-GB', {
+                    {new Date(r.checkout_at).toLocaleDateString('de-DE', {
                       day: '2-digit', month: 'short', year: 'numeric',
                     })}
                   </td>

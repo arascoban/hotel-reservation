@@ -137,7 +137,7 @@ export default function SyncPage() {
 
   if (loading) {
     return (
-      <div className="px-6 py-8 text-slate-400">Loading sync settings…</div>
+      <div className="px-6 py-8 text-slate-400">Sync-Einstellungen werden geladen…</div>
     )
   }
 
@@ -146,9 +146,9 @@ export default function SyncPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">iCal Sync</h1>
+          <h1 className="text-2xl font-bold text-slate-900">iCal Synchronisation</h1>
           <p className="text-slate-500 mt-1">
-            Connect your rooms with Booking.com, Expedia, and Airbnb.
+            Zimmer mit Booking.com, Expedia und Airbnb verbinden.
           </p>
         </div>
         {importFeeds.length > 0 && (
@@ -158,21 +158,21 @@ export default function SyncPage() {
             className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60 transition-colors"
           >
             <RefreshCw className={cn('w-4 h-4', syncAll && 'animate-spin')} />
-            {syncAll ? 'Syncing all…' : 'Sync All Now'}
+            {syncAll ? 'Synchronisierung läuft…' : 'Alle jetzt synchronisieren'}
           </button>
         )}
       </div>
 
       {/* How it works */}
       <div className="rounded-xl bg-blue-50 border border-blue-200 p-4 mb-8 space-y-1">
-        <p className="text-sm font-semibold text-blue-900">How it works</p>
+        <p className="text-sm font-semibold text-blue-900">So funktioniert es</p>
         <p className="text-sm text-blue-800">
-          <strong>Export URL →</strong> Copy this and paste it into Booking.com / Expedia / Airbnb
-          as an "External calendar". They will fetch it regularly and block dates that are already booked in your app.
+          <strong>Export-URL →</strong> Kopieren und in Booking.com / Expedia / Airbnb als „Externen Kalender" einfügen.
+          Die Plattform ruft ihn regelmäßig ab und blockiert bereits gebuchte Daten.
         </p>
         <p className="text-sm text-blue-800">
-          <strong>Import URL →</strong> Get this from Booking.com / Expedia / Airbnb ("Export calendar" or "iCal link")
-          and paste it here. Click <em>Sync Now</em> to pull their bookings into your calendar.
+          <strong>Import-URL →</strong> Diese URL von Booking.com / Expedia / Airbnb kopieren („Kalender exportieren" / „iCal-Link")
+          und hier einfügen. Auf <em>Jetzt synchronisieren</em> klicken um Buchungen zu importieren.
         </p>
       </div>
 
@@ -204,7 +204,7 @@ export default function SyncPage() {
                 {/* Export section */}
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
-                    Export URL  <span className="font-normal normal-case text-slate-400">(paste this into Booking.com / Expedia / Airbnb)</span>
+                    Export-URL  <span className="font-normal normal-case text-slate-400">(in Booking.com / Expedia / Airbnb einfügen)</span>
                   </p>
                   {exportFeed ? (
                     <ExportUrlRow url={exportUrl!} />
@@ -214,7 +214,7 @@ export default function SyncPage() {
                       className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      Generate export URL
+                      Export-URL generieren
                     </button>
                   )}
                 </div>
@@ -222,7 +222,7 @@ export default function SyncPage() {
                 {/* Import section */}
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
-                    Import URLs <span className="font-normal normal-case text-slate-400">(paste from Booking.com / Expedia / Airbnb)</span>
+                    Import-URLs <span className="font-normal normal-case text-slate-400">(von Booking.com / Expedia / Airbnb kopieren)</span>
                   </p>
 
                   {importRoomFeeds.map(feed => {
@@ -330,7 +330,7 @@ function ImportFeedRow({
           <button onClick={onSync} disabled={syncing || !feed.url}
             className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 disabled:opacity-40">
             <RefreshCw className={cn('w-3 h-3', syncing && 'animate-spin')} />
-            {syncing ? 'Syncing…' : 'Sync'}
+            {syncing ? 'Läuft…' : 'Sync'}
           </button>
           <button onClick={onDelete}
             className="text-slate-400 hover:text-red-500 transition-colors">
@@ -393,14 +393,14 @@ function AddImportFeedRow({
       <button onClick={() => setOpen(true)}
         className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 font-medium mt-1">
         <Plus className="w-3.5 h-3.5" />
-        Add import feed
+        Import-Feed hinzufügen
       </button>
     )
   }
 
   return (
     <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 mt-1 space-y-2">
-      <p className="text-xs font-semibold text-blue-800">Add import feed</p>
+      <p className="text-xs font-semibold text-blue-800">Import-Feed hinzufügen</p>
       <div className="flex gap-2">
         <select value={platform} onChange={e => setPlatform(e.target.value as ReservationSource)}
           className="rounded border border-slate-300 bg-white px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500">
