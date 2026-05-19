@@ -129,6 +129,7 @@ export interface CalendarReservation {
 
 export type Database = {
   public: {
+    Views: Record<string, never>
     Tables: {
       room_types: {
         Row: RoomType
