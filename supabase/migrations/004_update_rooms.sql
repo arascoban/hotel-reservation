@@ -50,7 +50,7 @@ SELECT gen_random_uuid(), id, '20', 'Zimmer 20', 2, 27, true FROM room_types WHE
 
 -- ── Einzelzimmer (4 rooms — incl. connecting rooms 21+22) ────────────────────
 INSERT INTO rooms (id, room_type_id, room_number, name, floor, sort_order, is_active)
-SELECT gen_random_uuid(), id, '21', 'Zimmer 21', 3, 30, true FROM room_types WHERE category = 'single';
+SELECT gen_random_uuid(), id, '21', 'Zimmer 21', 3, 30, true FROM room_types WHERE category = 'double';
 
 INSERT INTO rooms (id, room_type_id, room_number, name, floor, sort_order, is_active)
 SELECT gen_random_uuid(), id, '22', 'Zimmer 22', 3, 31, true FROM room_types WHERE category = 'single';
