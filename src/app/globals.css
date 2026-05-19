@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --sidebar-width: 224px;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+  }
+}
+
+@layer utilities {
+  /* Calendar scrollbar */
+  .calendar-scroll::-webkit-scrollbar {
+    height: 6px;
+  }
+  .calendar-scroll::-webkit-scrollbar-track {
+    @apply bg-slate-100;
+  }
+  .calendar-scroll::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 rounded-full;
+  }
+  .calendar-scroll::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-400;
+  }
+}
