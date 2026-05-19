@@ -83,7 +83,8 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
     setLoadingRooms(true)
     setConflictMsg(null)
 
-    const { data, error } = await supabase.rpc('get_available_rooms', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any).rpc('get_available_rooms', {
       p_checkin_at:  buildCheckinTimestamp(checkinDate),
       p_checkout_at: buildCheckoutTimestamp(checkoutDate),
       p_guest_count: guestCount,

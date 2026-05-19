@@ -64,7 +64,8 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
   // Fetch reservations for the current window
   const fetchReservations = useCallback(async (from: Date, to: Date) => {
     setLoading(true)
-    const { data, error } = await supabase.rpc('get_calendar_reservations', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any).rpc('get_calendar_reservations', {
       p_from: format(from, 'yyyy-MM-dd'),
       p_to:   format(to,   'yyyy-MM-dd'),
     })

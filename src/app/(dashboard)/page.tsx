@@ -19,7 +19,8 @@ export default async function DashboardPage() {
       .eq('is_active', true)
       .order('sort_order'),
 
-    supabase.rpc('get_calendar_reservations', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).rpc('get_calendar_reservations', {
       p_from: format(startDate, 'yyyy-MM-dd'),
       p_to:   format(endDate,   'yyyy-MM-dd'),
     }),

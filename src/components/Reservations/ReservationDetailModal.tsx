@@ -114,7 +114,8 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
     setSaving(true)
     setError(null)
 
-    const { data, error } = await supabase.rpc('update_reservation', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any).rpc('update_reservation', {
       p_reservation_id: reservationId,
       p_guest_name:     editGuestName    || null,
       p_guest_phone:    editGuestPhone   || null,

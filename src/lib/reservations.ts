@@ -149,7 +149,8 @@ export async function createReservationSafe(
   const checkinAt  = new Date(input.checkin_at)
   const checkoutAt = new Date(input.checkout_at)
 
-  const { data, error } = await supabase.rpc('create_reservation', {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any).rpc('create_reservation', {
     p_guest_name:     input.guest_name,
     p_guest_email:    input.guest_email   ?? null,
     p_guest_phone:    input.guest_phone   ?? null,
