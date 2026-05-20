@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   CalendarDays,
@@ -59,12 +60,15 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
       )}
     >
       {/* ── Logo / Brand ── */}
-      <div className="flex items-start justify-between gap-2 px-4 py-4 border-b border-slate-700/60">
-        <div className="min-w-0">
-          <p className="font-bold text-sm text-white leading-tight">Jägerstieg</p>
-          <p className="text-xs text-blue-400 leading-tight font-medium">Hotel &amp; Pension</p>
-          <p className="text-2xs text-slate-500 leading-tight mt-0.5">Reservierungssystem</p>
-        </div>
+      <div className="flex items-center justify-between gap-2 px-4 py-4 border-b border-slate-700/60">
+        <Image
+          src="/logo.png"
+          alt="Jägerstieg Hotel & Pension"
+          width={136}
+          height={68}
+          className="object-contain flex-shrink-0"
+          priority
+        />
         {/* Close button — mobile only */}
         {onClose && (
           <button
