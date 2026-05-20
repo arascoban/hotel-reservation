@@ -85,8 +85,10 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
   const [editBreakfast,  setEditBreakfast]  = useState(false)
   const [editNotes,      setEditNotes]      = useState('')
   const [editTotalPrice, setEditTotalPrice] = useState('')
-  const [editCheckin,    setEditCheckin]    = useState('')
-  const [editCheckout,   setEditCheckout]   = useState('')
+  const [editCheckin,      setEditCheckin]      = useState('')
+  const [editCheckout,     setEditCheckout]     = useState('')
+  const [editCheckinTime,  setEditCheckinTime]  = useState('12:00')
+  const [editCheckoutTime, setEditCheckoutTime] = useState('13:00')
   const [editGuestCount, setEditGuestCount] = useState(1)
   const [editGuestName,  setEditGuestName]  = useState('')
   const [editGuestPhone, setEditGuestPhone] = useState('')
@@ -119,6 +121,13 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       setEditTotalPrice(r.total_price?.toString() ?? '')
       setEditCheckin(r.checkin_at.slice(0, 10))
       setEditCheckout(r.checkout_at.slice(0, 10))
+      // Extract HH:MM from ISO timestamp to pre-fill time inputs
+      const toHHMM = (iso: string) => {
+        const d = new Date(iso)
+        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+      }
+      setEditCheckinTime(toHHMM(r.checkin_at))
+      setEditCheckoutTime(toHHMM(r.checkout_at))
       setEditGuestCount(r.guest_count)
       setEditGuestName(r.guest_name)
       setEditGuestPhone(r.guest_phone ?? '')
@@ -139,8 +148,8 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       p_guest_phone:    editGuestPhone   || null,
       p_guest_email:    editGuestEmail   || null,
       p_guest_count:    editGuestCount,
-      p_checkin_at:     buildCheckinTimestamp(editCheckin),
-      p_checkout_at:    buildCheckoutTimestamp(editCheckout),
+      p_checkin_at:     buildCheckinTimestamp(editCheckin, editCheckinTime),
+      p_checkout_at:    buildCheckoutTimestamp(editCheckout, editCheckoutTime),
       p_breakfast:      editBreakfast,
       p_source:         editSource,
       p_payment_method: editPayMethod,
@@ -348,8 +357,12 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
         <div className="grid grid-cols-2 gap-4">
           <InfoField label="Anreise" icon={<Calendar className="w-3.5 h-3.5" />}>
             {editing ? (
-              <input type="date" value={editCheckin} onChange={e => setEditCheckin(e.target.value)}
-                className="mt-1 text-sm border border-slate-300 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              <div className="mt-1 flex gap-1.5">
+                <input type="date" value={editCheckin} onChange={e => setEditCheckin(e.target.value)}
+                  className="flex-1 text-sm border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                <input type="time" value={editCheckinTime} onChange={e => setEditCheckinTime(e.target.value)}
+                  className="w-24 text-sm border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              </div>
             ) : (
               <span className="text-sm text-slate-900">{formatDateTime(r.checkin_at)}</span>
             )}
@@ -357,8 +370,12 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
 
           <InfoField label="Abreise" icon={<Calendar className="w-3.5 h-3.5" />}>
             {editing ? (
-              <input type="date" value={editCheckout} min={editCheckin} onChange={e => setEditCheckout(e.target.value)}
-                className="mt-1 text-sm border border-slate-300 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              <div className="mt-1 flex gap-1.5">
+                <input type="date" value={editCheckout} min={editCheckin} onChange={e => setEditCheckout(e.target.value)}
+                  className="flex-1 text-sm border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                <input type="time" value={editCheckoutTime} onChange={e => setEditCheckoutTime(e.target.value)}
+                  className="w-24 text-sm border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              </div>
             ) : (
               <span className="text-sm text-slate-900">{formatDateTime(r.checkout_at)}</span>
             )}
