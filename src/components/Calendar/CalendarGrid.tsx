@@ -61,6 +61,12 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
   const [showDeleted,    setShowDeleted]    = useState(false)
   const [selectedId,     setSelectedId]     = useState<string | null>(null)
 
+  // Live room cleaning statuses — refreshed on focus/visibility so Zimmerstatus
+  // changes are reflected instantly without a full page reload.
+  const [roomStatuses, setRoomStatuses] = useState<Map<string, 'clean' | 'dirty' | 'maintenance'>>(
+    () => new Map(rooms.map(r => [r.id, r.cleaning_status ?? 'clean']))
+  )
+
   // ── Dynamic column width via ResizeObserver ──────────────────
   const scrollRef      = useRef<HTMLDivElement>(null)
   const [containerW,   setContainerW]       = useState(1100)
@@ -85,6 +91,33 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
 
   // Show abbreviated day name only if column is wide enough
   const showDayName = dayWidth >= 32
+
+  // ── Live room status refresh ─────────────────────────────────
+  const fetchRoomStatuses = useCallback(async () => {
+    const { data } = await supabase
+      .from('rooms')
+      .select('id, cleaning_status')
+      .eq('is_active', true)
+    if (data) {
+      setRoomStatuses(new Map(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (data as any[]).map(r => [r.id, r.cleaning_status ?? 'clean'])
+      ))
+    }
+  }, [supabase])
+
+  // Fetch on mount + whenever this tab becomes visible again
+  useEffect(() => {
+    fetchRoomStatuses()
+    const onFocus      = () => fetchRoomStatuses()
+    const onVisibility = () => { if (!document.hidden) fetchRoomStatuses() }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [fetchRoomStatuses])
 
   // ── Data fetching ────────────────────────────────────────────
   const fetchReservations = useCallback(async (month: Date) => {
@@ -300,7 +333,8 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
                   const roomRes   = resByRoom[room.id] ?? []
                   const isPension = PENSION_ROOMS.includes(room.room_number)
                   const isEvenRow = idx % 2 === 0
-                  const cs        = room.cleaning_status ?? 'clean'
+                  // Use live-fetched status (updates when user returns from Zimmerstatus)
+                  const cs        = roomStatuses.get(room.id) ?? room.cleaning_status ?? 'clean'
 
                   // Row background based on cleaning status
                   const rowBg = cs === 'maintenance'

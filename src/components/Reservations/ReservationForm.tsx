@@ -15,6 +15,7 @@ import {
 import type { AvailableRoom, ReservationSource, PaymentMethod, PaymentStatus } from '@/types/database'
 import { cn } from '@/lib/cn'
 import DateInput from '@/components/ui/DateInput'
+import TimeInput from '@/components/ui/TimeInput'
 
 // ── Family room definitions ────────────────────────────────────────────────────
 // Each pair shares a connecting door; booking a family room blocks BOTH rooms.
@@ -418,9 +419,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
                 onChange={setCheckinDate}
                 className={cn('flex-1', fieldErrors.checkin_at && 'border-red-400 bg-red-50')}
               />
-              <input type="time" value={checkinTime}
-                onChange={e => setCheckinTime(e.target.value)}
-                className={cn(fieldClass('checkin_at'), 'w-28')} />
+              <TimeInput value={checkinTime} onChange={setCheckinTime} className="w-28" />
             </div>
             {fieldErrors.checkin_at && (
               <p className="mt-1 text-xs text-red-600">{fieldErrors.checkin_at}</p>
@@ -440,9 +439,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
                 min={checkinDate}
                 className={cn('flex-1', fieldErrors.checkout_at && 'border-red-400 bg-red-50')}
               />
-              <input type="time" value={checkoutTime}
-                onChange={e => setCheckoutTime(e.target.value)}
-                className={cn(fieldClass('checkout_at'), 'w-28')} />
+              <TimeInput value={checkoutTime} onChange={setCheckoutTime} className="w-28" />
             </div>
             {fieldErrors.checkout_at && (
               <p className="mt-1 text-xs text-red-600">{fieldErrors.checkout_at}</p>
