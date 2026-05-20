@@ -21,13 +21,12 @@ const PAY_STATUS_LABELS: Record<string, string> = {
 function createTransporter() {
   return nodemailer.createTransport({
     host: 'smtp.strato.de',
-    port: 587,
-    secure: false,      // STARTTLS (Strato supports port 587 STARTTLS)
-    requireTLS: true,
+    port: 465,
+    secure: true,       // SSL/TLS (official Strato recommendation)
     auth: {
-      type:  'login',
-      user:  process.env.STRATO_SMTP_USER,
-      pass:  process.env.STRATO_SMTP_PASSWORD,
+      type: 'login',
+      user: process.env.STRATO_SMTP_USER,
+      pass: process.env.STRATO_SMTP_PASSWORD,
     },
     tls: {
       rejectUnauthorized: false,
