@@ -68,6 +68,8 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
   const [guestCount,   setGuestCount]   = useState(2)
   const [checkinDate,  setCheckinDate]  = useState(defaultCheckin  ?? '')
   const [checkoutDate, setCheckoutDate] = useState(defaultCheckout ?? '')
+  const [checkinTime,  setCheckinTime]  = useState('12:00')
+  const [checkoutTime, setCheckoutTime] = useState('13:00')
   const [roomId,       setRoomId]       = useState(defaultRoomId   ?? '')
   const [breakfast,    setBreakfast]    = useState(false)
   const [source,       setSource]       = useState<ReservationSource>('phone')
@@ -96,7 +98,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
   })
   const selectedFamily = familyOptions.find(f => f.key === familyKey) ?? null
 
-  // ── Fetch available rooms when dates or guest count change ──────
+  // ── Fetch available rooms when dates/times/guest count change ───
   const fetchAvailableRooms = useCallback(async () => {
     if (!checkinDate || !checkoutDate) return
     setLoadingRooms(true)
@@ -104,9 +106,9 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any).rpc('get_available_rooms', {
-      p_checkin_at:  buildCheckinTimestamp(checkinDate),
-      p_checkout_at: buildCheckoutTimestamp(checkoutDate),
-      p_guest_count: bookingType === 'family' ? 1 : guestCount, // fetch all rooms for family check
+      p_checkin_at:  buildCheckinTimestamp(checkinDate, checkinTime),
+      p_checkout_at: buildCheckoutTimestamp(checkoutDate, checkoutTime),
+      p_guest_count: bookingType === 'family' ? 1 : guestCount,
     })
 
     if (!error && data) {
@@ -126,7 +128,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
     }
     setLoadingRooms(false)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkinDate, checkoutDate, guestCount, bookingType])
+  }, [checkinDate, checkoutDate, checkinTime, checkoutTime, guestCount, bookingType])
 
   useEffect(() => {
     fetchAvailableRooms()
@@ -149,8 +151,8 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
     const result = await checkRoomAvailability(
       supabase,
       newRoomId,
-      new Date(buildCheckinTimestamp(checkinDate)),
-      new Date(buildCheckoutTimestamp(checkoutDate)),
+      new Date(buildCheckinTimestamp(checkinDate, checkinTime)),
+      new Date(buildCheckoutTimestamp(checkoutDate, checkoutTime)),
     )
     if (!result.available) {
       const r = result.conflicting_reservation!
@@ -196,8 +198,8 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         guest_name:         guestName,
         guest_email:        guestEmail  || undefined,
         guest_phone:        guestPhone  || undefined,
-        checkin_at:         buildCheckinTimestamp(checkinDate),
-        checkout_at:        buildCheckoutTimestamp(checkoutDate),
+        checkin_at:         buildCheckinTimestamp(checkinDate, checkinTime),
+        checkout_at:        buildCheckoutTimestamp(checkoutDate, checkoutTime),
         guest_count:        guestCount,
         breakfast_included: breakfast,
         source,
@@ -239,8 +241,8 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         guest_email:  guestEmail || undefined,
         guest_phone:  guestPhone || undefined,
         room_id:      roomId,
-        checkin_at:   checkinDate  ? buildCheckinTimestamp(checkinDate)   : undefined,
-        checkout_at:  checkoutDate ? buildCheckoutTimestamp(checkoutDate) : undefined,
+        checkin_at:   checkinDate  ? buildCheckinTimestamp(checkinDate, checkinTime)   : undefined,
+        checkout_at:  checkoutDate ? buildCheckoutTimestamp(checkoutDate, checkoutTime) : undefined,
         guest_count:  guestCount,
       },
       selectedRoom?.max_capacity,
@@ -260,8 +262,8 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         guest_email:        guestEmail  || undefined,
         guest_phone:        guestPhone  || undefined,
         room_id:            roomId,
-        checkin_at:         buildCheckinTimestamp(checkinDate),
-        checkout_at:        buildCheckoutTimestamp(checkoutDate),
+        checkin_at:         buildCheckinTimestamp(checkinDate, checkinTime),
+        checkout_at:        buildCheckoutTimestamp(checkoutDate, checkoutTime),
         guest_count:        guestCount,
         breakfast_included: breakfast,
         source,
@@ -379,45 +381,56 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
           Aufenthaltsdetails
         </h2>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 gap-4">
+          {/* Anreise: date + time */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
               Anreise <span className="text-red-500">*</span>
             </label>
-            <input type="date" required value={checkinDate}
-              onChange={e => setCheckinDate(e.target.value)}
-              className={fieldClass('checkin_at')} />
-            <p className="mt-1 text-2xs text-slate-400">Standard 15:00 Uhr</p>
+            <div className="flex gap-2">
+              <input type="date" required value={checkinDate}
+                onChange={e => setCheckinDate(e.target.value)}
+                className={cn(fieldClass('checkin_at'), 'flex-1')} />
+              <input type="time" value={checkinTime}
+                onChange={e => setCheckinTime(e.target.value)}
+                className={cn(fieldClass('checkin_at'), 'w-28')} />
+            </div>
             {fieldErrors.checkin_at && (
               <p className="mt-1 text-xs text-red-600">{fieldErrors.checkin_at}</p>
             )}
           </div>
 
+          {/* Abreise: date + time */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
               Abreise <span className="text-red-500">*</span>
             </label>
-            <input type="date" required value={checkoutDate}
-              onChange={e => setCheckoutDate(e.target.value)}
-              min={checkinDate}
-              className={fieldClass('checkout_at')} />
-            <p className="mt-1 text-2xs text-slate-400">Standard 11:00 Uhr</p>
+            <div className="flex gap-2">
+              <input type="date" required value={checkoutDate}
+                onChange={e => setCheckoutDate(e.target.value)}
+                min={checkinDate}
+                className={cn(fieldClass('checkout_at'), 'flex-1')} />
+              <input type="time" value={checkoutTime}
+                onChange={e => setCheckoutTime(e.target.value)}
+                className={cn(fieldClass('checkout_at'), 'w-28')} />
+            </div>
             {fieldErrors.checkout_at && (
               <p className="mt-1 text-xs text-red-600">{fieldErrors.checkout_at}</p>
             )}
           </div>
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Personen <span className="text-red-500">*</span>
-            </label>
-            <input type="number" min={1} max={bookingType === 'family' ? 6 : 4} required value={guestCount}
-              onChange={e => setGuestCount(Number(e.target.value))}
-              className={fieldClass('guest_count')} />
-            {fieldErrors.guest_count && (
-              <p className="mt-1 text-xs text-red-600">{fieldErrors.guest_count}</p>
-            )}
-          </div>
+        {/* Personen */}
+        <div className="max-w-xs">
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">
+            Personen <span className="text-red-500">*</span>
+          </label>
+          <input type="number" min={1} max={bookingType === 'family' ? 6 : 4} required value={guestCount}
+            onChange={e => setGuestCount(Number(e.target.value))}
+            className={fieldClass('guest_count')} />
+          {fieldErrors.guest_count && (
+            <p className="mt-1 text-xs text-red-600">{fieldErrors.guest_count}</p>
+          )}
         </div>
 
         {/* ── Zimmerauswahl: Einzelzimmer ── */}

@@ -5,6 +5,7 @@ import type { ReservationWithRoom, ReservationStatus, PaymentStatus } from '@/ty
 import { getSourceLabel, getSourceColor } from '@/lib/reservations'
 import { cn } from '@/lib/cn'
 import ReservationDetailModal from './ReservationDetailModal'
+import { useAdmin } from '@/hooks/useAdmin'
 
 const STATUS_STYLES: Record<ReservationStatus, string> = {
   confirmed:   'bg-blue-100 text-blue-800',
@@ -43,6 +44,7 @@ interface Props {
 
 export default function ReservationTable({ reservations, onRefresh }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const { isAdmin }                 = useAdmin()
 
   if (reservations.length === 0) {
     return (
@@ -71,14 +73,30 @@ export default function ReservationTable({ reservations, onRefresh }: Props) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {reservations.map(r => (
+              {reservations.map(r => {
+                const isDeleted = !!r.deleted_at
+                return (
                 <tr
                   key={r.id}
                   onClick={() => setSelectedId(r.id)}
-                  className="hover:bg-slate-50 cursor-pointer transition-colors"
+                  className={cn(
+                    'cursor-pointer transition-colors',
+                    isDeleted && isAdmin
+                      ? 'bg-red-50/60 hover:bg-red-50 opacity-70'
+                      : 'hover:bg-slate-50',
+                  )}
                 >
                   <td className="px-4 py-3">
-                    <div className="font-medium text-slate-900">{r.guest_name}</div>
+                    <div className="flex items-center gap-2">
+                      <span className={cn('font-medium text-slate-900', isDeleted && 'line-through text-slate-400')}>
+                        {r.guest_name}
+                      </span>
+                      {isDeleted && isAdmin && (
+                        <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-2xs font-semibold text-red-700 whitespace-nowrap">
+                          Gelöscht
+                        </span>
+                      )}
+                    </div>
                     {r.guest_phone && (
                       <div className="text-xs text-slate-400 mt-0.5">{r.guest_phone}</div>
                     )}
@@ -121,7 +139,8 @@ export default function ReservationTable({ reservations, onRefresh }: Props) {
                     {r.total_price != null ? `€${r.total_price.toFixed(2)}` : '—'}
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>

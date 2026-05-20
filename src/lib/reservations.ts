@@ -232,25 +232,29 @@ export function validateReservationInput(
 
 // ─── Date/Time Helpers ────────────────────────────────────────────────────────
 
-/** Hotel check-in time (local): 15:00 */
-export const DEFAULT_CHECKIN_HOUR  = 15
-/** Hotel check-out time (local): 11:00 */
-export const DEFAULT_CHECKOUT_HOUR = 11
+/** Hotel check-in time (local): 12:00 */
+export const DEFAULT_CHECKIN_HOUR  = 12
+/** Hotel check-out time (local): 13:00 */
+export const DEFAULT_CHECKOUT_HOUR = 13
 
 /**
  * Builds a full checkin timestamp from a date string.
- * Uses the hotel's default check-in time (15:00) in the given timezone.
+ * @param date   yyyy-MM-dd date string
+ * @param time   Optional HH:MM override (e.g. '14:30'). Falls back to DEFAULT_CHECKIN_HOUR.
  */
-export function buildCheckinTimestamp(date: string, timezoneOffset = '+02:00'): string {
-  return `${date}T${String(DEFAULT_CHECKIN_HOUR).padStart(2, '0')}:00:00${timezoneOffset}`
+export function buildCheckinTimestamp(date: string, time?: string, timezoneOffset = '+02:00'): string {
+  const t = time ?? `${String(DEFAULT_CHECKIN_HOUR).padStart(2, '0')}:00`
+  return `${date}T${t}:00${timezoneOffset}`
 }
 
 /**
  * Builds a full checkout timestamp from a date string.
- * Uses the hotel's default check-out time (11:00) in the given timezone.
+ * @param date   yyyy-MM-dd date string
+ * @param time   Optional HH:MM override (e.g. '10:00'). Falls back to DEFAULT_CHECKOUT_HOUR.
  */
-export function buildCheckoutTimestamp(date: string, timezoneOffset = '+02:00'): string {
-  return `${date}T${String(DEFAULT_CHECKOUT_HOUR).padStart(2, '0')}:00:00${timezoneOffset}`
+export function buildCheckoutTimestamp(date: string, time?: string, timezoneOffset = '+02:00'): string {
+  const t = time ?? `${String(DEFAULT_CHECKOUT_HOUR).padStart(2, '0')}:00`
+  return `${date}T${t}:00${timezoneOffset}`
 }
 
 /** Formats a timestamp for display: "19. Mai 2026, 15:00" */
