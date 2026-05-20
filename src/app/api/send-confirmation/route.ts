@@ -131,7 +131,7 @@ function buildEmailHtml(opts: {
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
                 <td style="vertical-align:middle;">
-                  ${logoSrc ? `<img src="${logoSrc}" alt="Jägerstieg Hotel &amp; Pension" width="120" height="60" style="display:block;object-fit:contain;" />` : '<p style="margin:0;font-size:18px;font-weight:800;color:white;">Jägerstieg</p>'}
+                  <img src="https://i.ibb.co/m597972B/logo.png" alt="Jägerstieg Hotel &amp; Pension" width="120" height="60" style="display:block;object-fit:contain;" />
                   <p style="margin:10px 0 0;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">Buchungsbestätigung</p>
                 </td>
                 <td style="text-align:right;vertical-align:top;">
