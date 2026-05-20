@@ -14,6 +14,7 @@ import {
 } from '@/lib/reservations'
 import type { AvailableRoom, ReservationSource, PaymentMethod, PaymentStatus } from '@/types/database'
 import { cn } from '@/lib/cn'
+import DateInput from '@/components/ui/DateInput'
 
 // ── Family room definitions ────────────────────────────────────────────────────
 // Each pair shares a connecting door; booking a family room blocks BOTH rooms.
@@ -411,9 +412,12 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
               Anreise <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-2">
-              <input type="date" required value={checkinDate}
-                onChange={e => setCheckinDate(e.target.value)}
-                className={cn(fieldClass('checkin_at'), 'flex-1')} />
+              <DateInput
+                required
+                value={checkinDate}
+                onChange={setCheckinDate}
+                className={cn('flex-1', fieldErrors.checkin_at && 'border-red-400 bg-red-50')}
+              />
               <input type="time" value={checkinTime}
                 onChange={e => setCheckinTime(e.target.value)}
                 className={cn(fieldClass('checkin_at'), 'w-28')} />
@@ -429,10 +433,13 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
               Abreise <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-2">
-              <input type="date" required value={checkoutDate}
-                onChange={e => setCheckoutDate(e.target.value)}
+              <DateInput
+                required
+                value={checkoutDate}
+                onChange={setCheckoutDate}
                 min={checkinDate}
-                className={cn(fieldClass('checkout_at'), 'flex-1')} />
+                className={cn('flex-1', fieldErrors.checkout_at && 'border-red-400 bg-red-50')}
+              />
               <input type="time" value={checkoutTime}
                 onChange={e => setCheckoutTime(e.target.value)}
                 className={cn(fieldClass('checkout_at'), 'w-28')} />

@@ -19,6 +19,7 @@ import {
 } from '@/lib/reservations'
 import { useAdmin } from '@/hooks/useAdmin'
 import { cn } from '@/lib/cn'
+import DateInput from '@/components/ui/DateInput'
 
 const STATUS_STYLES: Record<ReservationStatus, string> = {
   confirmed:   'bg-blue-100 text-blue-800',
@@ -432,8 +433,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
           <InfoField label="Anreise" icon={<Calendar className="w-3.5 h-3.5" />}>
             {editing ? (
               <div className="mt-1 flex gap-1.5">
-                <input type="date" value={editCheckin} onChange={e => setEditCheckin(e.target.value)}
-                  className="flex-1 text-sm border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                <DateInput value={editCheckin} onChange={setEditCheckin} className="flex-1 py-1" />
                 <input type="time" value={editCheckinTime} onChange={e => setEditCheckinTime(e.target.value)}
                   className="w-24 text-sm border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500" />
               </div>
@@ -445,8 +445,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
           <InfoField label="Abreise" icon={<Calendar className="w-3.5 h-3.5" />}>
             {editing ? (
               <div className="mt-1 flex gap-1.5">
-                <input type="date" value={editCheckout} min={editCheckin} onChange={e => setEditCheckout(e.target.value)}
-                  className="flex-1 text-sm border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                <DateInput value={editCheckout} onChange={setEditCheckout} min={editCheckin} className="flex-1 py-1" />
                 <input type="time" value={editCheckoutTime} onChange={e => setEditCheckoutTime(e.target.value)}
                   className="w-24 text-sm border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500" />
               </div>

@@ -40,6 +40,7 @@ type RoomRow = {
   type_name: string
   type_sort_order: number
   room_sort_order: number
+  cleaning_status?: 'clean' | 'dirty' | 'maintenance'
 }
 
 interface Props {
@@ -296,17 +297,29 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
 
                 {/* Room rows */}
                 {catRooms.map((room, idx) => {
-                  const roomRes  = resByRoom[room.id] ?? []
+                  const roomRes   = resByRoom[room.id] ?? []
                   const isPension = PENSION_ROOMS.includes(room.room_number)
                   const isEvenRow = idx % 2 === 0
+                  const cs        = room.cleaning_status ?? 'clean'
+
+                  // Row background based on cleaning status
+                  const rowBg = cs === 'maintenance'
+                    ? 'bg-red-50'
+                    : cs === 'dirty'
+                      ? 'bg-amber-50'
+                      : isEvenRow ? 'bg-white' : 'bg-slate-50/60'
+
+                  // Sticky name cell background (must match row)
+                  const nameBg = cs === 'maintenance'
+                    ? 'bg-red-50 group-hover:bg-red-100/60'
+                    : cs === 'dirty'
+                      ? 'bg-amber-50 group-hover:bg-amber-100/60'
+                      : cn(isEvenRow ? 'bg-white' : 'bg-slate-50/60', 'group-hover:bg-blue-50/40')
 
                   return (
                     <div
                       key={room.id}
-                      className={cn(
-                        'flex border-b border-slate-200 group',
-                        isEvenRow ? 'bg-white' : 'bg-slate-50/60',
-                      )}
+                      className={cn('flex border-b border-slate-200 group', rowBg)}
                       style={{ height: ROW_HEIGHT }}
                     >
                       {/* Sticky room name */}
@@ -314,18 +327,27 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
                         className={cn(
                           'sticky left-0 z-10 flex-shrink-0 flex flex-col justify-center px-3',
                           'border-r-2 border-slate-300 transition-colors',
-                          'group-hover:bg-blue-50/40',
-                          isEvenRow ? 'bg-white' : 'bg-slate-50/60',
+                          nameBg,
                         )}
                         style={{ width: ROOM_COL_WIDTH }}
                       >
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-sm font-bold text-slate-800">
                             Zi. {room.room_number}
                           </span>
                           {isPension && (
                             <span className="text-2xs font-semibold text-blue-600 bg-blue-50 border border-blue-200 rounded px-1 py-0.5 leading-none">
                               Pension
+                            </span>
+                          )}
+                          {cs === 'maintenance' && (
+                            <span className="text-2xs font-semibold text-red-700 bg-red-100 border border-red-200 rounded px-1 py-0.5 leading-none">
+                              Wartung
+                            </span>
+                          )}
+                          {cs === 'dirty' && (
+                            <span className="text-2xs font-semibold text-amber-700 bg-amber-100 border border-amber-200 rounded px-1 py-0.5 leading-none">
+                              Reinigen
                             </span>
                           )}
                         </div>
@@ -337,7 +359,7 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
                         className="relative flex-shrink-0"
                         style={{ width: dayWidth * daysInMonth, height: ROW_HEIGHT }}
                       >
-                        {/* Background stripes (weekend + today) */}
+                        {/* Background stripes (weekend + today + cleaning status overlay) */}
                         <div className="absolute inset-0 flex pointer-events-none">
                           {days.map(day => (
                             <div
@@ -345,8 +367,10 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
                               style={{ width: dayWidth }}
                               className={cn(
                                 'h-full border-r border-slate-200 flex-shrink-0',
-                                isToday(day)                        && 'bg-blue-50/70',
-                                [0, 6].includes(day.getDay()) && !isToday(day) && 'bg-slate-100/60',
+                                cs === 'maintenance' && 'bg-red-100/40',
+                                cs === 'dirty'       && 'bg-amber-100/40',
+                                isToday(day)         && 'bg-blue-50/70',
+                                [0, 6].includes(day.getDay()) && !isToday(day) && cs === 'clean' && 'bg-slate-100/60',
                               )}
                             />
                           ))}
@@ -360,15 +384,17 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
                               const co = parseISO(r.checkout_at)
                               return day >= startOfDay(ci) && day < startOfDay(co)
                             })
+                            // Maintenance rooms: show red cursor (can still click but form will block)
                             return (
                               <div
                                 key={day.toISOString()}
                                 style={{ width: dayWidth }}
                                 className={cn(
                                   'h-full flex-shrink-0',
-                                  !occupied && 'cursor-pointer hover:bg-blue-100/50 transition-colors',
+                                  !occupied && cs === 'maintenance' && 'cursor-not-allowed',
+                                  !occupied && cs !== 'maintenance' && 'cursor-pointer hover:bg-blue-100/50 transition-colors',
                                 )}
-                                onClick={() => !occupied && handleCellClick(room.id, day)}
+                                onClick={() => !occupied && cs !== 'maintenance' && handleCellClick(room.id, day)}
                               />
                             )
                           })}

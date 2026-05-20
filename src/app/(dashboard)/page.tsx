@@ -15,7 +15,7 @@ export default async function DashboardPage() {
   const [roomsResult, reservationsResult] = await Promise.all([
     supabase
       .from('rooms')
-      .select('id, name, room_number, floor, sort_order, room_types(id, category, name, sort_order)')
+      .select('id, name, room_number, floor, sort_order, cleaning_status, room_types(id, category, name, sort_order)')
       .eq('is_active', true)
       .order('sort_order'),
 
@@ -32,6 +32,7 @@ export default async function DashboardPage() {
     room_number: string
     floor: number | null
     sort_order: number
+    cleaning_status: string | null
     room_types: {
       id: string
       category: string
@@ -48,6 +49,7 @@ export default async function DashboardPage() {
     type_name:        r.room_types.name,
     type_sort_order:  r.room_types.sort_order,
     room_sort_order:  r.sort_order,
+    cleaning_status:  (r.cleaning_status ?? 'clean') as 'clean' | 'dirty' | 'maintenance',
   }))
 
   const reservations = (reservationsResult.data ?? []) as CalendarReservation[]

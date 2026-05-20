@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
 import {
   CalendarDays,
   LogIn,
@@ -18,12 +19,15 @@ import {
   Utensils,
   Hotel,
   Lock,
+  ShieldCheck,
+  User,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/cn'
 import { useAdmin } from '@/hooks/useAdmin'
 
 const NAV_BASE = [
+  { href: '/search',     label: 'Suche',                  icon: Search },
   { href: '/',           label: 'Kalender',               icon: CalendarDays },
   { href: '/checkins',   label: 'Heutige Ankünfte',       icon: LogIn },
   { href: '/checkouts',  label: 'Heutige Abreisen',       icon: LogOut },
@@ -32,11 +36,10 @@ const NAV_BASE = [
   { href: '/breakfast',  label: 'Frühstücksliste',        icon: Utensils },
   { href: '/rooms',      label: 'Zimmerstatus',           icon: Hotel },
   { href: '/statistics', label: 'Statistiken',            icon: BarChart3 },
-  { href: '/search',     label: 'Suche',                  icon: Search },
 ]
 
 const NAV_ADMIN_EXTRAS = [
-  { href: '/lockers', label: 'Schließfach-PINs', icon: Lock },
+  { href: '/lockers', label: 'Schließfach-PINs',   icon: Lock },
   { href: '/sync',    label: 'iCal Synchronisation', icon: RefreshCw },
 ]
 
@@ -51,6 +54,14 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
   const supabase    = createClient()
   const { isAdmin } = useAdmin()
 
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setUserEmail(data.user?.email ?? null)
+    })
+  }, [supabase])
+
   async function handleSignOut() {
     await supabase.auth.signOut()
     router.push('/login')
@@ -62,9 +73,8 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
   return (
     <aside
       className={cn(
-        'fixed inset-y-0 left-0 z-30 flex w-56 flex-col bg-slate-900 text-white',
+        'fixed inset-y-0 left-0 z-30 flex w-64 flex-col bg-slate-900 text-white',
         'transition-transform duration-200 ease-in-out',
-        // Desktop: always visible. Mobile: slide in/out.
         'lg:translate-x-0',
         isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
       )}
@@ -74,12 +84,11 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
         <Image
           src="/logo.png"
           alt="Jägerstieg Hotel & Pension"
-          width={136}
-          height={68}
+          width={148}
+          height={74}
           className="object-contain flex-shrink-0"
           priority
         />
-        {/* Close button — mobile only */}
         {onClose && (
           <button
             onClick={onClose}
@@ -120,15 +129,36 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
               )}
             >
               <Icon className="w-4 h-4 flex-shrink-0" />
-              <span className="truncate flex-1">{label}</span>
+              <span className="flex-1">{label}</span>
               {isActive && <ChevronRight className="w-3 h-3 flex-shrink-0 text-slate-400" />}
             </Link>
           )
         })}
       </nav>
 
+      {/* ── Account info ── */}
+      {userEmail && (
+        <div className="px-3 pb-2 border-t border-slate-700/60 pt-3">
+          <div className="flex items-start gap-2 rounded-xl bg-slate-800 px-3 py-2.5">
+            {isAdmin
+              ? <ShieldCheck className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
+              : <User className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+            }
+            <div className="min-w-0">
+              <p className="text-xs text-slate-300 truncate leading-tight">{userEmail}</p>
+              <p className={cn(
+                'text-xs font-semibold mt-0.5 leading-tight',
+                isAdmin ? 'text-blue-400' : 'text-slate-500',
+              )}>
+                {isAdmin ? 'Admin' : 'Mitarbeiter'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Sign out ── */}
-      <div className="px-3 pb-4 border-t border-slate-700/60 pt-3">
+      <div className="px-3 pb-4 pt-1">
         <button
           onClick={handleSignOut}
           className="flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-all"

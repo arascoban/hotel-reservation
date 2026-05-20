@@ -36,12 +36,14 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
 
   return (
     <>
-      {/* Print-only styles */}
+      {/* Print-only styles — hide sidebar and reset layout margins */}
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          @page { margin: 15mm; }
-          body { font-size: 13px; }
+          aside { display: none !important; }
+          .lg\\:ml-64 { margin-left: 0 !important; }
+          @page { margin: 15mm; size: A4; }
+          body { font-size: 13px; background: white !important; }
         }
         body { background: white; }
       `}</style>
