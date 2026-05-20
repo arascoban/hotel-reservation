@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   X, Edit2, Save, Trash2, Phone, Mail, Users,
-  Calendar, CreditCard, Utensils, Tag, Hash, AlertTriangle, Ban,
+  Calendar, CreditCard, Utensils, Tag, Hash, AlertTriangle, Ban, Send,
 } from 'lucide-react'
 import type {
   ReservationWithRoom, ReservationSource,
@@ -76,6 +76,9 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
   const [confirmDelete,        setConfirmDelete]        = useState(false)
   const [confirmPermDelete,    setConfirmPermDelete]    = useState(false)
   const [confirmCancel,        setConfirmCancel]        = useState(false)
+  const [sendingEmail,         setSendingEmail]         = useState(false)
+  const [emailSent,            setEmailSent]            = useState(false)
+  const [emailError,           setEmailError]           = useState<string | null>(null)
 
   // Edit state
   const [editStatus,     setEditStatus]     = useState<ReservationStatus>('confirmed')
@@ -172,6 +175,28 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
     setSaving(false)
     onUpdated()
     fetchReservation()
+  }
+
+  // ── Send confirmation email ───────────────────────────────────
+  async function handleSendEmail() {
+    if (!reservation?.guest_email) return
+    setSendingEmail(true)
+    setEmailError(null)
+    setEmailSent(false)
+    try {
+      const res = await fetch('/api/send-confirmation', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ reservationId }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Fehler')
+      setEmailSent(true)
+      setTimeout(() => setEmailSent(false), 4000)
+    } catch (err: any) {
+      setEmailError(err.message ?? 'E-Mail konnte nicht gesendet werden.')
+    }
+    setSendingEmail(false)
   }
 
   // ── Cancel reservation (status → cancelled) ──────────────────
@@ -308,15 +333,37 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
 
         <div className="flex items-center gap-2 ml-4 flex-shrink-0">
           {!editing && (
-            <a
-              href={`/reservations/${reservationId}/print`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-              title="Buchungsbestätigung drucken / als PDF speichern"
-            >
-              🖨️ PDF
-            </a>
+            <>
+              {/* PDF / Print */}
+              <a
+                href={`/reservations/${reservationId}/print`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                title="Buchungsbestätigung drucken / als PDF speichern"
+              >
+                🖨️ PDF
+              </a>
+
+              {/* Send email — only if guest has an email address */}
+              {reservation?.guest_email && (
+                <button
+                  onClick={handleSendEmail}
+                  disabled={sendingEmail}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                    emailSent
+                      ? 'bg-green-100 text-green-700 border border-green-300'
+                      : 'border border-blue-300 text-blue-700 hover:bg-blue-50',
+                    sendingEmail && 'opacity-50 cursor-wait',
+                  )}
+                  title={`Bestätigung senden an ${reservation.guest_email}`}
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {emailSent ? '✓ Gesendet' : sendingEmail ? 'Sendet…' : 'E-Mail'}
+                </button>
+              )}
+            </>
           )}
           {!editing && !isDeleted && (
             <button onClick={() => setEditing(true)}
@@ -349,6 +396,14 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       {error && (
         <div className="mx-5 mt-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3">
           {error}
+        </div>
+      )}
+
+      {/* Email error */}
+      {emailError && (
+        <div className="mx-5 mt-3 rounded-lg bg-orange-50 border border-orange-200 text-orange-700 text-sm px-4 py-3 flex items-center justify-between">
+          <span>{emailError}</span>
+          <button onClick={() => setEmailError(null)} className="ml-2 text-orange-400 hover:text-orange-600">✕</button>
         </div>
       )}
 
