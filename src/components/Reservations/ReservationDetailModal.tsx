@@ -28,11 +28,26 @@ const STATUS_STYLES: Record<ReservationStatus, string> = {
 }
 
 const STATUS_LABELS: Record<ReservationStatus, string> = {
-  confirmed:   'Confirmed',
-  checked_in:  'Checked In',
-  checked_out: 'Checked Out',
-  cancelled:   'Cancelled',
-  no_show:     'No Show',
+  confirmed:   'Bestätigt',
+  checked_in:  'Eingecheckt',
+  checked_out: 'Ausgecheckt',
+  cancelled:   'Storniert',
+  no_show:     'Nicht erschienen',
+}
+
+const PAY_STATUS_LABELS: Record<PaymentStatus, string> = {
+  paid:         'Bezahlt',
+  deposit_paid: 'Anzahlung',
+  unpaid:       'Unbezahlt',
+  refunded:     'Erstattet',
+}
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  cash:         'Bargeld',
+  ec_card:      'EC-Karte',
+  credit_card:  'Kreditkarte',
+  online:       'Online',
+  unpaid:       'Noch nicht bezahlt',
 }
 
 const PAY_STATUS_STYLES: Record<PaymentStatus, string> = {
@@ -87,7 +102,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       .single()
 
     if (error || !data) {
-      setError('Could not load reservation.')
+      setError('Reservierung konnte nicht geladen werden.')
     } else {
       const r = data as ReservationWithRoom
       setReservation(r)
@@ -133,9 +148,9 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
     })
 
     if (error) {
-      let msg = 'Failed to save changes.'
-      if (error.message.includes('occupied')) msg = 'This room is already occupied for the selected dates.'
-      if (error.message.includes('capacity')) msg = 'Guest count exceeds room capacity.'
+      let msg = 'Änderungen konnten nicht gespeichert werden.'
+      if (error.message.includes('occupied')) msg = 'Dieses Zimmer ist für die gewählten Daten bereits belegt.'
+      if (error.message.includes('capacity')) msg = 'Die Personenzahl überschreitet die Zimmerkapazität.'
       setError(msg)
       setSaving(false)
       return
@@ -154,7 +169,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       .delete()
       .eq('id', reservationId)
     if (error) {
-      setError('Failed to delete reservation.')
+      setError('Reservierung konnte nicht gelöscht werden.')
       return
     }
     onUpdated()
@@ -164,7 +179,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
   if (loading) {
     return (
       <ModalShell onClose={onClose}>
-        <div className="flex items-center justify-center h-40 text-slate-400">Loading…</div>
+        <div className="flex items-center justify-center h-40 text-slate-400">Wird geladen…</div>
       </ModalShell>
     )
   }
@@ -172,7 +187,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
   if (!reservation) {
     return (
       <ModalShell onClose={onClose}>
-        <div className="text-red-600 p-4">{error ?? 'Reservation not found.'}</div>
+        <div className="text-red-600 p-4">{error ?? 'Reservierung nicht gefunden.'}</div>
       </ModalShell>
     )
   }
@@ -212,19 +227,19 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
             <button onClick={() => setEditing(true)}
               className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
               <Edit2 className="w-3.5 h-3.5" />
-              Edit
+              Bearbeiten
             </button>
           )}
           {editing && (
             <>
               <button onClick={() => { setEditing(false); setError(null) }}
                 className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
-                Cancel
+                Abbrechen
               </button>
               <button onClick={handleSave} disabled={saving}
                 className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors">
                 <Save className="w-3.5 h-3.5" />
-                {saving ? 'Saving…' : 'Save'}
+                {saving ? 'Wird gespeichert…' : 'Speichern'}
               </button>
             </>
           )}
@@ -256,7 +271,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
 
         {/* Dates */}
         <div className="grid grid-cols-2 gap-4">
-          <InfoField label="Check-in" icon={<Calendar className="w-3.5 h-3.5" />}>
+          <InfoField label="Anreise" icon={<Calendar className="w-3.5 h-3.5" />}>
             {editing ? (
               <input type="date" value={editCheckin}
                 onChange={e => setEditCheckin(e.target.value)}
@@ -266,7 +281,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
             )}
           </InfoField>
 
-          <InfoField label="Check-out" icon={<Calendar className="w-3.5 h-3.5" />}>
+          <InfoField label="Abreise" icon={<Calendar className="w-3.5 h-3.5" />}>
             {editing ? (
               <input type="date" value={editCheckout} min={editCheckin}
                 onChange={e => setEditCheckout(e.target.value)}
@@ -279,18 +294,18 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
 
         {/* Contact */}
         <div className="space-y-2">
-          <InfoField label="Guests" icon={<Users className="w-3.5 h-3.5" />}>
+          <InfoField label="Personen" icon={<Users className="w-3.5 h-3.5" />}>
             {editing ? (
               <input type="number" min={1} max={4} value={editGuestCount}
                 onChange={e => setEditGuestCount(Number(e.target.value))}
                 className="mt-1 text-sm border border-slate-300 rounded px-2 py-1 w-20 focus:outline-none focus:ring-1 focus:ring-blue-500" />
             ) : (
-              <span className="text-sm text-slate-900">{r.guest_count} guest{r.guest_count !== 1 ? 's' : ''}</span>
+              <span className="text-sm text-slate-900">{r.guest_count} Person{r.guest_count !== 1 ? 'en' : ''}</span>
             )}
           </InfoField>
 
           {(r.guest_phone || editing) && (
-            <InfoField label="Phone" icon={<Phone className="w-3.5 h-3.5" />}>
+            <InfoField label="Telefon" icon={<Phone className="w-3.5 h-3.5" />}>
               {editing ? (
                 <input type="tel" value={editGuestPhone}
                   onChange={e => setEditGuestPhone(e.target.value)}
@@ -304,7 +319,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
           )}
 
           {(r.guest_email || editing) && (
-            <InfoField label="Email" icon={<Mail className="w-3.5 h-3.5" />}>
+            <InfoField label="E-Mail" icon={<Mail className="w-3.5 h-3.5" />}>
               {editing ? (
                 <input type="email" value={editGuestEmail}
                   onChange={e => setEditGuestEmail(e.target.value)}
@@ -336,7 +351,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
             )}
           </InfoField>
 
-          <InfoField label="Source" icon={<Tag className="w-3.5 h-3.5" />}>
+          <InfoField label="Quelle" icon={<Tag className="w-3.5 h-3.5" />}>
             {editing ? (
               <select value={editSource} onChange={e => setEditSource(e.target.value as ReservationSource)}
                 className="mt-1 text-sm border border-slate-300 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-blue-500">
@@ -352,31 +367,31 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
 
         {/* Payment */}
         <div className="grid grid-cols-2 gap-4">
-          <InfoField label="Payment Method" icon={<CreditCard className="w-3.5 h-3.5" />}>
+          <InfoField label="Zahlungsmethode" icon={<CreditCard className="w-3.5 h-3.5" />}>
             {editing ? (
               <select value={editPayMethod} onChange={e => setEditPayMethod(e.target.value as PaymentMethod)}
                 className="mt-1 text-sm border border-slate-300 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-blue-500">
                 {(['cash','ec_card','credit_card','online','unpaid'] as PaymentMethod[]).map(m => (
-                  <option key={m} value={m}>{m.replace('_', ' ')}</option>
+                  <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m] ?? m}</option>
                 ))}
               </select>
             ) : (
-              <span className="text-sm text-slate-900 capitalize">{r.payment_method.replace('_', ' ')}</span>
+              <span className="text-sm text-slate-900">{PAYMENT_METHOD_LABELS[r.payment_method] ?? r.payment_method}</span>
             )}
           </InfoField>
 
-          <InfoField label="Payment Status" icon={<CreditCard className="w-3.5 h-3.5" />}>
+          <InfoField label="Zahlungsstatus" icon={<CreditCard className="w-3.5 h-3.5" />}>
             {editing ? (
               <select value={editPayStatus} onChange={e => setEditPayStatus(e.target.value as PaymentStatus)}
                 className="mt-1 text-sm border border-slate-300 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-blue-500">
                 {(['paid','deposit_paid','unpaid','refunded'] as PaymentStatus[]).map(s => (
-                  <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                  <option key={s} value={s}>{PAY_STATUS_LABELS[s]}</option>
                 ))}
               </select>
             ) : (
               <span className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
                 PAY_STATUS_STYLES[r.payment_status])}>
-                {r.payment_status.replace('_', ' ')}
+                {PAY_STATUS_LABELS[r.payment_status]}
               </span>
             )}
           </InfoField>
@@ -384,7 +399,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
 
         {/* Price & breakfast */}
         <div className="grid grid-cols-2 gap-4">
-          <InfoField label="Total Price" icon={<CreditCard className="w-3.5 h-3.5" />}>
+          <InfoField label="Gesamtpreis" icon={<CreditCard className="w-3.5 h-3.5" />}>
             {editing ? (
               <input type="number" min={0} step={0.01} value={editTotalPrice}
                 onChange={e => setEditTotalPrice(e.target.value)}
@@ -397,17 +412,17 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
             )}
           </InfoField>
 
-          <InfoField label="Breakfast" icon={<Utensils className="w-3.5 h-3.5" />}>
+          <InfoField label="Frühstück" icon={<Utensils className="w-3.5 h-3.5" />}>
             {editing ? (
               <label className="flex items-center gap-2 mt-1 cursor-pointer">
                 <input type="checkbox" checked={editBreakfast}
                   onChange={e => setEditBreakfast(e.target.checked)}
                   className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                <span className="text-sm text-slate-700">Included</span>
+                <span className="text-sm text-slate-700">Inklusive</span>
               </label>
             ) : (
               <span className="text-sm text-slate-900">
-                {r.breakfast_included ? '✓ Included' : 'Not included'}
+                {r.breakfast_included ? '✓ Inklusive' : 'Nicht inklusive'}
               </span>
             )}
           </InfoField>
@@ -415,18 +430,18 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
 
         {/* External ID */}
         {(r.external_id || editing) && (
-          <InfoField label="External ID" icon={<Hash className="w-3.5 h-3.5" />}>
+          <InfoField label="Externe ID" icon={<Hash className="w-3.5 h-3.5" />}>
             <span className="text-sm text-slate-500 font-mono">{r.external_id ?? '—'}</span>
           </InfoField>
         )}
 
         {/* Notes */}
-        <InfoField label="Notes" icon={<Edit2 className="w-3.5 h-3.5" />}>
+        <InfoField label="Notizen" icon={<Edit2 className="w-3.5 h-3.5" />}>
           {editing ? (
             <textarea rows={3} value={editNotes}
               onChange={e => setEditNotes(e.target.value)}
               className="mt-1 text-sm border border-slate-300 rounded px-2 py-1.5 w-full resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="Notes…" />
+              placeholder="Notizen…" />
           ) : (
             <p className="text-sm text-slate-700 whitespace-pre-wrap">{r.notes || '—'}</p>
           )}
@@ -434,8 +449,8 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
 
         {/* Meta */}
         <div className="text-2xs text-slate-400 space-y-0.5 pt-2 border-t border-slate-100">
-          <p>Created: {new Date(r.created_at).toLocaleString()}</p>
-          <p>Updated: {new Date(r.updated_at).toLocaleString()}</p>
+          <p>Erstellt: {new Date(r.created_at).toLocaleString('de-DE')}</p>
+          <p>Aktualisiert: {new Date(r.updated_at).toLocaleString('de-DE')}</p>
           <p>ID: {r.id}</p>
         </div>
       </div>
@@ -444,21 +459,21 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       <div className="px-5 pb-5 pt-3 border-t border-slate-100">
         {confirmDelete ? (
           <div className="flex items-center gap-3">
-            <span className="text-sm text-red-700 font-medium">Delete this reservation?</span>
+            <span className="text-sm text-red-700 font-medium">Reservierung wirklich löschen?</span>
             <button onClick={handleDelete}
               className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700 transition-colors">
-              Yes, delete
+              Ja, löschen
             </button>
             <button onClick={() => setConfirmDelete(false)}
               className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
-              Cancel
+              Abbrechen
             </button>
           </div>
         ) : (
           <button onClick={() => setConfirmDelete(true)}
             className="flex items-center gap-1.5 text-sm text-red-600 hover:text-red-700 font-medium transition-colors">
             <Trash2 className="w-3.5 h-3.5" />
-            Delete reservation
+            Reservierung löschen
           </button>
         )}
       </div>

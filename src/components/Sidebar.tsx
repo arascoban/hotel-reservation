@@ -11,18 +11,17 @@ import {
   Plus,
   Hotel,
   ChevronRight,
-  RefreshCw,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/cn'
 
 const NAV = [
-  { href: '/',           label: 'Kalender',           icon: CalendarDays },
-  { href: '/checkins',   label: 'Heutige Ankünfte',   icon: LogIn },
-  { href: '/checkouts',  label: 'Heutige Abreisen',   icon: LogOut },
-  { href: '/unpaid',     label: 'Offene Zahlungen',   icon: CreditCard },
-  { href: '/search',     label: 'Suche',              icon: Search },
-  { href: '/sync',       label: 'iCal Sync',          icon: RefreshCw },
+  { href: '/',          label: 'Kalender',          icon: CalendarDays },
+  { href: '/checkins',  label: 'Heutige Ankünfte',  icon: LogIn },
+  { href: '/checkouts', label: 'Heutige Abreisen',  icon: LogOut },
+  { href: '/unpaid',    label: 'Offene Zahlungen',  icon: CreditCard },
+  { href: '/search',    label: 'Suche',             icon: Search },
+  // iCal Sync hidden — feature available at /sync when needed
 ]
 
 export default function Sidebar() {

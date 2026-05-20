@@ -193,37 +193,37 @@ export function validateReservationInput(
   const errors: Record<string, string> = {}
 
   if (!input.guest_name?.trim()) {
-    errors.guest_name = 'Guest name is required.'
+    errors.guest_name = 'Name des Gastes ist erforderlich.'
   }
 
   if (!input.room_id) {
-    errors.room_id = 'Please select a room.'
+    errors.room_id = 'Bitte ein Zimmer auswählen.'
   }
 
   if (!input.checkin_at) {
-    errors.checkin_at = 'Check-in date is required.'
+    errors.checkin_at = 'Anreisedatum ist erforderlich.'
   }
 
   if (!input.checkout_at) {
-    errors.checkout_at = 'Check-out date is required.'
+    errors.checkout_at = 'Abreisedatum ist erforderlich.'
   }
 
   if (input.checkin_at && input.checkout_at) {
     const checkin  = new Date(input.checkin_at)
     const checkout = new Date(input.checkout_at)
     if (checkout <= checkin) {
-      errors.checkout_at = 'Check-out must be after check-in.'
+      errors.checkout_at = 'Abreise muss nach der Anreise liegen.'
     }
   }
 
   if (!input.guest_count || input.guest_count < 1) {
-    errors.guest_count = 'Number of guests must be at least 1.'
+    errors.guest_count = 'Mindestens 1 Person erforderlich.'
   } else if (roomMaxCapacity !== undefined && input.guest_count > roomMaxCapacity) {
-    errors.guest_count = `This room can accommodate at most ${roomMaxCapacity} guest${roomMaxCapacity !== 1 ? 's' : ''}.`
+    errors.guest_count = `Dieses Zimmer hat eine maximale Kapazität von ${roomMaxCapacity} Person${roomMaxCapacity !== 1 ? 'en' : ''}.`
   }
 
   if (input.guest_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.guest_email)) {
-    errors.guest_email = 'Please enter a valid email address.'
+    errors.guest_email = 'Bitte eine gültige E-Mail-Adresse eingeben.'
   }
 
   return { valid: Object.keys(errors).length === 0, errors }
@@ -252,9 +252,9 @@ export function buildCheckoutTimestamp(date: string, timezoneOffset = '+02:00'):
   return `${date}T${String(DEFAULT_CHECKOUT_HOUR).padStart(2, '0')}:00:00${timezoneOffset}`
 }
 
-/** Formats a timestamp for display: "19 May 2026, 15:00" */
+/** Formats a timestamp for display: "19. Mai 2026, 15:00" */
 export function formatReservationDate(isoString: string): string {
-  return new Date(isoString).toLocaleString('en-GB', {
+  return new Date(isoString).toLocaleString('de-DE', {
     day: '2-digit', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   })
@@ -295,10 +295,10 @@ export function getSourceLabel(source: ReservationSource): string {
     booking_com: 'Booking.com',
     expedia:     'Expedia',
     airbnb:      'Airbnb',
-    walk_in:     'Walk-in',
-    phone:       'Phone',
+    walk_in:     'Laufkundschaft',
+    phone:       'Telefon',
     website:     'Website',
-    other:       'Other',
+    other:       'Sonstige',
   }
   return labels[source] ?? source
 }
@@ -317,16 +317,16 @@ export class ReservationError extends Error {
 
 function mapDbError(raw: string): string {
   if (raw.includes('already occupied') || raw.includes('exclusion_violation') || raw.includes('no_overlap')) {
-    return 'This room is already occupied for the selected dates.'
+    return 'Dieses Zimmer ist für die gewählten Daten bereits belegt.'
   }
   if (raw.includes('exceeds maximum capacity')) {
-    return 'The number of guests exceeds this room\'s maximum capacity.'
+    return 'Die Personenzahl überschreitet die Zimmerkapazität.'
   }
   if (raw.includes('not currently active')) {
-    return 'This room is not currently available.'
+    return 'Dieses Zimmer ist derzeit nicht verfügbar.'
   }
   if (raw.includes('checkout_at must be after')) {
-    return 'Check-out date must be after the check-in date.'
+    return 'Abreisedatum muss nach dem Anreisedatum liegen.'
   }
-  return 'An unexpected error occurred. Please try again.'
+  return 'Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es erneut.'
 }

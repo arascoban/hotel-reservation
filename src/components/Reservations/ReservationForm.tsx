@@ -9,11 +9,18 @@ import {
   createReservationSafe,
   buildCheckinTimestamp,
   buildCheckoutTimestamp,
-  getEligibleCategories,
   ReservationError,
 } from '@/lib/reservations'
 import type { AvailableRoom, ReservationSource, PaymentMethod, PaymentStatus } from '@/types/database'
 import { cn } from '@/lib/cn'
+
+// ── Family room definitions ────────────────────────────────────────────────────
+// Each pair shares a connecting door; booking a family room blocks BOTH rooms.
+const FAMILY_ROOM_PAIRS = [
+  { key: '11+12', label: 'Familienzimmer 11+12 (Verbindungstür)', numbers: ['11', '12'], maxCapacity: 4 },
+  { key: '19+20', label: 'Familienzimmer 19+20 (Verbindungstür)', numbers: ['19', '20'], maxCapacity: 4 },
+  { key: '21+22', label: 'Familienzimmer 21+22 (Verbindungstür)', numbers: ['21', '22'], maxCapacity: 3 },
+]
 
 const SOURCES: { value: ReservationSource; label: string }[] = [
   { value: 'booking_com', label: 'Booking.com' },
@@ -50,34 +57,46 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
   const router = useRouter()
   const supabase = createClient()
 
-  // ── Form state ──────────────────────────────────────────────
-  const [guestName,   setGuestName]   = useState('')
-  const [guestPhone,  setGuestPhone]  = useState('')
-  const [guestEmail,  setGuestEmail]  = useState('')
-  const [guestCount,  setGuestCount]  = useState(2)
-  const [checkinDate, setCheckinDate] = useState(defaultCheckin  ?? '')
-  const [checkoutDate,setCheckoutDate]= useState(defaultCheckout ?? '')
-  const [roomId,      setRoomId]      = useState(defaultRoomId   ?? '')
-  const [breakfast,   setBreakfast]   = useState(false)
-  const [source,      setSource]      = useState<ReservationSource>('phone')
-  const [payMethod,   setPayMethod]   = useState<PaymentMethod>('unpaid')
-  const [payStatus,   setPayStatus]   = useState<PaymentStatus>('unpaid')
-  const [totalPrice,  setTotalPrice]  = useState('')
-  const [notes,       setNotes]       = useState('')
-  const [extId,       setExtId]       = useState('')
+  // ── Booking type ────────────────────────────────────────────────
+  const [bookingType, setBookingType] = useState<'single' | 'family'>('single')
+  const [familyKey,   setFamilyKey]   = useState<string>('')
 
-  // ── UI state ────────────────────────────────────────────────
-  const [availableRooms, setAvailableRooms]     = useState<AvailableRoom[]>([])
-  const [loadingRooms,   setLoadingRooms]       = useState(false)
-  const [conflictMsg,    setConflictMsg]         = useState<string | null>(null)
-  const [fieldErrors,    setFieldErrors]         = useState<Record<string, string>>({})
-  const [submitError,    setSubmitError]         = useState<string | null>(null)
-  const [submitting,     setSubmitting]          = useState(false)
+  // ── Form state ──────────────────────────────────────────────────
+  const [guestName,    setGuestName]    = useState('')
+  const [guestPhone,   setGuestPhone]   = useState('')
+  const [guestEmail,   setGuestEmail]   = useState('')
+  const [guestCount,   setGuestCount]   = useState(2)
+  const [checkinDate,  setCheckinDate]  = useState(defaultCheckin  ?? '')
+  const [checkoutDate, setCheckoutDate] = useState(defaultCheckout ?? '')
+  const [roomId,       setRoomId]       = useState(defaultRoomId   ?? '')
+  const [breakfast,    setBreakfast]    = useState(false)
+  const [source,       setSource]       = useState<ReservationSource>('phone')
+  const [payMethod,    setPayMethod]    = useState<PaymentMethod>('unpaid')
+  const [payStatus,    setPayStatus]    = useState<PaymentStatus>('unpaid')
+  const [totalPrice,   setTotalPrice]   = useState('')
+  const [notes,        setNotes]        = useState('')
+  const [extId,        setExtId]        = useState('')
 
-  // ── Selected room info ──────────────────────────────────────
+  // ── UI state ────────────────────────────────────────────────────
+  const [availableRooms, setAvailableRooms] = useState<AvailableRoom[]>([])
+  const [loadingRooms,   setLoadingRooms]   = useState(false)
+  const [conflictMsg,    setConflictMsg]    = useState<string | null>(null)
+  const [fieldErrors,    setFieldErrors]    = useState<Record<string, string>>({})
+  const [submitError,    setSubmitError]    = useState<string | null>(null)
+  const [submitting,     setSubmitting]     = useState(false)
+
+  // ── Selected room info ──────────────────────────────────────────
   const selectedRoom = availableRooms.find(r => r.id === roomId) ?? null
 
-  // ── Fetch available rooms when dates or guest count change ──
+  // ── Family room availability ────────────────────────────────────
+  const familyOptions = FAMILY_ROOM_PAIRS.map(pair => {
+    const room1 = availableRooms.find(r => r.room_number === pair.numbers[0])
+    const room2 = availableRooms.find(r => r.room_number === pair.numbers[1])
+    return { ...pair, room1, room2, available: !!room1 && !!room2 }
+  })
+  const selectedFamily = familyOptions.find(f => f.key === familyKey) ?? null
+
+  // ── Fetch available rooms when dates or guest count change ──────
   const fetchAvailableRooms = useCallback(async () => {
     if (!checkinDate || !checkoutDate) return
     setLoadingRooms(true)
@@ -87,24 +106,41 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
     const { data, error } = await (supabase as any).rpc('get_available_rooms', {
       p_checkin_at:  buildCheckinTimestamp(checkinDate),
       p_checkout_at: buildCheckoutTimestamp(checkoutDate),
-      p_guest_count: guestCount,
+      p_guest_count: bookingType === 'family' ? 1 : guestCount, // fetch all rooms for family check
     })
 
     if (!error && data) {
       setAvailableRooms(data as AvailableRoom[])
-      // If current roomId is no longer available, clear it
-      if (roomId && !(data as AvailableRoom[]).find(r => r.id === roomId)) {
+      if (bookingType === 'single' && roomId && !(data as AvailableRoom[]).find((r: AvailableRoom) => r.id === roomId)) {
         setRoomId('')
+      }
+      // Reset family key if it's no longer available
+      if (bookingType === 'family' && familyKey) {
+        const pair = FAMILY_ROOM_PAIRS.find(p => p.key === familyKey)
+        if (pair) {
+          const r1 = (data as AvailableRoom[]).find((r: AvailableRoom) => r.room_number === pair.numbers[0])
+          const r2 = (data as AvailableRoom[]).find((r: AvailableRoom) => r.room_number === pair.numbers[1])
+          if (!r1 || !r2) setFamilyKey('')
+        }
       }
     }
     setLoadingRooms(false)
-  }, [checkinDate, checkoutDate, guestCount, roomId, supabase])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkinDate, checkoutDate, guestCount, bookingType])
 
   useEffect(() => {
     fetchAvailableRooms()
   }, [fetchAvailableRooms])
 
-  // ── Pre-submit availability check when room is selected ────
+  // Reset selections when switching booking type
+  function switchBookingType(type: 'single' | 'family') {
+    setBookingType(type)
+    setRoomId('')
+    setFamilyKey('')
+    setConflictMsg(null)
+  }
+
+  // ── Pre-submit availability check for single room ───────────────
   async function handleRoomChange(newRoomId: string) {
     setRoomId(newRoomId)
     setConflictMsg(null)
@@ -119,25 +155,87 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
     if (!result.available) {
       const r = result.conflicting_reservation!
       setConflictMsg(
-        `This room is already occupied from ${new Date(r.checkin_at).toLocaleDateString()} to ${new Date(r.checkout_at).toLocaleDateString()}.`,
+        `Dieses Zimmer ist bereits belegt vom ${new Date(r.checkin_at).toLocaleDateString('de-DE')} bis ${new Date(r.checkout_at).toLocaleDateString('de-DE')}.`,
       )
     }
   }
 
-  // ── Submit ──────────────────────────────────────────────────
+  // ── Submit ──────────────────────────────────────────────────────
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitError(null)
     setConflictMsg(null)
 
-    // Frontend validation
+    // ── Family room booking ───────────────────────────────────────
+    if (bookingType === 'family') {
+      if (!familyKey || !selectedFamily) {
+        setFieldErrors({ room_id: 'Bitte ein Familienzimmer auswählen.' })
+        return
+      }
+      if (!selectedFamily.available) {
+        setConflictMsg('Dieses Familienzimmer ist für die gewählten Daten nicht verfügbar.')
+        return
+      }
+      if (!checkinDate || !checkoutDate) {
+        setFieldErrors({ checkin_at: 'Anreisedatum ist erforderlich.', checkout_at: 'Abreisedatum ist erforderlich.' })
+        return
+      }
+      if (!guestName.trim()) {
+        setFieldErrors({ guest_name: 'Name des Gastes ist erforderlich.' })
+        return
+      }
+      if (guestCount > selectedFamily.maxCapacity) {
+        setFieldErrors({ guest_count: `Dieses Familienzimmer hat eine maximale Kapazität von ${selectedFamily.maxCapacity} Personen.` })
+        return
+      }
+
+      setFieldErrors({})
+      setSubmitting(true)
+
+      const baseInput = {
+        guest_name:         guestName,
+        guest_email:        guestEmail  || undefined,
+        guest_phone:        guestPhone  || undefined,
+        checkin_at:         buildCheckinTimestamp(checkinDate),
+        checkout_at:        buildCheckoutTimestamp(checkoutDate),
+        guest_count:        guestCount,
+        breakfast_included: breakfast,
+        source,
+        payment_method:     payMethod,
+        payment_status:     payStatus,
+        total_price:        totalPrice ? parseFloat(totalPrice) : undefined,
+        notes:              notes      || undefined,
+        external_id:        extId      || undefined,
+      }
+
+      try {
+        // Create reservation for room 1
+        await createReservationSafe(supabase, { ...baseInput, room_id: selectedFamily.room1!.id })
+        // Create reservation for room 2
+        await createReservationSafe(supabase, { ...baseInput, room_id: selectedFamily.room2!.id })
+
+        router.push('/')
+        router.refresh()
+      } catch (err) {
+        if (err instanceof ReservationError) {
+          if (err.message.includes('belegt')) setConflictMsg(err.message)
+          else setSubmitError(err.message)
+        } else {
+          setSubmitError('Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es erneut.')
+        }
+        setSubmitting(false)
+      }
+      return
+    }
+
+    // ── Single room booking ───────────────────────────────────────
     const validation = validateReservationInput(
       {
         guest_name:   guestName,
         guest_email:  guestEmail || undefined,
         guest_phone:  guestPhone || undefined,
         room_id:      roomId,
-        checkin_at:   checkinDate ? buildCheckinTimestamp(checkinDate) : undefined,
+        checkin_at:   checkinDate  ? buildCheckinTimestamp(checkinDate)   : undefined,
         checkout_at:  checkoutDate ? buildCheckoutTimestamp(checkoutDate) : undefined,
         guest_count:  guestCount,
       },
@@ -174,16 +272,16 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
       router.refresh()
     } catch (err) {
       if (err instanceof ReservationError) {
-        if (err.message.includes('occupied')) setConflictMsg(err.message)
+        if (err.message.includes('belegt')) setConflictMsg(err.message)
         else setSubmitError(err.message)
       } else {
-        setSubmitError('An unexpected error occurred. Please try again.')
+        setSubmitError('Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es erneut.')
       }
       setSubmitting(false)
     }
   }
 
-  // ── Helpers ─────────────────────────────────────────────────
+  // ── Helpers ─────────────────────────────────────────────────────
   function fieldClass(name: string) {
     return cn(
       'w-full rounded-lg border px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
@@ -191,10 +289,50 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
     )
   }
 
+  const hasConflict = !!conflictMsg
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
 
-      {/* ── Guest Information ─── */}
+      {/* ── Buchungstyp ─── */}
+      <section className="bg-white rounded-xl border border-slate-200 p-5">
+        <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3">
+          Buchungstyp
+        </h2>
+        <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => switchBookingType('single')}
+            className={cn(
+              'flex-1 py-2.5 text-sm font-medium transition-colors',
+              bookingType === 'single'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-slate-600 hover:bg-slate-50',
+            )}
+          >
+            Einzelzimmer / Doppelzimmer
+          </button>
+          <button
+            type="button"
+            onClick={() => switchBookingType('family')}
+            className={cn(
+              'flex-1 py-2.5 text-sm font-medium transition-colors border-l border-slate-200',
+              bookingType === 'family'
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-slate-600 hover:bg-slate-50',
+            )}
+          >
+            Familienzimmer (2 Zimmer)
+          </button>
+        </div>
+        {bookingType === 'family' && (
+          <p className="mt-2 text-xs text-slate-500">
+            Beide verbundenen Zimmer werden automatisch für den gewählten Zeitraum blockiert.
+          </p>
+        )}
+      </section>
+
+      {/* ── Gastinformationen ─── */}
       <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
         <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">
           Gastinformationen
@@ -206,7 +344,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
           </label>
           <input type="text" required value={guestName}
             onChange={e => setGuestName(e.target.value)}
-            className={fieldClass('guest_name')} placeholder="John Smith" />
+            className={fieldClass('guest_name')} placeholder="Max Mustermann" />
           {fieldErrors.guest_name && (
             <p className="mt-1 text-xs text-red-600">{fieldErrors.guest_name}</p>
           )}
@@ -214,16 +352,16 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">Phone</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Telefon</label>
             <input type="tel" value={guestPhone}
               onChange={e => setGuestPhone(e.target.value)}
               className={fieldClass('guest_phone')} placeholder="+49 …" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">Email</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">E-Mail</label>
             <input type="email" value={guestEmail}
               onChange={e => setGuestEmail(e.target.value)}
-              className={fieldClass('guest_email')} placeholder="guest@example.com" />
+              className={fieldClass('guest_email')} placeholder="gast@beispiel.de" />
             {fieldErrors.guest_email && (
               <p className="mt-1 text-xs text-red-600">{fieldErrors.guest_email}</p>
             )}
@@ -231,7 +369,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         </div>
       </section>
 
-      {/* ── Dates & Room ─── */}
+      {/* ── Aufenthaltsdetails ─── */}
       <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
         <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">
           Aufenthaltsdetails
@@ -245,7 +383,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
             <input type="date" required value={checkinDate}
               onChange={e => setCheckinDate(e.target.value)}
               className={fieldClass('checkin_at')} />
-            <p className="mt-1 text-2xs text-slate-400">Default 15:00</p>
+            <p className="mt-1 text-2xs text-slate-400">Standard 15:00 Uhr</p>
             {fieldErrors.checkin_at && (
               <p className="mt-1 text-xs text-red-600">{fieldErrors.checkin_at}</p>
             )}
@@ -259,7 +397,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
               onChange={e => setCheckoutDate(e.target.value)}
               min={checkinDate}
               className={fieldClass('checkout_at')} />
-            <p className="mt-1 text-2xs text-slate-400">Default 11:00</p>
+            <p className="mt-1 text-2xs text-slate-400">Standard 11:00 Uhr</p>
             {fieldErrors.checkout_at && (
               <p className="mt-1 text-xs text-red-600">{fieldErrors.checkout_at}</p>
             )}
@@ -269,7 +407,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
               Personen <span className="text-red-500">*</span>
             </label>
-            <input type="number" min={1} max={4} required value={guestCount}
+            <input type="number" min={1} max={bookingType === 'family' ? 6 : 4} required value={guestCount}
               onChange={e => setGuestCount(Number(e.target.value))}
               className={fieldClass('guest_count')} />
             {fieldErrors.guest_count && (
@@ -278,50 +416,106 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
           </div>
         </div>
 
-        {/* Room selector */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">
-            Zimmer <span className="text-red-500">*</span>
-          </label>
-          {loadingRooms ? (
-            <div className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-400 bg-slate-50">
-              Verfügbarkeit wird geprüft…
-            </div>
-          ) : !checkinDate || !checkoutDate ? (
-            <div className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-400 bg-slate-50">
-              Bitte Datum wählen um verfügbare Zimmer zu sehen.
-            </div>
-          ) : (
-            <select
-              value={roomId}
-              onChange={e => handleRoomChange(e.target.value)}
-              className={cn(fieldClass('room_id'), 'cursor-pointer')}
-            >
-              <option value="">— Select a room —</option>
-              {availableRooms.map(r => (
-                <option key={r.id} value={r.id}>
-                  {r.name} — {r.type_name} (max {r.max_capacity} guests)
-                </option>
-              ))}
-            </select>
-          )}
+        {/* ── Zimmerauswahl: Einzelzimmer ── */}
+        {bookingType === 'single' && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              Zimmer <span className="text-red-500">*</span>
+            </label>
+            {loadingRooms ? (
+              <div className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-400 bg-slate-50">
+                Verfügbarkeit wird geprüft…
+              </div>
+            ) : !checkinDate || !checkoutDate ? (
+              <div className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-400 bg-slate-50">
+                Bitte Datum wählen um verfügbare Zimmer zu sehen.
+              </div>
+            ) : (
+              <select
+                value={roomId}
+                onChange={e => handleRoomChange(e.target.value)}
+                className={cn(fieldClass('room_id'), 'cursor-pointer')}
+              >
+                <option value="">— Zimmer wählen —</option>
+                {availableRooms.map(r => (
+                  <option key={r.id} value={r.id}>
+                    {r.name} — {r.type_name} (max. {r.max_capacity} Pers.)
+                  </option>
+                ))}
+              </select>
+            )}
 
-          {availableRooms.length === 0 && checkinDate && checkoutDate && !loadingRooms && (
-            <p className="mt-1 text-xs text-red-600">
-              Keine Zimmer verfügbar für {guestCount} Person{guestCount !== 1 ? 'en' : ''} an diesen Daten.
-            </p>
-          )}
+            {availableRooms.length === 0 && checkinDate && checkoutDate && !loadingRooms && (
+              <p className="mt-1 text-xs text-red-600">
+                Keine Zimmer verfügbar für {guestCount} Person{guestCount !== 1 ? 'en' : ''} an diesen Daten.
+              </p>
+            )}
+            {fieldErrors.room_id && (
+              <p className="mt-1 text-xs text-red-600">{fieldErrors.room_id}</p>
+            )}
+          </div>
+        )}
 
-          {fieldErrors.room_id && (
-            <p className="mt-1 text-xs text-red-600">{fieldErrors.room_id}</p>
-          )}
+        {/* ── Zimmerauswahl: Familienzimmer ── */}
+        {bookingType === 'family' && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              Familienzimmer wählen <span className="text-red-500">*</span>
+            </label>
+            {loadingRooms ? (
+              <div className="rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-400 bg-slate-50">
+                Verfügbarkeit wird geprüft…
+              </div>
+            ) : !checkinDate || !checkoutDate ? (
+              <div className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-400 bg-slate-50">
+                Bitte zuerst Anreise- und Abreisedatum wählen.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {familyOptions.map(opt => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    disabled={!opt.available}
+                    onClick={() => { setFamilyKey(opt.key); setConflictMsg(null) }}
+                    className={cn(
+                      'w-full text-left rounded-lg border px-4 py-3 text-sm transition-colors',
+                      !opt.available
+                        ? 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed'
+                        : familyKey === opt.key
+                          ? 'border-blue-500 bg-blue-50 text-blue-900 ring-2 ring-blue-200'
+                          : 'border-slate-300 bg-white text-slate-900 hover:border-blue-300 hover:bg-blue-50 cursor-pointer',
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{opt.label}</span>
+                      <span className={cn(
+                        'text-xs font-medium px-2 py-0.5 rounded-full',
+                        opt.available
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-red-100 text-red-600',
+                      )}>
+                        {opt.available ? 'Verfügbar' : 'Belegt'}
+                      </span>
+                    </div>
+                    <p className="text-xs mt-1 opacity-70">
+                      Zimmer {opt.numbers[0]} + Zimmer {opt.numbers[1]} · max. {opt.maxCapacity} Personen
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+            {fieldErrors.room_id && (
+              <p className="mt-1 text-xs text-red-600">{fieldErrors.room_id}</p>
+            )}
+          </div>
+        )}
 
-          {conflictMsg && (
-            <div className="mt-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3">
-              {conflictMsg}
-            </div>
-          )}
-        </div>
+        {conflictMsg && (
+          <div className="mt-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3">
+            {conflictMsg}
+          </div>
+        )}
 
         <div className="flex items-center gap-3">
           <input
@@ -337,7 +531,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         </div>
       </section>
 
-      {/* ── Booking Source & Payment ─── */}
+      {/* ── Quelle & Zahlung ─── */}
       <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
         <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">
           Quelle &amp; Zahlung
@@ -392,12 +586,12 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
             </label>
             <input type="text" value={extId}
               onChange={e => setExtId(e.target.value)}
-              className={fieldClass('external_id')} placeholder="e.g. BDC-123456" />
+              className={fieldClass('external_id')} placeholder="z.B. BDC-123456" />
           </div>
         </div>
       </section>
 
-      {/* ── Notes ─── */}
+      {/* ── Notizen ─── */}
       <section className="bg-white rounded-xl border border-slate-200 p-5">
         <label className="block text-sm font-medium text-slate-700 mb-1.5">Notizen</label>
         <textarea rows={3} value={notes}
@@ -406,7 +600,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
           placeholder="Allergien, Sonderwünsche, Spätanreise…" />
       </section>
 
-      {/* ── Submit ─── */}
+      {/* ── Absenden ─── */}
       {submitError && (
         <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3">
           {submitError}
@@ -418,7 +612,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
           className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
           Abbrechen
         </button>
-        <button type="submit" disabled={submitting || !!conflictMsg}
+        <button type="submit" disabled={submitting || hasConflict}
           className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
           {submitting ? 'Wird erstellt…' : 'Reservierung erstellen'}
         </button>

@@ -74,7 +74,7 @@ export default function SearchPage() {
     const { data, error: err } = await q
 
     if (err) {
-      setError('Search failed. Please try again.')
+      setError('Suche fehlgeschlagen. Bitte erneut versuchen.')
       setResults([])
     } else {
       let filtered = (data ?? []) as ReservationWithRoom[]
