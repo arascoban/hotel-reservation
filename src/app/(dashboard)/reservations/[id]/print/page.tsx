@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import type { ReservationWithRoom } from '@/types/database'
 import { formatDate, formatDateTime, getRoomFloor } from '@/lib/reservations'
+import PrintButton from './PrintButton'
 import { differenceInCalendarDays } from 'date-fns'
 
 export const dynamic = 'force-dynamic'
@@ -56,12 +57,7 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
 
       {/* ── On-screen toolbar (hidden when printing) ─────────────────────────── */}
       <div className="no-print flex items-center gap-3 px-6 pt-5 pb-3 bg-white border-b border-slate-200">
-        <button
-          id="printBtn"
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
-        >
-          🖨️ Drucken / Als PDF speichern
-        </button>
+        <PrintButton />
         <a href="/reservations" className="text-sm text-slate-500 hover:text-slate-700">← Zurück</a>
       </div>
 
@@ -174,9 +170,6 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
         </div>
       </div>
 
-      <script dangerouslySetInnerHTML={{ __html: `
-        document.getElementById('printBtn')?.addEventListener('click', () => window.print())
-      `}} />
     </>
   )
 }
