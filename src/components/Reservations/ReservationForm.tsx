@@ -79,8 +79,9 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
   const [payMethod,    setPayMethod]    = useState<PaymentMethod>('unpaid')
   const [payStatus,    setPayStatus]    = useState<PaymentStatus>('unpaid')
   const [totalPrice,   setTotalPrice]   = useState('')
-  const [notes,        setNotes]        = useState('')
-  const [extId,        setExtId]        = useState('')
+  const [notes,          setNotes]          = useState('')
+  const [internalNotes,  setInternalNotes]  = useState('')
+  const [extId,          setExtId]          = useState('')
 
   // ── UI state ────────────────────────────────────────────────────
   const [availableRooms,    setAvailableRooms]    = useState<AvailableRoom[]>([])
@@ -242,8 +243,9 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
 
         // Link them with the same family_booking_id so they deduplicate in list views
         const familyId = crypto.randomUUID()
-        await supabase.from('reservations').update({ family_booking_id: familyId }).eq('id', id1)
-        await supabase.from('reservations').update({ family_booking_id: familyId }).eq('id', id2)
+        const familyExtra = { family_booking_id: familyId, internal_notes: internalNotes || null }
+        await supabase.from('reservations').update(familyExtra).eq('id', id1)
+        await supabase.from('reservations').update(familyExtra).eq('id', id2)
 
         router.push('/')
         router.refresh()
@@ -282,7 +284,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
     setSubmitting(true)
 
     try {
-      await createReservationSafe(supabase, {
+      const newId = await createReservationSafe(supabase, {
         guest_name:         guestName,
         guest_email:        guestEmail  || undefined,
         guest_phone:        guestPhone  || undefined,
@@ -298,6 +300,10 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         notes:              notes      || undefined,
         external_id:        extId      || undefined,
       })
+
+      if (internalNotes) {
+        await supabase.from('reservations').update({ internal_notes: internalNotes }).eq('id', newId)
+      }
 
       router.push('/')
       router.refresh()
@@ -643,12 +649,25 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
       </section>
 
       {/* ── Notizen ─── */}
-      <section className="bg-white rounded-xl border border-slate-200 p-5">
-        <label className="block text-sm font-medium text-slate-700 mb-1.5">Notizen</label>
-        <textarea rows={3} value={notes}
-          onChange={e => setNotes(e.target.value)}
-          className={cn(fieldClass('notes'), 'resize-none')}
-          placeholder="Allergien, Sonderwünsche, Spätanreise…" />
+      <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-0.5">
+            Notizen <span className="text-xs text-slate-400 font-normal">(erscheint in E-Mail &amp; PDF)</span>
+          </label>
+          <textarea rows={3} value={notes}
+            onChange={e => setNotes(e.target.value)}
+            className={cn(fieldClass('notes'), 'resize-none')}
+            placeholder="Allergien, Sonderwünsche, Spätanreise…" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-0.5">
+            Interne Notizen <span className="text-xs text-slate-400 font-normal">(nur intern sichtbar)</span>
+          </label>
+          <textarea rows={3} value={internalNotes}
+            onChange={e => setInternalNotes(e.target.value)}
+            className={cn(fieldClass('internal_notes'), 'resize-none')}
+            placeholder="Interne Hinweise, Zahlungsdetails, Bemerkungen…" />
+        </div>
       </section>
 
       {/* ── Absenden ─── */}

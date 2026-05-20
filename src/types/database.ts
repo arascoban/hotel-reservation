@@ -83,6 +83,7 @@ export interface Reservation {
   status: ReservationStatus
   total_price: number | null
   notes: string | null
+  internal_notes: string | null
   external_id: string | null
   family_booking_id: string | null
   locker_id: string | null

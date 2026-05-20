@@ -89,7 +89,8 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
   const [editPayMethod,  setEditPayMethod]  = useState<PaymentMethod>('unpaid')
   const [editSource,     setEditSource]     = useState<ReservationSource>('phone')
   const [editBreakfast,  setEditBreakfast]  = useState(false)
-  const [editNotes,      setEditNotes]      = useState('')
+  const [editNotes,         setEditNotes]         = useState('')
+  const [editInternalNotes, setEditInternalNotes] = useState('')
   const [editTotalPrice, setEditTotalPrice] = useState('')
   const [editCheckin,      setEditCheckin]      = useState('')
   const [editCheckout,     setEditCheckout]     = useState('')
@@ -124,6 +125,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       setEditSource(r.source)
       setEditBreakfast(r.breakfast_included)
       setEditNotes(r.notes ?? '')
+      setEditInternalNotes(r.internal_notes ?? '')
       setEditTotalPrice(r.total_price?.toString() ?? '')
       setEditCheckin(r.checkin_at.slice(0, 10))
       setEditCheckout(r.checkout_at.slice(0, 10))
@@ -173,6 +175,11 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       setSaving(false)
       return
     }
+
+    // Save internal_notes (not handled by RPC)
+    await supabase.from('reservations')
+      .update({ internal_notes: editInternalNotes || null })
+      .eq('id', reservationId)
 
     // Auto-set room to "needs cleaning" when guest checks out
     if (editStatus === 'checked_out' && reservation.status !== 'checked_out') {
@@ -589,14 +596,25 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
           </InfoField>
         )}
 
-        {/* Notes */}
-        <InfoField label="Notizen" icon={<Edit2 className="w-3.5 h-3.5" />}>
+        {/* Notes (public – shown in email & PDF) */}
+        <InfoField label="Notizen (E-Mail & PDF)" icon={<Edit2 className="w-3.5 h-3.5" />}>
           {editing ? (
             <textarea rows={3} value={editNotes} onChange={e => setEditNotes(e.target.value)}
               className="mt-1 text-sm border border-slate-300 rounded px-2 py-1.5 w-full resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="Notizen…" />
+              placeholder="Allergien, Sonderwünsche…" />
           ) : (
             <p className="text-sm text-slate-700 whitespace-pre-wrap">{r.notes || '—'}</p>
+          )}
+        </InfoField>
+
+        {/* Internal notes (never sent to guest) */}
+        <InfoField label="Interne Notizen" icon={<Edit2 className="w-3.5 h-3.5" />}>
+          {editing ? (
+            <textarea rows={3} value={editInternalNotes} onChange={e => setEditInternalNotes(e.target.value)}
+              className="mt-1 text-sm border border-amber-300 rounded px-2 py-1.5 w-full resize-none focus:outline-none focus:ring-1 focus:ring-amber-400 bg-amber-50"
+              placeholder="Interne Hinweise (nur intern sichtbar)…" />
+          ) : (
+            <p className="text-sm text-slate-700 whitespace-pre-wrap bg-amber-50 rounded px-2 py-1.5">{r.internal_notes || '—'}</p>
           )}
         </InfoField>
 
