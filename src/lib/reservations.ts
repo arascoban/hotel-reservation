@@ -232,10 +232,10 @@ export function validateReservationInput(
 
 // ─── Date/Time Helpers ────────────────────────────────────────────────────────
 
-/** Hotel check-in time (local): 12:00 */
-export const DEFAULT_CHECKIN_HOUR  = 12
-/** Hotel check-out time (local): 13:00 */
-export const DEFAULT_CHECKOUT_HOUR = 13
+/** Hotel check-in time (local): 13:00 */
+export const DEFAULT_CHECKIN_HOUR  = 13
+/** Hotel check-out time (local): 12:00 */
+export const DEFAULT_CHECKOUT_HOUR = 12
 
 /**
  * Builds a full checkin timestamp from a date string.

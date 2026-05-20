@@ -36,126 +36,139 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
 
   return (
     <>
-      {/* Print-only styles — hide sidebar and reset layout margins */}
+      {/* ── Global print styles ───────────────────────────────────────────────── */}
       <style>{`
         @media print {
+          /* Hide everything that isn't the confirmation */
           .no-print { display: none !important; }
-          aside { display: none !important; }
-          .lg\\:ml-64 { margin-left: 0 !important; }
-          @page { margin: 15mm; size: A4; }
-          body { font-size: 13px; background: white !important; }
+          aside, nav, header { display: none !important; }
+          /* Remove sidebar margin offset */
+          .lg\\:ml-64, [class*="ml-64"] { margin-left: 0 !important; }
+          /* Remove min-height so content doesn't force a second page */
+          .print-doc { min-height: 0 !important; }
+          /* Keep colour backgrounds (Chrome strips them by default) */
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          @page { margin: 12mm; size: A4 portrait; }
+          body { background: white !important; font-size: 12px; margin: 0 !important; }
         }
-        body { background: white; }
+        body { background: #f8fafc; }
       `}</style>
 
-      {/* Print button (hidden when printing) */}
-      <div className="no-print flex items-center gap-3 px-8 pt-6 pb-2 bg-slate-50 border-b border-slate-200">
+      {/* ── On-screen toolbar (hidden when printing) ─────────────────────────── */}
+      <div className="no-print flex items-center gap-3 px-6 pt-5 pb-3 bg-white border-b border-slate-200">
         <button
-          onClick={undefined}
           id="printBtn"
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
         >
           🖨️ Drucken / Als PDF speichern
         </button>
-        <a href={`/reservations`} className="text-sm text-slate-500 hover:text-slate-700">← Zurück</a>
+        <a href="/reservations" className="text-sm text-slate-500 hover:text-slate-700">← Zurück</a>
       </div>
 
-      {/* Confirmation document */}
-      <div className="max-w-2xl mx-auto px-8 py-10 bg-white min-h-screen">
+      {/* ── Confirmation document ─────────────────────────────────────────────── */}
+      <div className="print-doc max-w-xl mx-auto px-8 py-8 bg-white">
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8 pb-6 border-b-2 border-slate-200">
-          <div className="bg-slate-800 rounded-xl px-6 py-3">
-            <Image src="/logo.png" alt="Jägerstieg Hotel & Pension" width={140} height={70} className="object-contain" />
+        {/* Header row */}
+        <div className="flex items-center justify-between mb-6 pb-5 border-b-2 border-slate-200">
+          <div className="bg-slate-800 rounded-xl px-5 py-2.5">
+            <Image src="/logo.png" alt="Jägerstieg Hotel & Pension" width={120} height={60} className="object-contain" />
           </div>
           <div className="text-right">
             <p className="text-xs text-slate-500 uppercase tracking-wide font-semibold mb-1">Buchungsbestätigung</p>
             <p className="text-2xl font-bold text-slate-900">#{r.id.slice(0, 8).toUpperCase()}</p>
-            <p className="text-xs text-slate-400 mt-1">Erstellt: {formatDateTime(r.created_at)}</p>
+            <p className="text-xs text-slate-400 mt-0.5">Erstellt: {formatDateTime(r.created_at)}</p>
           </div>
         </div>
 
-        {/* Hotel address */}
-        <div className="mb-6 text-sm text-slate-500">
+        {/* Hotel contact */}
+        <div className="mb-4 text-xs text-slate-500">
           <p className="font-semibold text-slate-700">Jägerstieg Hotel &amp; Pension</p>
           <p>info@jaegerstieg.de</p>
         </div>
 
-        {/* Guest + Room side by side */}
-        <div className="grid grid-cols-2 gap-6 mb-6">
-          <div className="bg-slate-50 rounded-xl p-4">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-3">Gast</p>
-            <p className="font-semibold text-slate-900 text-base">{r.guest_name}</p>
-            {r.guest_email && <p className="text-sm text-slate-600 mt-1">{r.guest_email}</p>}
-            {r.guest_phone && <p className="text-sm text-slate-600">{r.guest_phone}</p>}
-            <p className="text-sm text-slate-600 mt-1">{r.guest_count} Person{r.guest_count !== 1 ? 'en' : ''}</p>
+        {/* Guest info — single row */}
+        <div className="bg-slate-50 rounded-xl p-4 mb-4 flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1.5">Gast</p>
+            <p className="font-semibold text-slate-900">{r.guest_name}</p>
+            {r.guest_email && <p className="text-xs text-slate-500 mt-0.5">{r.guest_email}</p>}
+            {r.guest_phone && <p className="text-xs text-slate-500">{r.guest_phone}</p>}
+            <p className="text-xs text-slate-500 mt-0.5">{r.guest_count} Person{r.guest_count !== 1 ? 'en' : ''}</p>
           </div>
-          <div className="bg-slate-50 rounded-xl p-4">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-3">Zimmer</p>
-            <p className="font-semibold text-slate-900 text-base">{r.rooms.name}</p>
-            <p className="text-sm text-slate-600">Zimmer {r.rooms.room_number}</p>
-            <p className="text-sm text-slate-600">{r.rooms.room_types.name}</p>
+          <div className="text-right">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1.5">Zimmer</p>
+            <p className="font-semibold text-slate-900">{r.rooms.name}</p>
+            <p className="text-xs text-slate-500">Zimmer {r.rooms.room_number} · {r.rooms.room_types.name}</p>
             {r.breakfast_included && (
-              <span className="inline-flex mt-2 rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-xs font-medium">☕ Frühstück inklusive</span>
+              <span className="inline-flex mt-1.5 rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-xs font-medium">
+                ☕ Frühstück inkl.
+              </span>
             )}
           </div>
         </div>
 
-        {/* Dates */}
-        <div className="bg-blue-50 rounded-xl p-4 mb-6 grid grid-cols-3 gap-4 text-center">
-          <div>
+        {/* Dates — 3 columns */}
+        <div className="bg-blue-50 rounded-xl p-4 mb-4 flex items-center justify-between text-center gap-4">
+          <div className="flex-1">
             <p className="text-xs font-bold uppercase tracking-wide text-blue-400 mb-1">Check-in</p>
-            <p className="font-bold text-slate-900">{formatDateTime(r.checkin_at)}</p>
+            <p className="font-bold text-slate-900 text-sm">{formatDateTime(r.checkin_at)}</p>
           </div>
-          <div className="border-x border-blue-200">
+          <div className="flex-1 border-x border-blue-200 px-4">
             <p className="text-xs font-bold uppercase tracking-wide text-blue-400 mb-1">Nächte</p>
             <p className="font-bold text-slate-900 text-2xl">{nights}</p>
           </div>
-          <div>
+          <div className="flex-1">
             <p className="text-xs font-bold uppercase tracking-wide text-blue-400 mb-1">Check-out</p>
-            <p className="font-bold text-slate-900">{formatDateTime(r.checkout_at)}</p>
+            <p className="font-bold text-slate-900 text-sm">{formatDateTime(r.checkout_at)}</p>
           </div>
         </div>
 
-        {/* Payment */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <Row label="Buchungsquelle"   value={SOURCE_LABELS[r.source] ?? r.source} />
-          <Row label="Zahlungsmethode"  value={PAY_METHOD_LABELS[r.payment_method] ?? r.payment_method} />
-          <Row label="Zahlungsstatus"   value={PAY_STATUS_LABELS[r.payment_status] ?? r.payment_status} />
-          <Row label="Gesamtpreis"      value={r.total_price != null ? `€${r.total_price.toFixed(2)}` : '—'} highlight />
+        {/* Payment — compact 4-cell table */}
+        <div className="rounded-xl border border-slate-200 mb-4 overflow-hidden">
+          <div className="grid grid-cols-4 divide-x divide-slate-200">
+            <Cell label="Buchungsquelle" value={SOURCE_LABELS[r.source] ?? r.source} />
+            <Cell label="Zahlungsart"    value={PAY_METHOD_LABELS[r.payment_method] ?? r.payment_method} />
+            <Cell label="Status"         value={PAY_STATUS_LABELS[r.payment_status] ?? r.payment_status} />
+            <Cell label="Gesamtpreis"    value={r.total_price != null ? `€${r.total_price.toFixed(2)}` : '—'} highlight />
+          </div>
         </div>
 
         {/* Notes */}
         {r.notes && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 mb-4">
             <p className="text-xs font-bold uppercase tracking-wide text-yellow-600 mb-1">Notizen</p>
-            <p className="text-sm text-slate-700">{r.notes}</p>
+            <p className="text-xs text-slate-700">{r.notes}</p>
           </div>
         )}
 
-        {/* Locker PIN — every room has its own locker */}
-        <div className="bg-slate-900 text-white rounded-xl p-5 mb-6">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">🔐 Ihr Schließfach</p>
-          <div className="flex items-center justify-between">
+        {/* Locker / Key pickup */}
+        <div className="bg-slate-900 text-white rounded-xl p-5 mb-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">🔐 Schlüsselabholung</p>
+          <p className="text-sm text-slate-300 mb-4">
+            Ihre Zimmerschlüssel befinden sich im Schließfach Nr.&nbsp;
+            <strong className="text-white">{r.rooms.room_number}</strong> an der Rezeption.
+            Bitte öffnen Sie das Schließfach mit dem folgenden PIN-Code:
+          </p>
+          <div className="flex items-center justify-between bg-slate-800 rounded-xl px-5 py-4">
             <div>
-              <p className="text-sm text-slate-300">Schließfach Nr.</p>
-              <p className="text-2xl font-bold">{r.rooms.room_number}</p>
+              <p className="text-xs text-slate-400 mb-0.5">Schließfach Nr.</p>
+              <p className="text-3xl font-bold text-white">{r.rooms.room_number}</p>
             </div>
             <div className="text-right">
-              <p className="text-sm text-slate-300">PIN-Code</p>
-              <p className="text-3xl font-bold font-mono tracking-widest">{r.rooms.locker_pin}</p>
+              <p className="text-xs text-slate-400 mb-0.5">Ihr PIN-Code</p>
+              <p className="text-4xl font-black font-mono tracking-[0.3em] text-white">{r.rooms.locker_pin}</p>
             </div>
           </div>
-          <p className="text-xs text-slate-400 mt-3">Bitte bewahren Sie diesen Code vertraulich auf.</p>
+          <p className="text-xs text-slate-500 mt-3">Bitte bewahren Sie diesen Code vertraulich auf.</p>
         </div>
 
         {/* External ID */}
         {r.external_id && (
-          <p className="text-xs text-slate-400 mb-4">Externe Buchungs-ID: {r.external_id}</p>
+          <p className="text-xs text-slate-400 mb-3">Externe Buchungs-ID: {r.external_id}</p>
         )}
 
         {/* Footer */}
-        <div className="border-t border-slate-200 pt-4 mt-6 text-xs text-slate-400 text-center space-y-1">
+        <div className="border-t border-slate-200 pt-3 text-xs text-slate-400 text-center space-y-0.5">
           <p>Wir freuen uns auf Ihren Besuch! · Jägerstieg Hotel &amp; Pension</p>
           <p>info@jaegerstieg.de</p>
         </div>
@@ -168,11 +181,11 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
   )
 }
 
-function Row({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+function Cell({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-slate-500 font-medium">{label}</span>
-      <span className={`text-sm font-semibold ${highlight ? 'text-blue-700' : 'text-slate-800'}`}>{value}</span>
+    <div className="p-3">
+      <p className="text-xs text-slate-400 font-medium mb-0.5">{label}</p>
+      <p className={`text-sm font-semibold ${highlight ? 'text-blue-700' : 'text-slate-800'}`}>{value}</p>
     </div>
   )
 }

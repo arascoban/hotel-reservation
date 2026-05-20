@@ -76,6 +76,7 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
         'fixed inset-y-0 left-0 z-30 flex w-64 flex-col bg-slate-900 text-white',
         'transition-transform duration-200 ease-in-out',
         'lg:translate-x-0',
+        'print:hidden',
         isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
       )}
     >
