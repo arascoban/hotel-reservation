@@ -89,7 +89,7 @@ function buildEmailHtml(opts: {
 
   const lockerSection = lockerNumber && lockerPin ? `
     <tr>
-      <td style="padding: 8px 0;">
+      <td style="padding:20px 0;border-bottom:1px solid #f1f5f9;">
         <table width="100%" cellpadding="0" cellspacing="0" style="background:#1e293b;border-radius:12px;padding:20px;">
           <tr>
             <td>
@@ -190,6 +190,9 @@ function buildEmailHtml(opts: {
                 </td>
               </tr>
 
+              <!-- Locker PIN (after Aufenthalt, before Zahlung) -->
+              ${lockerSection}
+
               <!-- Payment -->
               <tr>
                 <td style="padding:20px 0;border-bottom:1px solid #f1f5f9;">
@@ -226,9 +229,6 @@ function buildEmailHtml(opts: {
                   <p style="margin:0;font-size:13px;color:#475569;line-height:1.6;">${notes}</p>
                 </td>
               </tr>` : ''}
-
-              <!-- Locker PIN -->
-              ${lockerSection}
 
               <!-- Source note -->
               <tr>
