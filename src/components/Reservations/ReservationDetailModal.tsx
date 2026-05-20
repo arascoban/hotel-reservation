@@ -11,7 +11,7 @@ import type {
   PaymentMethod, PaymentStatus, ReservationStatus,
 } from '@/types/database'
 import {
-  formatReservationDate,
+  formatDateTime,
   buildCheckinTimestamp,
   buildCheckoutTimestamp,
   getSourceLabel,
@@ -261,7 +261,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
         <div className="flex items-center gap-2 mx-5 mt-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2.5">
           <AlertTriangle className="w-4 h-4 flex-shrink-0" />
           <span className="font-medium">Diese Reservierung wurde gelöscht.</span>
-          <span className="text-xs opacity-70 ml-1">({new Date(r.deleted_at!).toLocaleString('de-DE')})</span>
+          <span className="text-xs opacity-70 ml-1">({formatDateTime(r.deleted_at!)})</span>
         </div>
       )}
 
@@ -351,7 +351,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
               <input type="date" value={editCheckin} onChange={e => setEditCheckin(e.target.value)}
                 className="mt-1 text-sm border border-slate-300 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-blue-500" />
             ) : (
-              <span className="text-sm text-slate-900">{formatReservationDate(r.checkin_at)}</span>
+              <span className="text-sm text-slate-900">{formatDateTime(r.checkin_at)}</span>
             )}
           </InfoField>
 
@@ -360,7 +360,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
               <input type="date" value={editCheckout} min={editCheckin} onChange={e => setEditCheckout(e.target.value)}
                 className="mt-1 text-sm border border-slate-300 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-blue-500" />
             ) : (
-              <span className="text-sm text-slate-900">{formatReservationDate(r.checkout_at)}</span>
+              <span className="text-sm text-slate-900">{formatDateTime(r.checkout_at)}</span>
             )}
           </InfoField>
         </div>
@@ -512,8 +512,8 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
 
         {/* Meta */}
         <div className="text-2xs text-slate-400 space-y-0.5 pt-2 border-t border-slate-100">
-          <p>Erstellt: {new Date(r.created_at).toLocaleString('de-DE')}</p>
-          <p>Aktualisiert: {new Date(r.updated_at).toLocaleString('de-DE')}</p>
+          <p>Erstellt: {formatDateTime(r.created_at)}</p>
+          <p>Aktualisiert: {formatDateTime(r.updated_at)}</p>
           <p>ID: {r.id}</p>
         </div>
       </div>

@@ -9,6 +9,7 @@ import {
   createReservationSafe,
   buildCheckinTimestamp,
   buildCheckoutTimestamp,
+  formatDate,
   ReservationError,
 } from '@/lib/reservations'
 import type { AvailableRoom, ReservationSource, PaymentMethod, PaymentStatus } from '@/types/database'
@@ -157,7 +158,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
     if (!result.available) {
       const r = result.conflicting_reservation!
       setConflictMsg(
-        `Dieses Zimmer ist bereits belegt vom ${new Date(r.checkin_at).toLocaleDateString('de-DE')} bis ${new Date(r.checkout_at).toLocaleDateString('de-DE')}.`,
+        `Dieses Zimmer ist bereits belegt vom ${formatDate(r.checkin_at)} bis ${formatDate(r.checkout_at)}.`,
       )
     }
   }

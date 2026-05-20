@@ -257,12 +257,34 @@ export function buildCheckoutTimestamp(date: string, time?: string, timezoneOffs
   return `${date}T${t}:00${timezoneOffset}`
 }
 
-/** Formats a timestamp for display: "19. Mai 2026, 15:00" */
+/** Formats an ISO string as DD/MM/YYYY */
+export function formatDate(isoString: string): string {
+  const d = new Date(isoString)
+  return [
+    String(d.getDate()).padStart(2, '0'),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    d.getFullYear(),
+  ].join('/')
+}
+
+/** Formats an ISO string as DD/MM/YYYY HH:MM (24-hour) */
+export function formatDateTime(isoString: string): string {
+  const d   = new Date(isoString)
+  const date = [
+    String(d.getDate()).padStart(2, '0'),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    d.getFullYear(),
+  ].join('/')
+  const time = [
+    String(d.getHours()).padStart(2, '0'),
+    String(d.getMinutes()).padStart(2, '0'),
+  ].join(':')
+  return `${date} ${time}`
+}
+
+/** @deprecated Use formatDateTime instead */
 export function formatReservationDate(isoString: string): string {
-  return new Date(isoString).toLocaleString('de-DE', {
-    day: '2-digit', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
+  return formatDateTime(isoString)
 }
 
 // ─── Room Filtering ───────────────────────────────────────────────────────────

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { ReservationWithRoom, ReservationStatus, PaymentStatus } from '@/types/database'
-import { getSourceLabel, getSourceColor } from '@/lib/reservations'
+import { getSourceLabel, getSourceColor, formatDate } from '@/lib/reservations'
 import { cn } from '@/lib/cn'
 import ReservationDetailModal from './ReservationDetailModal'
 import { useAdmin } from '@/hooks/useAdmin'
@@ -106,14 +106,10 @@ export default function ReservationTable({ reservations, onRefresh }: Props) {
                     <span className="ml-1 text-slate-400">#{r.rooms.room_number}</span>
                   </td>
                   <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
-                    {new Date(r.checkin_at).toLocaleDateString('de-DE', {
-                      day: '2-digit', month: 'short', year: 'numeric',
-                    })}
+                    {formatDate(r.checkin_at)}
                   </td>
                   <td className="px-4 py-3 text-slate-700 whitespace-nowrap">
-                    {new Date(r.checkout_at).toLocaleDateString('de-DE', {
-                      day: '2-digit', month: 'short', year: 'numeric',
-                    })}
+                    {formatDate(r.checkout_at)}
                   </td>
                   <td className="px-4 py-3 text-slate-700 text-center">{r.guest_count}</td>
                   <td className="px-4 py-3">

@@ -1,6 +1,7 @@
 import { parseISO, differenceInCalendarDays, startOfDay } from 'date-fns'
 import type { CalendarReservation } from '@/types/database'
 import { cn } from '@/lib/cn'
+import { formatDate } from '@/lib/reservations'
 
 // Source color palette — bg + hover + text
 const SOURCE_COLORS: Record<string, { bg: string; text: string }> = {
@@ -66,7 +67,7 @@ export default function ReservationBlock({
 
   const tooltipText = [
     reservation.guest_name,
-    `${reservation.checkin_at.slice(0, 10)} → ${reservation.checkout_at.slice(0, 10)}`,
+    `${formatDate(reservation.checkin_at)} → ${formatDate(reservation.checkout_at)}`,
     reservation.status,
   ].join(' · ')
 
