@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { format, subDays, addDays } from 'date-fns'
+import { format, startOfMonth, endOfMonth } from 'date-fns'
 import CalendarGrid from '@/components/Calendar/CalendarGrid'
 import type { CalendarReservation } from '@/types/database'
 
@@ -8,9 +8,9 @@ export const dynamic = 'force-dynamic'
 export default async function DashboardPage() {
   const supabase = await createClient()
 
-  // Initial 30-day window: 3 days before today
-  const startDate = subDays(new Date(), 3)
-  const endDate   = addDays(startDate, 29)
+  // Fetch full current month for the monthly calendar view
+  const monthStart = startOfMonth(new Date())
+  const monthEnd   = endOfMonth(new Date())
 
   const [roomsResult, reservationsResult] = await Promise.all([
     supabase
@@ -21,8 +21,8 @@ export default async function DashboardPage() {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).rpc('get_calendar_reservations', {
-      p_from: format(startDate, 'yyyy-MM-dd'),
-      p_to:   format(endDate,   'yyyy-MM-dd'),
+      p_from: format(monthStart, 'yyyy-MM-dd'),
+      p_to:   format(monthEnd,   'yyyy-MM-dd'),
     }),
   ])
 

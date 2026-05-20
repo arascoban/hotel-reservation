@@ -40,8 +40,9 @@ export default function LoginPage() {
                 d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">Hotelrezeption</h1>
-          <p className="text-slate-500 mt-1">Mitarbeiter-Login</p>
+          <h1 className="text-2xl font-bold text-slate-900">Jägerstieg</h1>
+          <p className="text-base font-semibold text-slate-600">Hotel & Pension</p>
+          <p className="text-slate-400 text-sm mt-1">Mitarbeiter-Login</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
