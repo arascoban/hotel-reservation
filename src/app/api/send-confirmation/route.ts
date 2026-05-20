@@ -1,8 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
+import fs from 'fs'
+import path from 'path'
 import { createClient } from '@/lib/supabase/server'
 import { formatDate, formatDateTime } from '@/lib/reservations'
 import { differenceInCalendarDays } from 'date-fns'
+
+/** Read logo once and encode as base64 data URI so email clients show it without needing to "allow images" */
+function getLogoDataUri(): string {
+  try {
+    const logoPath = path.join(process.cwd(), 'public', 'logo.png')
+    const data = fs.readFileSync(logoPath)
+    return `data:image/png;base64,${data.toString('base64')}`
+  } catch {
+    return ''
+  }
+}
 
 const SOURCE_LABELS: Record<string, string> = {
   booking_com: 'Booking.com', expedia: 'Expedia', airbnb: 'Airbnb',
@@ -72,6 +85,8 @@ function buildEmailHtml(opts: {
     notes, lockerNumber, lockerPin, reservationId, nights,
   } = opts
 
+  const logoSrc = getLogoDataUri()
+
   const lockerSection = lockerNumber && lockerPin ? `
     <tr>
       <td style="padding: 8px 0;">
@@ -116,7 +131,7 @@ function buildEmailHtml(opts: {
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
                 <td style="vertical-align:middle;">
-                  <img src="https://jaegerstieg-reservation.vercel.app/logo.png" alt="Jägerstieg Hotel &amp; Pension" width="120" height="60" style="display:block;object-fit:contain;" />
+                  ${logoSrc ? `<img src="${logoSrc}" alt="Jägerstieg Hotel &amp; Pension" width="120" height="60" style="display:block;object-fit:contain;" />` : '<p style="margin:0;font-size:18px;font-weight:800;color:white;">Jägerstieg</p>'}
                   <p style="margin:10px 0 0;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">Buchungsbestätigung</p>
                 </td>
                 <td style="text-align:right;vertical-align:top;">
