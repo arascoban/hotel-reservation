@@ -10,6 +10,7 @@ import { de } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { CalendarReservation, RoomTypeCategory } from '@/types/database'
+import { getRoomFloor } from '@/lib/reservations'
 import { cn } from '@/lib/cn'
 import ReservationBlock from './ReservationBlock'
 import ReservationDetailModal from '@/components/Reservations/ReservationDetailModal'
@@ -385,7 +386,7 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
                             </span>
                           )}
                         </div>
-                        <span className="text-2xs text-slate-400 mt-0.5 truncate">{room.type_name}</span>
+                        <span className="text-2xs text-slate-400 mt-0.5 truncate">{getRoomFloor(room.room_number)}</span>
                       </div>
 
                       {/* Day grid area */}

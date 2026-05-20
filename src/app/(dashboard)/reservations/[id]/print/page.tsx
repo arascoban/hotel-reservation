@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import type { ReservationWithRoom } from '@/types/database'
-import { formatDate, formatDateTime } from '@/lib/reservations'
+import { formatDate, formatDateTime, getRoomFloor } from '@/lib/reservations'
 import { differenceInCalendarDays } from 'date-fns'
 
 export const dynamic = 'force-dynamic'
@@ -98,7 +98,7 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
           <div className="text-right">
             <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1.5">Zimmer</p>
             <p className="font-semibold text-slate-900">{r.rooms.name}</p>
-            <p className="text-xs text-slate-500">Zimmer {r.rooms.room_number} · {r.rooms.room_types.name}</p>
+            <p className="text-xs text-slate-500">{getRoomFloor(r.rooms.room_number)} · {r.rooms.room_types.name}</p>
             {r.breakfast_included && (
               <span className="inline-flex mt-1.5 rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-xs font-medium">
                 ☕ Frühstück inkl.

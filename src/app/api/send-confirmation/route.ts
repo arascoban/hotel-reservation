@@ -35,6 +35,16 @@ function createTransporter() {
 }
 
 // ── HTML email template ────────────────────────────────────────────────────────
+function getRoomFloor(roomNumber: string): string {
+  const n = parseInt(roomNumber, 10)
+  if ([21, 22, 23, 24].includes(n))               return '4. Etage'
+  if ([15, 16, 17, 18, 19, 20].includes(n))       return '3. Etage'
+  if ([11, 12, 14].includes(n))                   return '2. Etage'
+  if (n === 10)                                   return '1. Etage'
+  if (roomNumber === '04' || roomNumber === '05') return 'Pension'
+  return ''
+}
+
 function buildEmailHtml(opts: {
   guestName: string
   roomName: string
@@ -68,15 +78,19 @@ function buildEmailHtml(opts: {
         <table width="100%" cellpadding="0" cellspacing="0" style="background:#1e293b;border-radius:12px;padding:20px;">
           <tr>
             <td>
-              <p style="margin:0 0 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">🔐 Ihr Schließfach</p>
+              <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">🔐 Schlüsselabholung</p>
+              <p style="margin:0 0 16px;font-size:13px;color:#cbd5e1;line-height:1.6;">
+                Ihre Zimmerschlüssel befinden sich im Schließfach Nr. <strong style="color:white;">${lockerNumber}</strong> an der Rezeption.
+                Bitte öffnen Sie das Schließfach mit dem folgenden PIN-Code:
+              </p>
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="color:white;">
-                    <p style="margin:4px 0;font-size:14px;color:#cbd5e1;">Schließfach Nr.</p>
+                    <p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">Schließfach Nr.</p>
                     <p style="margin:0;font-size:28px;font-weight:800;color:white;">${lockerNumber}</p>
                   </td>
                   <td style="text-align:right;color:white;">
-                    <p style="margin:4px 0;font-size:14px;color:#cbd5e1;">PIN-Code</p>
+                    <p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">Ihr PIN-Code</p>
                     <p style="margin:0;font-size:36px;font-weight:800;color:white;letter-spacing:6px;font-family:monospace;">${lockerPin}</p>
                   </td>
                 </tr>
@@ -98,12 +112,12 @@ function buildEmailHtml(opts: {
 
         <!-- Header -->
         <tr>
-          <td style="background:#1e293b;border-radius:16px 16px 0 0;padding:28px 32px;">
+          <td style="background:#1e293b;border-radius:16px 16px 0 0;padding:24px 32px;">
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
-                <td>
-                  <p style="margin:0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">Buchungsbestätigung</p>
-                  <p style="margin:4px 0 0;font-size:24px;font-weight:800;color:white;">Jägerstieg Hotel &amp; Pension</p>
+                <td style="vertical-align:middle;">
+                  <img src="https://jaegerstieg-reservation.vercel.app/logo.png" alt="Jägerstieg Hotel &amp; Pension" width="120" height="60" style="display:block;object-fit:contain;" />
+                  <p style="margin:10px 0 0;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">Buchungsbestätigung</p>
                 </td>
                 <td style="text-align:right;vertical-align:top;">
                   <p style="margin:0;font-size:11px;color:#64748b;">Buchungs-Nr.</p>
@@ -135,7 +149,7 @@ function buildEmailHtml(opts: {
                       <td width="50%" style="vertical-align:top;padding-right:12px;">
                         <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">Zimmer</p>
                         <p style="margin:0;font-size:16px;font-weight:700;color:#0f172a;">${roomName}</p>
-                        <p style="margin:2px 0 0;font-size:13px;color:#64748b;">Zimmer ${roomNumber} · ${roomType}</p>
+                        <p style="margin:2px 0 0;font-size:13px;color:#64748b;">${getRoomFloor(roomNumber)} · ${roomType}</p>
                         <p style="margin:6px 0 0;font-size:13px;color:#64748b;">${guestCount} Person${guestCount !== 1 ? 'en' : ''}${breakfastIncluded ? ' · ☕ Frühstück' : ''}</p>
                       </td>
                       <td width="50%" style="vertical-align:top;padding-left:12px;">

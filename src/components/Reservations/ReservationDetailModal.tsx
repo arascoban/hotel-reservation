@@ -16,6 +16,7 @@ import {
   buildCheckoutTimestamp,
   getSourceLabel,
   getSourceColor,
+  getRoomFloor,
 } from '@/lib/reservations'
 import { useAdmin } from '@/hooks/useAdmin'
 import { cn } from '@/lib/cn'
@@ -426,7 +427,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
             {r.rooms.name}
             <span className="ml-2 font-normal text-slate-500">#{r.rooms.room_number}</span>
           </p>
-          <p className="text-xs text-slate-500 mt-0.5">{r.rooms.room_types.name}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{getRoomFloor(r.rooms.room_number)}</p>
         </div>
 
         {/* Dates */}

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import type { RoomCleaningStatus } from '@/types/database'
+import { getRoomFloor } from '@/lib/reservations'
 import { cn } from '@/lib/cn'
 
 interface RoomWithStatus {
@@ -145,7 +146,7 @@ export default function RoomsPage() {
                   <span className="text-base font-bold text-slate-800">Zi. {room.room_number}</span>
                 </div>
 
-                <p className="text-xs text-slate-500 truncate mb-1">{room.name}</p>
+                <p className="text-xs text-slate-500 truncate mb-1">{getRoomFloor(room.room_number)}</p>
 
                 <span className={cn('inline-flex rounded-full px-2 py-0.5 text-2xs font-semibold', cfg.badge)}>
                   {cfg.label}

@@ -301,6 +301,23 @@ export function getEligibleCategories(guestCount: number): RoomTypeCategory[] {
   return []
 }
 
+// ─── Room Floor Mapping ───────────────────────────────────────────────────────
+
+/**
+ * Returns the floor/wing label for a given room number.
+ * 21–24 → 4. Etage, 15–20 → 3. Etage, 11/12/14 → 2. Etage,
+ * 10 → 1. Etage, 04/05 → Pension
+ */
+export function getRoomFloor(roomNumber: string): string {
+  const n = parseInt(roomNumber, 10)
+  if ([21, 22, 23, 24].includes(n))           return '4. Etage'
+  if ([15, 16, 17, 18, 19, 20].includes(n))   return '3. Etage'
+  if ([11, 12, 14].includes(n))               return '2. Etage'
+  if (n === 10)                               return '1. Etage'
+  if (roomNumber === '04' || roomNumber === '05') return 'Pension'
+  return ''
+}
+
 // ─── Source Color Mapping ─────────────────────────────────────────────────────
 
 /** Returns the Tailwind CSS background color class for a reservation source. */
