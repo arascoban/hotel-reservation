@@ -81,7 +81,10 @@ $$;
 -- ============================================================
 -- 5. Update get_calendar_reservations
 --    Return family_booking_id + deleted_at for client filtering
+--    Must DROP first because the return type changes
 -- ============================================================
+DROP FUNCTION IF EXISTS get_calendar_reservations(date, date);
+
 CREATE OR REPLACE FUNCTION get_calendar_reservations(
   p_from DATE,
   p_to   DATE
