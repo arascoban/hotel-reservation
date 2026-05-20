@@ -119,6 +119,7 @@ export async function checkRoomAvailability(
     .select('id, guest_name, checkin_at, checkout_at, status')
     .eq('room_id', roomId)
     .not('status', 'in', '("cancelled","no_show")')
+    .is('deleted_at', null)  // soft-deleted don't block availability
     .neq('id', excludeReservationId ?? '00000000-0000-0000-0000-000000000000')
     .lt('checkin_at', checkoutAt.toISOString())
     .gt('checkout_at', checkinAt.toISOString())

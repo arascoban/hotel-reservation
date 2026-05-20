@@ -11,17 +11,20 @@ import {
   Plus,
   ChevronRight,
   X,
+  CalendarClock,
+  RefreshCw,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/cn'
+import { useAdmin } from '@/hooks/useAdmin'
 
-const NAV = [
-  { href: '/',          label: 'Kalender',          icon: CalendarDays },
-  { href: '/checkins',  label: 'Heutige Ankünfte',  icon: LogIn },
-  { href: '/checkouts', label: 'Heutige Abreisen',  icon: LogOut },
-  { href: '/unpaid',    label: 'Offene Zahlungen',  icon: CreditCard },
-  { href: '/search',    label: 'Suche',             icon: Search },
-  // iCal Sync hidden — available at /sync when needed
+const NAV_BASE = [
+  { href: '/',          label: 'Kalender',               icon: CalendarDays },
+  { href: '/checkins',  label: 'Heutige Ankünfte',       icon: LogIn },
+  { href: '/checkouts', label: 'Heutige Abreisen',       icon: LogOut },
+  { href: '/upcoming',  label: 'Bevorstehende Ankünfte', icon: CalendarClock },
+  { href: '/unpaid',    label: 'Offene Zahlungen',       icon: CreditCard },
+  { href: '/search',    label: 'Suche',                  icon: Search },
 ]
 
 interface Props {
@@ -30,15 +33,20 @@ interface Props {
 }
 
 export default function Sidebar({ isOpen = false, onClose }: Props) {
-  const pathname = usePathname()
-  const router   = useRouter()
-  const supabase = createClient()
+  const pathname    = usePathname()
+  const router      = useRouter()
+  const supabase    = createClient()
+  const { isAdmin } = useAdmin()
 
   async function handleSignOut() {
     await supabase.auth.signOut()
     router.push('/login')
     router.refresh()
   }
+
+  const NAV = isAdmin
+    ? [...NAV_BASE, { href: '/sync', label: 'iCal Synchronisation', icon: RefreshCw }]
+    : NAV_BASE
 
   return (
     <aside
@@ -54,7 +62,8 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
       <div className="flex items-start justify-between gap-2 px-4 py-4 border-b border-slate-700/60">
         <div className="min-w-0">
           <p className="font-bold text-sm text-white leading-tight">Jägerstieg</p>
-          <p className="text-xs text-blue-400 leading-tight font-medium">Hotel & Pension</p>
+          <p className="text-xs text-blue-400 leading-tight font-medium">Hotel &amp; Pension</p>
+          <p className="text-2xs text-slate-500 leading-tight mt-0.5">Reservierungssystem</p>
         </div>
         {/* Close button — mobile only */}
         {onClose && (

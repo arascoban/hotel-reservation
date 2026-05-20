@@ -69,6 +69,8 @@ export interface Reservation {
   total_price: number | null
   notes: string | null
   external_id: string | null
+  family_booking_id: string | null
+  deleted_at: string | null
   created_at: string
   updated_at: string
 }
@@ -123,6 +125,8 @@ export interface CalendarReservation {
   payment_status: PaymentStatus
   breakfast_included: boolean
   total_price: number | null
+  family_booking_id: string | null
+  deleted_at: string | null
 }
 
 // ─── Supabase Database Type Map ───────────────────────────────────────────────

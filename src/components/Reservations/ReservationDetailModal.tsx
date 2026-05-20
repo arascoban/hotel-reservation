@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   X, Edit2, Save, Trash2, Phone, Mail, Users,
-  Calendar, CreditCard, Utensils, Tag, Hash,
+  Calendar, CreditCard, Utensils, Tag, Hash, AlertTriangle, Ban,
 } from 'lucide-react'
 import type {
-  Reservation, ReservationWithRoom, ReservationSource,
+  ReservationWithRoom, ReservationSource,
   PaymentMethod, PaymentStatus, ReservationStatus,
 } from '@/types/database'
 import {
@@ -17,6 +17,7 @@ import {
   getSourceLabel,
   getSourceColor,
 } from '@/lib/reservations'
+import { useAdmin } from '@/hooks/useAdmin'
 import { cn } from '@/lib/cn'
 
 const STATUS_STYLES: Record<ReservationStatus, string> = {
@@ -65,28 +66,31 @@ interface Props {
 
 export default function ReservationDetailModal({ reservationId, onClose, onUpdated }: Props) {
   const supabase = createClient()
+  const { isAdmin } = useAdmin()
 
-  const [reservation, setReservation] = useState<ReservationWithRoom | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [editing, setEditing] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [reservation,          setReservation]          = useState<ReservationWithRoom | null>(null)
+  const [loading,              setLoading]              = useState(true)
+  const [editing,              setEditing]              = useState(false)
+  const [saving,               setSaving]               = useState(false)
+  const [error,                setError]                = useState<string | null>(null)
+  const [confirmDelete,        setConfirmDelete]        = useState(false)
+  const [confirmPermDelete,    setConfirmPermDelete]    = useState(false)
+  const [confirmCancel,        setConfirmCancel]        = useState(false)
 
-  // Edit form state
-  const [editStatus,      setEditStatus]      = useState<ReservationStatus>('confirmed')
-  const [editPayStatus,   setEditPayStatus]   = useState<PaymentStatus>('unpaid')
-  const [editPayMethod,   setEditPayMethod]   = useState<PaymentMethod>('unpaid')
-  const [editSource,      setEditSource]      = useState<ReservationSource>('phone')
-  const [editBreakfast,   setEditBreakfast]   = useState(false)
-  const [editNotes,       setEditNotes]       = useState('')
-  const [editTotalPrice,  setEditTotalPrice]  = useState('')
-  const [editCheckin,     setEditCheckin]     = useState('')
-  const [editCheckout,    setEditCheckout]    = useState('')
-  const [editGuestCount,  setEditGuestCount]  = useState(1)
-  const [editGuestName,   setEditGuestName]   = useState('')
-  const [editGuestPhone,  setEditGuestPhone]  = useState('')
-  const [editGuestEmail,  setEditGuestEmail]  = useState('')
+  // Edit state
+  const [editStatus,     setEditStatus]     = useState<ReservationStatus>('confirmed')
+  const [editPayStatus,  setEditPayStatus]  = useState<PaymentStatus>('unpaid')
+  const [editPayMethod,  setEditPayMethod]  = useState<PaymentMethod>('unpaid')
+  const [editSource,     setEditSource]     = useState<ReservationSource>('phone')
+  const [editBreakfast,  setEditBreakfast]  = useState(false)
+  const [editNotes,      setEditNotes]      = useState('')
+  const [editTotalPrice, setEditTotalPrice] = useState('')
+  const [editCheckin,    setEditCheckin]    = useState('')
+  const [editCheckout,   setEditCheckout]   = useState('')
+  const [editGuestCount, setEditGuestCount] = useState(1)
+  const [editGuestName,  setEditGuestName]  = useState('')
+  const [editGuestPhone, setEditGuestPhone] = useState('')
+  const [editGuestEmail, setEditGuestEmail] = useState('')
 
   useEffect(() => {
     fetchReservation()
@@ -106,7 +110,6 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
     } else {
       const r = data as ReservationWithRoom
       setReservation(r)
-      // Populate edit fields
       setEditStatus(r.status)
       setEditPayStatus(r.payment_status)
       setEditPayMethod(r.payment_method)
@@ -130,7 +133,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
     setError(null)
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any).rpc('update_reservation', {
+    const { error } = await (supabase as any).rpc('update_reservation', {
       p_reservation_id: reservationId,
       p_guest_name:     editGuestName    || null,
       p_guest_phone:    editGuestPhone   || null,
@@ -162,16 +165,69 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
     fetchReservation()
   }
 
-  async function handleDelete() {
+  // ── Cancel reservation (status → cancelled) ──────────────────
+  async function handleCancel() {
+    if (!confirmCancel) { setConfirmCancel(true); return }
+    setError(null)
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc('update_reservation', {
+      p_reservation_id: reservationId,
+      p_status:         'cancelled',
+    })
+
+    // If family booking, also cancel the linked reservation
+    if (!error && reservation?.family_booking_id) {
+      await supabase
+        .from('reservations')
+        .update({ status: 'cancelled' })
+        .eq('family_booking_id', reservation.family_booking_id)
+        .neq('id', reservationId)
+    }
+
+    if (error) { setError('Stornierung fehlgeschlagen.'); return }
+    setConfirmCancel(false)
+    onUpdated()
+    fetchReservation()
+  }
+
+  // ── Soft delete (hides from employees, admin sees it still) ──
+  async function handleSoftDelete() {
     if (!confirmDelete) { setConfirmDelete(true); return }
+    const now = new Date().toISOString()
+
     const { error } = await supabase
       .from('reservations')
-      .delete()
+      .update({ deleted_at: now })
       .eq('id', reservationId)
-    if (error) {
-      setError('Reservierung konnte nicht gelöscht werden.')
-      return
+
+    // Also soft-delete linked family reservation
+    if (!error && reservation?.family_booking_id) {
+      await supabase
+        .from('reservations')
+        .update({ deleted_at: now })
+        .eq('family_booking_id', reservation.family_booking_id)
+        .neq('id', reservationId)
     }
+
+    if (error) { setError('Reservierung konnte nicht gelöscht werden.'); return }
+    onUpdated()
+    onClose()
+  }
+
+  // ── Permanent delete (admin only) ───────────────────────────
+  async function handlePermanentDelete() {
+    if (!confirmPermDelete) { setConfirmPermDelete(true); return }
+
+    if (reservation?.family_booking_id) {
+      await supabase
+        .from('reservations')
+        .delete()
+        .eq('family_booking_id', reservation.family_booking_id)
+    } else {
+      await supabase.from('reservations').delete().eq('id', reservationId)
+    }
+
     onUpdated()
     onClose()
   }
@@ -193,10 +249,22 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
   }
 
   const r = reservation
+  const isDeleted = !!r.deleted_at
+  const isCancelled = r.status === 'cancelled' || r.status === 'no_show'
   const sourceColorClass = getSourceColor(r.source).replace('bg-', 'text-').replace('-500', '-600')
 
   return (
     <ModalShell onClose={onClose}>
+
+      {/* Deleted banner (admin only) */}
+      {isDeleted && (
+        <div className="flex items-center gap-2 mx-5 mt-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2.5">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          <span className="font-medium">Diese Reservierung wurde gelöscht.</span>
+          <span className="text-xs opacity-70 ml-1">({new Date(r.deleted_at!).toLocaleString('de-DE')})</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between p-5 border-b border-slate-200">
         <div className="flex-1 min-w-0">
@@ -208,7 +276,9 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
               className="text-lg font-semibold text-slate-900 border-b border-slate-300 bg-transparent focus:outline-none focus:border-blue-500 w-full"
             />
           ) : (
-            <h2 className="text-lg font-semibold text-slate-900 truncate">{r.guest_name}</h2>
+            <h2 className={cn('text-lg font-semibold truncate', isDeleted && 'line-through text-slate-400')}>
+              {r.guest_name}
+            </h2>
           )}
 
           <div className="flex items-center gap-2 mt-1">
@@ -219,11 +289,16 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
             <span className={cn('text-xs font-medium', sourceColorClass)}>
               {getSourceLabel(r.source)}
             </span>
+            {r.family_booking_id && (
+              <span className="text-xs bg-purple-100 text-purple-700 rounded-full px-2 py-0.5 font-medium">
+                Familienzimmer
+              </span>
+            )}
           </div>
         </div>
 
         <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-          {!editing && (
+          {!editing && !isDeleted && (
             <button onClick={() => setEditing(true)}
               className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
               <Edit2 className="w-3.5 h-3.5" />
@@ -258,9 +333,9 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       )}
 
       {/* Body */}
-      <div className="p-5 space-y-5 overflow-y-auto max-h-[60vh]">
+      <div className="p-5 space-y-5 overflow-y-auto max-h-[55vh]">
 
-        {/* Room info */}
+        {/* Room */}
         <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
           <p className="text-sm font-semibold text-slate-900">
             {r.rooms.name}
@@ -273,8 +348,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
         <div className="grid grid-cols-2 gap-4">
           <InfoField label="Anreise" icon={<Calendar className="w-3.5 h-3.5" />}>
             {editing ? (
-              <input type="date" value={editCheckin}
-                onChange={e => setEditCheckin(e.target.value)}
+              <input type="date" value={editCheckin} onChange={e => setEditCheckin(e.target.value)}
                 className="mt-1 text-sm border border-slate-300 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-blue-500" />
             ) : (
               <span className="text-sm text-slate-900">{formatReservationDate(r.checkin_at)}</span>
@@ -283,8 +357,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
 
           <InfoField label="Abreise" icon={<Calendar className="w-3.5 h-3.5" />}>
             {editing ? (
-              <input type="date" value={editCheckout} min={editCheckin}
-                onChange={e => setEditCheckout(e.target.value)}
+              <input type="date" value={editCheckout} min={editCheckin} onChange={e => setEditCheckout(e.target.value)}
                 className="mt-1 text-sm border border-slate-300 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-blue-500" />
             ) : (
               <span className="text-sm text-slate-900">{formatReservationDate(r.checkout_at)}</span>
@@ -296,7 +369,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
         <div className="space-y-2">
           <InfoField label="Personen" icon={<Users className="w-3.5 h-3.5" />}>
             {editing ? (
-              <input type="number" min={1} max={4} value={editGuestCount}
+              <input type="number" min={1} max={6} value={editGuestCount}
                 onChange={e => setEditGuestCount(Number(e.target.value))}
                 className="mt-1 text-sm border border-slate-300 rounded px-2 py-1 w-20 focus:outline-none focus:ring-1 focus:ring-blue-500" />
             ) : (
@@ -307,13 +380,10 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
           {(r.guest_phone || editing) && (
             <InfoField label="Telefon" icon={<Phone className="w-3.5 h-3.5" />}>
               {editing ? (
-                <input type="tel" value={editGuestPhone}
-                  onChange={e => setEditGuestPhone(e.target.value)}
+                <input type="tel" value={editGuestPhone} onChange={e => setEditGuestPhone(e.target.value)}
                   className="mt-1 text-sm border border-slate-300 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-blue-500" />
               ) : (
-                <a href={`tel:${r.guest_phone}`} className="text-sm text-blue-600 hover:underline">
-                  {r.guest_phone}
-                </a>
+                <a href={`tel:${r.guest_phone}`} className="text-sm text-blue-600 hover:underline">{r.guest_phone}</a>
               )}
             </InfoField>
           )}
@@ -321,13 +391,10 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
           {(r.guest_email || editing) && (
             <InfoField label="E-Mail" icon={<Mail className="w-3.5 h-3.5" />}>
               {editing ? (
-                <input type="email" value={editGuestEmail}
-                  onChange={e => setEditGuestEmail(e.target.value)}
+                <input type="email" value={editGuestEmail} onChange={e => setEditGuestEmail(e.target.value)}
                   className="mt-1 text-sm border border-slate-300 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-blue-500" />
               ) : (
-                <a href={`mailto:${r.guest_email}`} className="text-sm text-blue-600 hover:underline">
-                  {r.guest_email}
-                </a>
+                <a href={`mailto:${r.guest_email}`} className="text-sm text-blue-600 hover:underline">{r.guest_email}</a>
               )}
             </InfoField>
           )}
@@ -344,8 +411,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
                 ))}
               </select>
             ) : (
-              <span className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
-                STATUS_STYLES[r.status])}>
+              <span className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-medium', STATUS_STYLES[r.status])}>
                 {STATUS_LABELS[r.status]}
               </span>
             )}
@@ -389,8 +455,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
                 ))}
               </select>
             ) : (
-              <span className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
-                PAY_STATUS_STYLES[r.payment_status])}>
+              <span className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-medium', PAY_STATUS_STYLES[r.payment_status])}>
                 {PAY_STATUS_LABELS[r.payment_status]}
               </span>
             )}
@@ -415,8 +480,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
           <InfoField label="Frühstück" icon={<Utensils className="w-3.5 h-3.5" />}>
             {editing ? (
               <label className="flex items-center gap-2 mt-1 cursor-pointer">
-                <input type="checkbox" checked={editBreakfast}
-                  onChange={e => setEditBreakfast(e.target.checked)}
+                <input type="checkbox" checked={editBreakfast} onChange={e => setEditBreakfast(e.target.checked)}
                   className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                 <span className="text-sm text-slate-700">Inklusive</span>
               </label>
@@ -438,8 +502,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
         {/* Notes */}
         <InfoField label="Notizen" icon={<Edit2 className="w-3.5 h-3.5" />}>
           {editing ? (
-            <textarea rows={3} value={editNotes}
-              onChange={e => setEditNotes(e.target.value)}
+            <textarea rows={3} value={editNotes} onChange={e => setEditNotes(e.target.value)}
               className="mt-1 text-sm border border-slate-300 rounded px-2 py-1.5 w-full resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="Notizen…" />
           ) : (
@@ -455,51 +518,96 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
         </div>
       </div>
 
-      {/* Delete */}
-      <div className="px-5 pb-5 pt-3 border-t border-slate-100">
-        {confirmDelete ? (
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-red-700 font-medium">Reservierung wirklich löschen?</span>
-            <button onClick={handleDelete}
-              className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700 transition-colors">
-              Ja, löschen
+      {/* Footer: Cancel + Delete actions */}
+      {!isDeleted && (
+        <div className="px-5 pb-5 pt-3 border-t border-slate-100 space-y-2">
+
+          {/* Cancel reservation */}
+          {!isCancelled && (
+            confirmCancel ? (
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-amber-700 font-medium">Reservierung stornieren?</span>
+                <button onClick={handleCancel}
+                  className="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-600 transition-colors">
+                  Ja, stornieren
+                </button>
+                <button onClick={() => setConfirmCancel(false)}
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
+                  Abbrechen
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmCancel(true)}
+                className="flex items-center gap-1.5 text-sm text-amber-600 hover:text-amber-700 font-medium transition-colors">
+                <Ban className="w-3.5 h-3.5" />
+                Reservierung stornieren
+              </button>
+            )
+          )}
+
+          {/* Soft delete */}
+          {confirmDelete ? (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-red-700 font-medium">Reservierung wirklich löschen?</span>
+              <button onClick={handleSoftDelete}
+                className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700 transition-colors">
+                Ja, löschen
+              </button>
+              <button onClick={() => setConfirmDelete(false)}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
+                Abbrechen
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmDelete(true)}
+              className="flex items-center gap-1.5 text-sm text-red-600 hover:text-red-700 font-medium transition-colors">
+              <Trash2 className="w-3.5 h-3.5" />
+              Reservierung löschen
             </button>
-            <button onClick={() => setConfirmDelete(false)}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
-              Abbrechen
+          )}
+        </div>
+      )}
+
+      {/* Admin: Permanent delete for already-deleted reservations */}
+      {isDeleted && isAdmin && (
+        <div className="px-5 pb-5 pt-3 border-t border-slate-100">
+          {confirmPermDelete ? (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-red-700 font-medium">Endgültig und unwiderruflich löschen?</span>
+              <button onClick={handlePermanentDelete}
+                className="rounded-lg bg-red-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-800 transition-colors">
+                Ja, endgültig löschen
+              </button>
+              <button onClick={() => setConfirmPermDelete(false)}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
+                Abbrechen
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmPermDelete(true)}
+              className="flex items-center gap-1.5 text-sm text-red-700 hover:text-red-800 font-semibold transition-colors">
+              <Trash2 className="w-3.5 h-3.5" />
+              Endgültig löschen (Admin)
             </button>
-          </div>
-        ) : (
-          <button onClick={() => setConfirmDelete(true)}
-            className="flex items-center gap-1.5 text-sm text-red-600 hover:text-red-700 font-medium transition-colors">
-            <Trash2 className="w-3.5 h-3.5" />
-            Reservierung löschen
-          </button>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </ModalShell>
   )
 }
 
-// ─── Modal shell ─────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function ModalShell({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      {/* Panel */}
+      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden">
         {children}
       </div>
     </div>
   )
 }
-
-// ─── Helper component ─────────────────────────────────────────────────────────
 
 function InfoField({ label, icon, children }: {
   label: string; icon: React.ReactNode; children: React.ReactNode

@@ -3,6 +3,7 @@ import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 import ReservationTable from '@/components/Reservations/ReservationTable'
 import type { ReservationWithRoom } from '@/types/database'
+import { isAdminUser, deduplicateReservations } from '@/lib/admin'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +11,11 @@ export default async function CheckOutsPage() {
   const supabase = await createClient()
   const today = format(new Date(), 'yyyy-MM-dd')
 
-  const { data, error } = await supabase
+  // Determine admin status server-side
+  const { data: { user } } = await supabase.auth.getUser()
+  const isAdmin = isAdminUser(user?.email)
+
+  let q = supabase
     .from('reservations')
     .select('*, rooms(*, room_types(*))')
     .gte('checkout_at', `${today}T00:00:00`)
@@ -18,7 +23,14 @@ export default async function CheckOutsPage() {
     .in('status', ['confirmed', 'checked_in', 'checked_out'])
     .order('checkout_at')
 
-  const reservations = (data ?? []) as ReservationWithRoom[]
+  if (!isAdmin) q = (q as typeof q).is('deleted_at', null)
+
+  const { data, error } = await q
+
+  const reservations = deduplicateReservations(
+    (data ?? []) as ReservationWithRoom[],
+    isAdmin,
+  )
 
   const stillinRoom  = reservations.filter(r => r.status === 'checked_in')
   const departed     = reservations.filter(r => r.status === 'checked_out')

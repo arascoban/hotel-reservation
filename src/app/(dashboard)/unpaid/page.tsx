@@ -1,20 +1,34 @@
 import { createClient } from '@/lib/supabase/server'
 import ReservationTable from '@/components/Reservations/ReservationTable'
 import type { ReservationWithRoom } from '@/types/database'
+import { isAdminUser, deduplicateReservations } from '@/lib/admin'
 
 export const dynamic = 'force-dynamic'
 
 export default async function UnpaidPage() {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
+  // Determine admin status server-side
+  const { data: { user } } = await supabase.auth.getUser()
+  const isAdmin = isAdminUser(user?.email)
+
+  let q = supabase
     .from('reservations')
     .select('*, rooms(*, room_types(*))')
     .in('payment_status', ['unpaid', 'deposit_paid'])
     .not('status', 'in', '("cancelled","no_show","checked_out")')
     .order('checkin_at', { ascending: true })
 
-  const reservations = (data ?? []) as ReservationWithRoom[]
+  // Employees never see soft-deleted reservations
+  if (!isAdmin) q = (q as typeof q).is('deleted_at', null)
+
+  const { data, error } = await q
+
+  // Deduplicate family bookings (both rooms → show once)
+  const reservations = deduplicateReservations(
+    (data ?? []) as ReservationWithRoom[],
+    isAdmin,
+  )
 
   const unpaid   = reservations.filter(r => r.payment_status === 'unpaid')
   const deposits = reservations.filter(r => r.payment_status === 'deposit_paid')

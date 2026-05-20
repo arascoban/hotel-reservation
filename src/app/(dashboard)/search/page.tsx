@@ -8,6 +8,8 @@ import type {
 } from '@/types/database'
 import ReservationTable from '@/components/Reservations/ReservationTable'
 import { cn } from '@/lib/cn'
+import { useAdmin } from '@/hooks/useAdmin'
+import { deduplicateReservations } from '@/lib/admin'
 
 const STATUSES: { value: ReservationStatus | ''; label: string }[] = [
   { value: '',            label: 'Alle Status' },
@@ -40,7 +42,8 @@ const SOURCES: { value: ReservationSource | ''; label: string }[] = [
 const selectClass = 'rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white'
 
 export default function SearchPage() {
-  const supabase = createClient()
+  const supabase    = createClient()
+  const { isAdmin } = useAdmin()
 
   const [query,      setQuery]      = useState('')
   const [status,     setStatus]     = useState<ReservationStatus | ''>('')
@@ -70,6 +73,8 @@ export default function SearchPage() {
     if (source)    q = q.eq('source', source)
     if (dateFrom)  q = q.gte('checkin_at', `${dateFrom}T00:00:00`)
     if (dateTo)    q = q.lte('checkout_at', `${dateTo}T23:59:59`)
+    // Employees never see soft-deleted reservations
+    if (!isAdmin)  q = (q as typeof q).is('deleted_at', null)
 
     const { data, error: err } = await q
 
@@ -77,7 +82,11 @@ export default function SearchPage() {
       setError('Suche fehlgeschlagen. Bitte erneut versuchen.')
       setResults([])
     } else {
-      let filtered = (data ?? []) as ReservationWithRoom[]
+      // Deduplicate family bookings
+      let filtered = deduplicateReservations(
+        (data ?? []) as ReservationWithRoom[],
+        isAdmin,
+      )
 
       // Text search on guest fields (done client-side after fetch)
       if (query.trim()) {

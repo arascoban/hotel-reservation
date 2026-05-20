@@ -13,6 +13,7 @@ import type { CalendarReservation, RoomTypeCategory } from '@/types/database'
 import { cn } from '@/lib/cn'
 import ReservationBlock from './ReservationBlock'
 import ReservationDetailModal from '@/components/Reservations/ReservationDetailModal'
+import { useAdmin } from '@/hooks/useAdmin'
 
 // ─── Layout constants ─────────────────────────────────────────────────────────
 const ROOM_COL_WIDTH = 148   // px — sticky room name column
@@ -47,14 +48,16 @@ interface Props {
 }
 
 export default function CalendarGrid({ initialReservations, rooms }: Props) {
-  const router = useRouter()
-  const supabase = createClient()
+  const router    = useRouter()
+  const supabase  = createClient()
+  const { isAdmin } = useAdmin()
 
   // ── State ────────────────────────────────────────────────────
   const [currentMonth,   setCurrentMonth]   = useState<Date>(() => startOfMonth(new Date()))
   const [reservations,   setReservations]   = useState<CalendarReservation[]>(initialReservations)
   const [loading,        setLoading]        = useState(false)
   const [showCancelled,  setShowCancelled]  = useState(false)
+  const [showDeleted,    setShowDeleted]    = useState(false)
   const [selectedId,     setSelectedId]     = useState<string | null>(null)
 
   // ── Dynamic column width via ResizeObserver ──────────────────
@@ -131,9 +134,15 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
   )
 
   // ── Reservation filtering ────────────────────────────────────
-  const visible = reservations.filter(r =>
-    showCancelled || (r.status !== 'cancelled' && r.status !== 'no_show'),
-  )
+  const visible = reservations.filter(r => {
+    // Non-admins never see soft-deleted reservations
+    if (!isAdmin && r.deleted_at) return false
+    // Admins can toggle deleted visibility
+    if (isAdmin && r.deleted_at && !showDeleted) return false
+    // Cancelled / no-show toggle
+    if (!showCancelled && (r.status === 'cancelled' || r.status === 'no_show')) return false
+    return true
+  })
 
   const resByRoom = visible.reduce<Record<string, CalendarReservation[]>>((acc, r) => {
     if (!acc[r.room_id]) acc[r.room_id] = []
@@ -188,6 +197,18 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
             />
             <span className="hidden sm:inline">Stornierte</span>
           </label>
+
+          {isAdmin && (
+            <label className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showDeleted}
+                onChange={e => setShowDeleted(e.target.checked)}
+                className="rounded border-slate-300 text-red-600 focus:ring-red-500"
+              />
+              <span className="hidden sm:inline text-red-500">Gelöschte</span>
+            </label>
+          )}
 
           {loading && (
             <div className="flex items-center gap-1.5 text-xs text-blue-500 animate-pulse">

@@ -209,10 +209,14 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
       }
 
       try {
-        // Create reservation for room 1
-        await createReservationSafe(supabase, { ...baseInput, room_id: selectedFamily.room1!.id })
-        // Create reservation for room 2
-        await createReservationSafe(supabase, { ...baseInput, room_id: selectedFamily.room2!.id })
+        // Create both room reservations
+        const id1 = await createReservationSafe(supabase, { ...baseInput, room_id: selectedFamily.room1!.id })
+        const id2 = await createReservationSafe(supabase, { ...baseInput, room_id: selectedFamily.room2!.id })
+
+        // Link them with the same family_booking_id so they deduplicate in list views
+        const familyId = crypto.randomUUID()
+        await supabase.from('reservations').update({ family_booking_id: familyId }).eq('id', id1)
+        await supabase.from('reservations').update({ family_booking_id: familyId }).eq('id', id2)
 
         router.push('/')
         router.refresh()

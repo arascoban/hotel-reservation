@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { format } from 'date-fns'
+import { format, addDays } from 'date-fns'
 import { de } from 'date-fns/locale'
 import ReservationTable from '@/components/Reservations/ReservationTable'
 import type { ReservationWithRoom } from '@/types/database'
@@ -7,21 +7,24 @@ import { isAdminUser, deduplicateReservations } from '@/lib/admin'
 
 export const dynamic = 'force-dynamic'
 
-export default async function CheckInsPage() {
+export default async function UpcomingPage() {
   const supabase = await createClient()
-  const today = format(new Date(), 'yyyy-MM-dd')
 
   // Determine admin status server-side
   const { data: { user } } = await supabase.auth.getUser()
   const isAdmin = isAdminUser(user?.email)
 
+  const today    = new Date()
+  const from     = format(today,            'yyyy-MM-dd')
+  const to       = format(addDays(today, 14), 'yyyy-MM-dd')
+
   let q = supabase
     .from('reservations')
     .select('*, rooms(*, room_types(*))')
-    .gte('checkin_at', `${today}T00:00:00`)
-    .lt('checkin_at',  `${today}T23:59:59`)
+    .gte('checkin_at', `${from}T00:00:00`)
+    .lte('checkin_at', `${to}T23:59:59`)
     .in('status', ['confirmed', 'checked_in'])
-    .order('checkin_at')
+    .order('checkin_at', { ascending: true })
 
   if (!isAdmin) q = (q as typeof q).is('deleted_at', null)
 
@@ -32,15 +35,17 @@ export default async function CheckInsPage() {
     isAdmin,
   )
 
-  const arriving  = reservations.filter(r => r.status === 'confirmed')
-  const checkedIn = reservations.filter(r => r.status === 'checked_in')
+  // Group by date for a nicer display
+  const today0   = reservations.filter(r => r.checkin_at.startsWith(from))
+  const upcoming = reservations.filter(r => !r.checkin_at.startsWith(from))
 
   return (
     <div className="px-6 py-8 max-w-6xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Heutige Ankünfte</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Bevorstehende Ankünfte</h1>
         <p className="text-slate-500 mt-1">
-          {format(new Date(), 'EEEE, d. MMMM yyyy', { locale: de })} · {reservations.length} Ankunft{reservations.length !== 1 ? 'en' : ''}
+          Ankünfte in den nächsten 14 Tagen ·{' '}
+          {format(today, 'd. MMMM', { locale: de })} – {format(addDays(today, 14), 'd. MMMM yyyy', { locale: de })}
         </p>
       </div>
 
@@ -51,12 +56,20 @@ export default async function CheckInsPage() {
       )}
 
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <StatCard label="Erwartet heute"      value={reservations.length} color="blue" />
-        <StatCard label="Noch ausstehend"      value={arriving.length}     color="amber" />
-        <StatCard label="Bereits eingecheckt" value={checkedIn.length}    color="green" />
+        <StatCard label="Ankünfte gesamt"  value={reservations.length} color="blue" />
+        <StatCard label="Heute"            value={today0.length}       color="green" />
+        <StatCard label="In den nächsten 14 Tagen" value={upcoming.length} color="amber" />
       </div>
 
-      <ReservationTable reservations={reservations} />
+      {reservations.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-slate-300 p-12 text-center">
+          <p className="text-slate-500 text-sm">
+            Keine bevorstehenden Ankünfte in den nächsten 14 Tagen.
+          </p>
+        </div>
+      ) : (
+        <ReservationTable reservations={reservations} />
+      )}
     </div>
   )
 }

@@ -28,6 +28,7 @@ export default function ReservationBlock({
   reservation, startDate, daysShown, dayWidth, rowHeight, onClick,
 }: Props) {
   const isCancelled = reservation.status === 'cancelled' || reservation.status === 'no_show'
+  const isDeleted   = !!reservation.deleted_at
 
   const checkinDay  = startOfDay(parseISO(reservation.checkin_at))
   const checkoutDay = startOfDay(parseISO(reservation.checkout_at))
@@ -50,7 +51,7 @@ export default function ReservationBlock({
   const top        = 7
   const height     = rowHeight - 14  // vertical padding
 
-  const colors = isCancelled ? CANCELLED_COLORS : (SOURCE_COLORS[reservation.source] ?? SOURCE_COLORS.other)
+  const colors = (isCancelled || isDeleted) ? CANCELLED_COLORS : (SOURCE_COLORS[reservation.source] ?? SOURCE_COLORS.other)
 
   // Rounding: only round corners where the block starts/ends naturally
   const roundingClass = cn(
@@ -80,6 +81,7 @@ export default function ReservationBlock({
         colors.bg,
         colors.text,
         roundingClass,
+        isDeleted && 'opacity-40 border-2 border-dashed border-red-400',
       )}
       style={{ left, width: blockWidth, top, height }}
     >
