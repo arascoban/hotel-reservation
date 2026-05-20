@@ -4,6 +4,8 @@ export type ReservationSource =
   | 'booking_com' | 'expedia' | 'airbnb'
   | 'walk_in' | 'phone' | 'website' | 'other'
 
+export type RoomCleaningStatus = 'clean' | 'dirty' | 'maintenance'
+
 export type PaymentMethod = 'cash' | 'ec_card' | 'credit_card' | 'online' | 'unpaid'
 export type PaymentStatus = 'paid' | 'deposit_paid' | 'unpaid' | 'refunded'
 export type ReservationStatus = 'confirmed' | 'checked_in' | 'checked_out' | 'cancelled' | 'no_show'
@@ -33,6 +35,18 @@ export interface Room {
   floor: number | null
   is_active: boolean
   sort_order: number
+  notes: string | null
+  cleaning_status: RoomCleaningStatus
+  cleaning_note: string | null
+  cleaning_updated_at: string
+  created_at: string
+  updated_at: string
+}
+
+export interface Locker {
+  id: string
+  locker_number: string
+  pin_code: string
   notes: string | null
   created_at: string
   updated_at: string
@@ -70,6 +84,7 @@ export interface Reservation {
   notes: string | null
   external_id: string | null
   family_booking_id: string | null
+  locker_id: string | null
   deleted_at: string | null
   created_at: string
   updated_at: string

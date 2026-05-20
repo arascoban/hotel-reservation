@@ -14,18 +14,30 @@ import {
   X,
   CalendarClock,
   RefreshCw,
+  BarChart3,
+  Utensils,
+  Hotel,
+  Lock,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/cn'
 import { useAdmin } from '@/hooks/useAdmin'
 
 const NAV_BASE = [
-  { href: '/',          label: 'Kalender',               icon: CalendarDays },
-  { href: '/checkins',  label: 'Heutige Ankünfte',       icon: LogIn },
-  { href: '/checkouts', label: 'Heutige Abreisen',       icon: LogOut },
-  { href: '/upcoming',  label: 'Bevorstehende Ankünfte', icon: CalendarClock },
-  { href: '/unpaid',    label: 'Offene Zahlungen',       icon: CreditCard },
-  { href: '/search',    label: 'Suche',                  icon: Search },
+  { href: '/',           label: 'Kalender',               icon: CalendarDays },
+  { href: '/checkins',   label: 'Heutige Ankünfte',       icon: LogIn },
+  { href: '/checkouts',  label: 'Heutige Abreisen',       icon: LogOut },
+  { href: '/upcoming',   label: 'Bevorstehende Ankünfte', icon: CalendarClock },
+  { href: '/unpaid',     label: 'Offene Zahlungen',       icon: CreditCard },
+  { href: '/breakfast',  label: 'Frühstücksliste',        icon: Utensils },
+  { href: '/rooms',      label: 'Zimmerstatus',           icon: Hotel },
+  { href: '/statistics', label: 'Statistiken',            icon: BarChart3 },
+  { href: '/search',     label: 'Suche',                  icon: Search },
+]
+
+const NAV_ADMIN_EXTRAS = [
+  { href: '/lockers', label: 'Schließfach-PINs', icon: Lock },
+  { href: '/sync',    label: 'iCal Synchronisation', icon: RefreshCw },
 ]
 
 interface Props {
@@ -45,9 +57,7 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
     router.refresh()
   }
 
-  const NAV = isAdmin
-    ? [...NAV_BASE, { href: '/sync', label: 'iCal Synchronisation', icon: RefreshCw }]
-    : NAV_BASE
+  const NAV = isAdmin ? [...NAV_BASE, ...NAV_ADMIN_EXTRAS] : NAV_BASE
 
   return (
     <aside

@@ -307,6 +307,17 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
         </div>
 
         <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+          {!editing && (
+            <a
+              href={`/reservations/${reservationId}/print`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+              title="Buchungsbestätigung drucken / als PDF speichern"
+            >
+              🖨️ PDF
+            </a>
+          )}
           {!editing && !isDeleted && (
             <button onClick={() => setEditing(true)}
               className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">

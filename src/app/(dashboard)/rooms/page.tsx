@@ -1,0 +1,172 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { format } from 'date-fns'
+import type { RoomCleaningStatus } from '@/types/database'
+import { cn } from '@/lib/cn'
+
+interface RoomWithStatus {
+  id: string
+  room_number: string
+  name: string
+  cleaning_status: RoomCleaningStatus
+  cleaning_note: string | null
+  cleaning_updated_at: string
+  // current occupancy from reservations
+  guest_name?: string
+  checkout_at?: string
+  occupied: boolean
+}
+
+const STATUS_CONFIG: Record<RoomCleaningStatus, { label: string; bg: string; dot: string; badge: string }> = {
+  clean:       { label: 'Sauber',      bg: 'bg-green-50 border-green-200',  dot: 'bg-green-500',  badge: 'bg-green-100 text-green-800' },
+  dirty:       { label: 'Reinigen',    bg: 'bg-amber-50 border-amber-200',  dot: 'bg-amber-500',  badge: 'bg-amber-100 text-amber-800' },
+  maintenance: { label: 'Wartung',     bg: 'bg-red-50 border-red-200',      dot: 'bg-red-500',    badge: 'bg-red-100 text-red-700'   },
+}
+
+const NEXT_STATUS: Record<RoomCleaningStatus, RoomCleaningStatus> = {
+  clean: 'dirty', dirty: 'maintenance', maintenance: 'clean',
+}
+
+export default function RoomsPage() {
+  const supabase = createClient()
+  const [rooms,   setRooms]   = useState<RoomWithStatus[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving,  setSaving]  = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const today = format(new Date(), 'yyyy-MM-dd')
+
+    const [{ data: roomData }, { data: resData }] = await Promise.all([
+      supabase.from('rooms').select('id, room_number, name, cleaning_status, cleaning_note, cleaning_updated_at').eq('is_active', true).order('sort_order'),
+      supabase.from('reservations').select('room_id, guest_name, checkout_at').not('status', 'in', '("cancelled","no_show","checked_out")').is('deleted_at', null).lte('checkin_at', `${today}T23:59:59`).gte('checkout_at', `${today}T00:00:01`),
+    ])
+
+    const resMap = new Map((resData ?? []).map(r => [r.room_id, r]))
+
+    setRooms((roomData ?? []).map(room => ({
+      ...room,
+      cleaning_status: (room.cleaning_status ?? 'clean') as RoomCleaningStatus,
+      occupied: resMap.has(room.id),
+      guest_name:  resMap.get(room.id)?.guest_name,
+      checkout_at: resMap.get(room.id)?.checkout_at,
+    })))
+    setLoading(false)
+  }, [supabase])
+
+  useEffect(() => { load() }, [load])
+
+  async function cycleStatus(room: RoomWithStatus) {
+    const next = NEXT_STATUS[room.cleaning_status]
+    setSaving(room.id)
+    await supabase.from('rooms').update({
+      cleaning_status: next,
+      cleaning_updated_at: new Date().toISOString(),
+    }).eq('id', room.id)
+    setSaving(null)
+    load()
+  }
+
+  const summary = {
+    total:       rooms.length,
+    occupied:    rooms.filter(r => r.occupied).length,
+    clean:       rooms.filter(r => r.cleaning_status === 'clean').length,
+    dirty:       rooms.filter(r => r.cleaning_status === 'dirty').length,
+    maintenance: rooms.filter(r => r.cleaning_status === 'maintenance').length,
+  }
+
+  return (
+    <div className="px-6 py-8 max-w-6xl mx-auto">
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Zimmerstatus</h1>
+          <p className="text-slate-500 mt-1">Auf eine Karte klicken zum Wechseln des Status</p>
+        </div>
+        <button onClick={() => load()} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+          ↻ Aktualisieren
+        </button>
+      </div>
+
+      {/* Summary bar */}
+      <div className="grid grid-cols-5 gap-3 mb-6">
+        {[
+          { label: 'Zimmer gesamt', value: summary.total,       color: 'text-slate-900' },
+          { label: 'Belegt',        value: summary.occupied,    color: 'text-blue-700'  },
+          { label: 'Frei',          value: summary.total - summary.occupied, color: 'text-slate-600' },
+          { label: 'Sauber',        value: summary.clean,       color: 'text-green-700' },
+          { label: 'Reinigen',      value: summary.dirty,       color: 'text-amber-700' },
+        ].map(s => (
+          <div key={s.label} className="bg-white rounded-xl border border-slate-200 p-4 text-center">
+            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+            <p className="text-xs text-slate-500 mt-1">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Status cycle legend */}
+      <div className="flex items-center gap-3 mb-4 text-xs text-slate-500">
+        <span className="font-medium">Klicken zum Wechseln:</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Sauber</span>
+        <span>→</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" /> Reinigen</span>
+        <span>→</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Wartung</span>
+        <span>→</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Sauber</span>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-20 text-slate-400 text-sm">Lädt…</div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+          {rooms.map(room => {
+            const cfg = STATUS_CONFIG[room.cleaning_status]
+            const isSaving = saving === room.id
+            return (
+              <button
+                key={room.id}
+                onClick={() => cycleStatus(room)}
+                disabled={isSaving}
+                className={cn(
+                  'relative rounded-xl border-2 p-3 text-left transition-all hover:shadow-md active:scale-95',
+                  cfg.bg,
+                  isSaving && 'opacity-50 cursor-wait',
+                )}
+              >
+                {/* Occupied indicator */}
+                {room.occupied && (
+                  <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-blue-500" title="Belegt" />
+                )}
+
+                <div className="flex items-center gap-1.5 mb-2">
+                  <div className={cn('w-2.5 h-2.5 rounded-full flex-shrink-0', cfg.dot)} />
+                  <span className="text-base font-bold text-slate-800">Zi. {room.room_number}</span>
+                </div>
+
+                <p className="text-xs text-slate-500 truncate mb-1">{room.name}</p>
+
+                <span className={cn('inline-flex rounded-full px-2 py-0.5 text-2xs font-semibold', cfg.badge)}>
+                  {cfg.label}
+                </span>
+
+                {room.occupied && room.guest_name && (
+                  <p className="mt-1.5 text-2xs text-blue-600 font-medium truncate">
+                    {room.guest_name}
+                  </p>
+                )}
+
+                {room.occupied && room.checkout_at && (
+                  <p className="text-2xs text-slate-400 truncate">
+                    Abreise {format(new Date(room.checkout_at), 'd. MMM')}
+                  </p>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
