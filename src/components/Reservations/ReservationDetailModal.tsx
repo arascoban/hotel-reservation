@@ -171,6 +171,14 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       return
     }
 
+    // Auto-set room to "needs cleaning" when guest checks out
+    if (editStatus === 'checked_out' && reservation.status !== 'checked_out') {
+      await supabase.from('rooms').update({
+        cleaning_status:     'dirty',
+        cleaning_updated_at: new Date().toISOString(),
+      }).eq('id', reservation.room_id)
+    }
+
     setEditing(false)
     setSaving(false)
     onUpdated()

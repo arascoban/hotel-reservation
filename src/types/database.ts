@@ -39,6 +39,7 @@ export interface Room {
   cleaning_status: RoomCleaningStatus
   cleaning_note: string | null
   cleaning_updated_at: string
+  locker_pin: string
   created_at: string
   updated_at: string
 }

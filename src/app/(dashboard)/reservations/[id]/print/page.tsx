@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
-import type { ReservationWithRoom, Locker } from '@/types/database'
+import type { ReservationWithRoom } from '@/types/database'
 import { formatDate, formatDateTime } from '@/lib/reservations'
 import { differenceInCalendarDays } from 'date-fns'
 
@@ -31,13 +31,6 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
 
   if (!resData) notFound()
   const r = resData as ReservationWithRoom
-
-  // Fetch assigned locker (if any)
-  let locker: Locker | null = null
-  if (r.locker_id) {
-    const { data } = await supabase.from('lockers').select('*').eq('id', r.locker_id).single()
-    locker = data as Locker | null
-  }
 
   const nights = differenceInCalendarDays(new Date(r.checkout_at), new Date(r.checkin_at))
 
@@ -138,23 +131,21 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
           </div>
         )}
 
-        {/* Locker PIN */}
-        {locker && (
-          <div className="bg-slate-900 text-white rounded-xl p-5 mb-6">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">🔐 Ihr Schließfach</p>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-300">Schließfach Nr.</p>
-                <p className="text-2xl font-bold">{locker.locker_number}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-slate-300">PIN-Code</p>
-                <p className="text-3xl font-bold font-mono tracking-widest">{locker.pin_code}</p>
-              </div>
+        {/* Locker PIN — every room has its own locker */}
+        <div className="bg-slate-900 text-white rounded-xl p-5 mb-6">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">🔐 Ihr Schließfach</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-slate-300">Schließfach Nr.</p>
+              <p className="text-2xl font-bold">{r.rooms.room_number}</p>
             </div>
-            <p className="text-xs text-slate-400 mt-3">Bitte bewahren Sie diesen Code vertraulich auf.</p>
+            <div className="text-right">
+              <p className="text-sm text-slate-300">PIN-Code</p>
+              <p className="text-3xl font-bold font-mono tracking-widest">{r.rooms.locker_pin}</p>
+            </div>
           </div>
-        )}
+          <p className="text-xs text-slate-400 mt-3">Bitte bewahren Sie diesen Code vertraulich auf.</p>
+        </div>
 
         {/* External ID */}
         {r.external_id && (

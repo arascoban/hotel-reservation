@@ -81,9 +81,10 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
   const [extId,        setExtId]        = useState('')
 
   // ── UI state ────────────────────────────────────────────────────
-  const [availableRooms, setAvailableRooms] = useState<AvailableRoom[]>([])
-  const [loadingRooms,   setLoadingRooms]   = useState(false)
-  const [conflictMsg,    setConflictMsg]    = useState<string | null>(null)
+  const [availableRooms,    setAvailableRooms]    = useState<AvailableRoom[]>([])
+  const [maintenanceRoomIds, setMaintenanceRoomIds] = useState<Set<string>>(new Set())
+  const [loadingRooms,      setLoadingRooms]      = useState(false)
+  const [conflictMsg,       setConflictMsg]       = useState<string | null>(null)
   const [fieldErrors,    setFieldErrors]    = useState<Record<string, string>>({})
   const [submitError,    setSubmitError]    = useState<string | null>(null)
   const [submitting,     setSubmitting]     = useState(false)
@@ -95,7 +96,8 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
   const familyOptions = FAMILY_ROOM_PAIRS.map(pair => {
     const room1 = availableRooms.find(r => r.room_number === pair.numbers[0])
     const room2 = availableRooms.find(r => r.room_number === pair.numbers[1])
-    return { ...pair, room1, room2, available: !!room1 && !!room2 }
+    const inMaintenance = (room1 && maintenanceRoomIds.has(room1.id)) || (room2 && maintenanceRoomIds.has(room2.id))
+    return { ...pair, room1, room2, available: !!room1 && !!room2 && !inMaintenance, inMaintenance: !!inMaintenance }
   })
   const selectedFamily = familyOptions.find(f => f.key === familyKey) ?? null
 
@@ -113,16 +115,36 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
     })
 
     if (!error && data) {
-      setAvailableRooms(data as AvailableRoom[])
-      if (bookingType === 'single' && roomId && !(data as AvailableRoom[]).find((r: AvailableRoom) => r.id === roomId)) {
+      const rooms = data as AvailableRoom[]
+      setAvailableRooms(rooms)
+
+      // Fetch cleaning status so maintenance rooms can be shown as unavailable
+      if (rooms.length > 0) {
+        const { data: statusData } = await supabase
+          .from('rooms')
+          .select('id, cleaning_status')
+          .in('id', rooms.map((r: AvailableRoom) => r.id))
+        const maintIds = new Set<string>(
+          (statusData ?? [])
+            .filter((r: { id: string; cleaning_status: string }) => r.cleaning_status === 'maintenance')
+            .map((r: { id: string }) => r.id)
+        )
+        setMaintenanceRoomIds(maintIds)
+        // Deselect room if it is now in maintenance
+        if (bookingType === 'single' && roomId && maintIds.has(roomId)) setRoomId('')
+      } else {
+        setMaintenanceRoomIds(new Set())
+      }
+
+      if (bookingType === 'single' && roomId && !(rooms as AvailableRoom[]).find((r: AvailableRoom) => r.id === roomId)) {
         setRoomId('')
       }
       // Reset family key if it's no longer available
       if (bookingType === 'family' && familyKey) {
         const pair = FAMILY_ROOM_PAIRS.find(p => p.key === familyKey)
         if (pair) {
-          const r1 = (data as AvailableRoom[]).find((r: AvailableRoom) => r.room_number === pair.numbers[0])
-          const r2 = (data as AvailableRoom[]).find((r: AvailableRoom) => r.room_number === pair.numbers[1])
+          const r1 = (rooms as AvailableRoom[]).find((r: AvailableRoom) => r.room_number === pair.numbers[0])
+          const r2 = (rooms as AvailableRoom[]).find((r: AvailableRoom) => r.room_number === pair.numbers[1])
           if (!r1 || !r2) setFamilyKey('')
         }
       }
@@ -455,11 +477,16 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
                 className={cn(fieldClass('room_id'), 'cursor-pointer')}
               >
                 <option value="">— Zimmer wählen —</option>
-                {availableRooms.map(r => (
-                  <option key={r.id} value={r.id}>
-                    {r.name} — {r.type_name} (max. {r.max_capacity} Pers.)
-                  </option>
-                ))}
+                {availableRooms.map(r => {
+                  const inMaintenance = maintenanceRoomIds.has(r.id)
+                  return (
+                    <option key={r.id} value={r.id} disabled={inMaintenance}>
+                      {inMaintenance
+                        ? `⚠ ${r.name} — Erfordert Wartung`
+                        : `${r.name} — ${r.type_name} (max. ${r.max_capacity} Pers.)`}
+                    </option>
+                  )
+                })}
               </select>
             )}
 
@@ -511,9 +538,11 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
                         'text-xs font-medium px-2 py-0.5 rounded-full',
                         opt.available
                           ? 'bg-green-100 text-green-700'
-                          : 'bg-red-100 text-red-600',
+                          : opt.inMaintenance
+                            ? 'bg-orange-100 text-orange-700'
+                            : 'bg-red-100 text-red-600',
                       )}>
-                        {opt.available ? 'Verfügbar' : 'Belegt'}
+                        {opt.available ? 'Verfügbar' : opt.inMaintenance ? '⚠ Wartung' : 'Belegt'}
                       </span>
                     </div>
                     <p className="text-xs mt-1 opacity-70">

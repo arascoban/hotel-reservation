@@ -236,13 +236,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Kein E-Mail hinterlegt.' }, { status: 400 })
     }
 
-    // Fetch locker if assigned
-    let locker: { locker_number: string; pin_code: string } | null = null
-    if (r.locker_id) {
-      const { data } = await supabase.from('lockers').select('locker_number, pin_code').eq('id', r.locker_id).single()
-      locker = data
-    }
-
     const nights = differenceInCalendarDays(new Date(r.checkout_at), new Date(r.checkin_at))
 
     const html = buildEmailHtml({
@@ -260,8 +253,8 @@ export async function POST(req: NextRequest) {
       totalPrice:        r.total_price,
       notes:             r.notes,
       externalId:        r.external_id,
-      lockerNumber:      locker?.locker_number,
-      lockerPin:         locker?.pin_code,
+      lockerNumber:      r.rooms.room_number,   // locker = same as room number
+      lockerPin:         r.rooms.locker_pin,
       reservationId:     r.id,
       nights,
     })
