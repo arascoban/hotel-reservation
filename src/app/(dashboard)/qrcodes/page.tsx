@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import PrintAllButton from './PrintAllButton'
+import Image from 'next/image'
 
 const BASE_URL = 'https://jaegerstieg-reservation.vercel.app'
 
@@ -34,7 +35,7 @@ export default async function QRCodesPage() {
       `}</style>
 
       {/* ── Screen toolbar ── */}
-      <div className="no-print bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+      <div className="no-print bg-white border-b border-slate-200 px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-slate-900">QR-Codes Zimmerservice</h1>
           <p className="text-sm text-slate-500 mt-0.5">
@@ -45,17 +46,35 @@ export default async function QRCodesPage() {
       </div>
 
       {/* ── Screen preview grid ── */}
-      <div className="no-print p-6">
+      <div className="no-print p-4 sm:p-6">
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-w-5xl mx-auto">
           {(rooms ?? []).map((room: RoomWithToken) => {
             const orderUrl = `${BASE_URL}/order/${room.room_number}?t=${room.order_token}`
             const qrUrl    = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=8&data=${encodeURIComponent(orderUrl)}`
             return (
               <div key={room.id} className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col items-center gap-2 shadow-sm">
+                {/* Hotel logo */}
+                <Image
+                  src="/logo.png"
+                  alt="Jägerstieg Hotel & Pension"
+                  width={100}
+                  height={50}
+                  className="object-contain mb-1"
+                />
+                {/* QR code */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={qrUrl} alt={room.name} width={140} height={140} className="rounded-lg" />
-                <p className="font-bold text-slate-900 text-sm">{room.name}</p>
+                <p className="font-bold text-slate-900 text-sm text-center">{room.name}</p>
                 <p className="text-xs text-slate-400">Zimmer {room.room_number}</p>
+                {/* Test link */}
+                <a
+                  href={orderUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-500 hover:underline mt-1"
+                >
+                  Gastansicht öffnen →
+                </a>
               </div>
             )
           })}
@@ -73,14 +92,14 @@ export default async function QRCodesPage() {
               className="qr-page w-full h-screen flex flex-col items-center justify-center bg-white"
               style={{ minHeight: '297mm' }}
             >
-              {/* Logo */}
+              {/* Logo — use deployed public URL so it always loads in print */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="https://i.ibb.co/m597972B/logo.png"
+                src={`${BASE_URL}/logo.png`}
                 alt="Jägerstieg Hotel & Pension"
-                width={160}
-                height={80}
-                style={{ objectFit: 'contain', marginBottom: '24px' }}
+                width={180}
+                height={90}
+                style={{ objectFit: 'contain', marginBottom: '28px' }}
               />
 
               {/* Big QR code */}
@@ -88,18 +107,18 @@ export default async function QRCodesPage() {
               <img
                 src={qrUrl}
                 alt={room.name}
-                width={260}
-                height={260}
+                width={280}
+                height={280}
                 className="rounded-2xl shadow-lg"
               />
 
               {/* Room name */}
               <p className="mt-8 text-4xl font-black text-slate-900">{room.name}</p>
 
-              {/* Catchy headline */}
-              <p className="mt-3 text-2xl font-bold text-slate-700">🍽️ Zimmerservice</p>
+              {/* Services headline */}
+              <p className="mt-3 text-2xl font-bold text-slate-700">🍽️ Zimmerservice &amp; 🧹 Reinigung</p>
               <p className="mt-2 text-base text-slate-500 text-center max-w-xs leading-relaxed">
-                Einfach QR-Code scannen und<br />direkt aus Ihrem Zimmer bestellen!
+                QR-Code scannen — Essen &amp; Getränke bestellen<br />oder Zimmerreinigung anfragen.
               </p>
 
               {/* Divider */}
