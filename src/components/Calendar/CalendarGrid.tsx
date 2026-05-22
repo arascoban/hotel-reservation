@@ -120,6 +120,7 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
     setReservations([])
     setConfirmDelAll(false)
     setDeletingAll(false)
+    router.refresh()
   }
 
   // ── Live room status refresh ─────────────────────────────────
@@ -544,6 +545,9 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
           onUpdated={() => {
             setSelectedId(null)
             fetchReservations(currentMonth)
+            // Invalidate Next.js router cache so stale SSR data never re-appears
+            // when the user navigates away and comes back to this page
+            router.refresh()
           }}
         />
       )}

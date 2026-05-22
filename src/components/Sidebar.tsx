@@ -40,9 +40,23 @@ function useNotificationCounts() {
 
   useEffect(() => {
     load()
+
+    // Realtime: re-fetch counts the instant any order or cleaning request changes
+    // (covers: new order arrives, order marked delivered, cleaning marked done, etc.)
+    const channel = supabase
+      .channel('sidebar_notification_counts')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'room_orders' },       load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cleaning_requests' }, load)
+      .subscribe()
+
+    // Polling fallback every 30 s in case realtime isn't enabled for a table
     const t = setInterval(load, 30_000)
-    return () => clearInterval(t)
-  }, [load])
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(t)
+    }
+  }, [load, supabase])
 
   return { foodCount, cleanCount }
 }
