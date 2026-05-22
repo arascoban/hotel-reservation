@@ -7,7 +7,7 @@ import {
   parseISO, startOfDay, startOfMonth, endOfMonth, getDaysInMonth,
 } from 'date-fns'
 import { de } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { CalendarReservation, RoomTypeCategory } from '@/types/database'
 import { getRoomFloor } from '@/lib/reservations'
@@ -61,6 +61,9 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
   const [showCancelled,  setShowCancelled]  = useState(false)
   const [showDeleted,    setShowDeleted]    = useState(false)
   const [selectedId,     setSelectedId]     = useState<string | null>(null)
+  const [userEmail,      setUserEmail]      = useState<string | null>(null)
+  const [confirmDelAll,  setConfirmDelAll]  = useState(false)
+  const [deletingAll,    setDeletingAll]    = useState(false)
 
   // Live room cleaning statuses — refreshed on focus/visibility so Zimmerstatus
   // changes are reflected instantly without a full page reload.
@@ -92,6 +95,22 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
 
   // Show abbreviated day name only if column is wide enough
   const showDayName = dayWidth >= 32
+
+  // Load user email once (for developer-only delete-all button)
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUserEmail(data.user?.email ?? null))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Delete ALL reservations (permanent) — developer/debug tool
+  async function handleDeleteAll() {
+    if (!confirmDelAll) { setConfirmDelAll(true); return }
+    setDeletingAll(true)
+    await supabase.from('reservations').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+    setReservations([])
+    setConfirmDelAll(false)
+    setDeletingAll(false)
+  }
 
   // ── Live room status refresh ─────────────────────────────────
   const fetchRoomStatuses = useCallback(async () => {
@@ -243,6 +262,37 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
               />
               <span className="hidden sm:inline text-red-500">Gelöschte</span>
             </label>
+          )}
+
+          {/* Developer-only: delete all reservations (arascoban36@gmail.com only) */}
+          {userEmail === 'arascoban36@gmail.com' && (
+            confirmDelAll ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-red-700 font-semibold">Alle Einträge löschen?</span>
+                <button
+                  onClick={handleDeleteAll}
+                  disabled={deletingAll}
+                  className="rounded-lg bg-red-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+                >
+                  {deletingAll ? 'Löscht…' : 'Ja, alle löschen'}
+                </button>
+                <button
+                  onClick={() => setConfirmDelAll(false)}
+                  className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Abbrechen
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmDelAll(true)}
+                className="flex items-center gap-1.5 rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 hover:border-red-300 transition-all"
+                title="Alle Reservierungen löschen (Debug)"
+              >
+                <Trash2 className="w-3 h-3" />
+                Alle löschen
+              </button>
+            )
           )}
 
           {loading && (

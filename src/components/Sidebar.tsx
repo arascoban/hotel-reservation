@@ -17,10 +17,18 @@ import { useAdmin } from '@/hooks/useAdmin'
 // ── Nav groups ──────────────────────────────────────────────────────────────
 
 const NAV_STANDALONE = [
-  { href: '/search',   label: 'Suche',        icon: Search       },
-  { href: '/',         label: 'Kalender',      icon: CalendarDays },
-  { href: '/rooms',    label: 'Zimmerstatus',  icon: Hotel        },
+  { href: '/search', label: 'Suche',    icon: Search       },
+  { href: '/',       label: 'Kalender', icon: CalendarDays },
 ]
+
+const GROUP_ROOMS_BASE = {
+  label: '🏨 Zimmer & Schlüssel',
+  hrefs: ['/rooms', '/lockers'],
+  items: [
+    { href: '/rooms',   label: 'Zimmerstatus',    icon: Hotel },
+    { href: '/lockers', label: 'Schließfach-PINs', icon: Lock  },
+  ],
+}
 
 const GROUP_CHECKINS = {
   label: '📅 Ankünfte & Abreisen',
@@ -56,9 +64,8 @@ const GROUP_FOOD_ADMIN_ITEMS = [
 ]
 
 const NAV_ADMIN_EXTRAS = [
-  { href: '/lockers', label: 'Schließfach-PINs',    icon: Lock      },
-  { href: '/sync',    label: 'iCal Synchronisation', icon: RefreshCw },
-  { href: '/import',  label: 'Booking.com Import',   icon: FileDown  },
+  { href: '/sync',   label: 'iCal Synchronisation', icon: RefreshCw },
+  { href: '/import', label: 'Booking.com Import',   icon: FileDown  },
 ]
 
 // ── Helper ───────────────────────────────────────────────────────────────────
@@ -155,6 +162,9 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
       : GROUP_FOOD_BASE.items,
   }
 
+  // Locker PINs always visible (read-only for Mitarbeiter, editable for Admin)
+  const roomsGroup = GROUP_ROOMS_BASE
+
   return (
     <aside className={cn(
       'fixed inset-y-0 left-0 z-30 flex w-64 flex-col bg-slate-900 text-white',
@@ -195,11 +205,14 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
         {/* Ankünfte & Abreisen */}
         <SubMenu {...GROUP_CHECKINS} onClose={onClose} />
 
+        {/* Zimmer & Schlüssel */}
+        <SubMenu {...roomsGroup} onClose={onClose} />
+
         {/* Food & Drinks */}
         <SubMenu {...foodGroup} onClose={onClose} />
 
-        {/* Finanzen & Statistiken */}
-        <SubMenu {...GROUP_FINANCE} onClose={onClose} />
+        {/* Finanzen & Statistiken — Admin only */}
+        {isAdmin && <SubMenu {...GROUP_FINANCE} onClose={onClose} />}
 
         {/* Admin-only extras */}
         {isAdmin && NAV_ADMIN_EXTRAS.map(({ href, label, icon }) => (

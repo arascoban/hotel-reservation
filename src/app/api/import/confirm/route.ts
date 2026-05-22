@@ -8,13 +8,20 @@ interface ConfirmRow {
   guestName: string
   checkin: string       // YYYY-MM-DD
   checkout: string      // YYYY-MM-DD
-  guestCount: number
+  checkinTime: string   // HH:MM
+  checkoutTime: string  // HH:MM
+  adults: number
+  children: number
   totalPrice: number | null
   commission: number | null
   bookingNumber: string
   paymentStatus: string
   paymentMethod: string
-  notes: string
+  notes: string         // guest-visible notes (Bemerkungen)
+  adresse: string       // saved to billing_address column
+  breakfast: boolean
+  email: string
+  phone: string
   skip: boolean
 }
 
@@ -27,32 +34,32 @@ export async function POST(req: NextRequest) {
     const results: Array<{ bookingNumber: string; ok: boolean; error?: string }> = []
 
     for (const row of toImport) {
-      // Build note with commission info
-      const commissionNote = row.commission != null
+      // Commission → internal_notes (never shown to guest)
+      const internalNote = row.commission != null
         ? `Provision Booking.com: €${row.commission.toFixed(2)}`
-        : ''
-      const fullNote = [commissionNote, row.notes].filter(Boolean).join(' | ')
+        : null
 
       const { error } = await supabase.from('reservations').insert({
-        room_id:           row.roomId,
-        guest_name:        row.guestName.trim(),
-        checkin_at:        `${row.checkin}T13:00:00+00`,
-        checkout_at:       `${row.checkout}T09:00:00+00`,
-        guest_count:       row.guestCount,
-        total_price:       row.totalPrice,
-        payment_status:    row.paymentStatus,
-        payment_method:    row.paymentMethod,
-        source:            'booking_com',
-        status:            'confirmed',
-        external_id:       row.bookingNumber,
-        notes:             fullNote || null,
+        room_id:            row.roomId,
+        guest_name:         row.guestName.trim(),
+        guest_email:        row.email  || null,
+        guest_phone:        row.phone  || null,
+        checkin_at:         `${row.checkin}T${row.checkinTime}:00+00`,
+        checkout_at:        `${row.checkout}T${row.checkoutTime}:00+00`,
+        guest_count:        row.adults + row.children,
+        breakfast_included: row.breakfast,
+        total_price:        row.totalPrice,
+        payment_status:     row.paymentStatus,
+        payment_method:     row.paymentMethod,
+        source:             'booking_com',
+        status:             'confirmed',
+        external_id:        row.bookingNumber,
+        notes:              row.notes  || null,   // clean guest notes only
+        internal_notes:     internalNote,          // commission info
+        billing_address:    row.adresse || null,   // address for invoices
       })
 
-      results.push({
-        bookingNumber: row.bookingNumber,
-        ok: !error,
-        error: error?.message,
-      })
+      results.push({ bookingNumber: row.bookingNumber, ok: !error, error: error?.message })
     }
 
     const succeeded = results.filter(r => r.ok).length

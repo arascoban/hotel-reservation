@@ -60,15 +60,6 @@ export default function LockersPage() {
     return String(Math.floor(1000 + Math.random() * 9000))
   }
 
-  if (!adminLoading && !isAdmin) {
-    return (
-      <div className="px-6 py-8 text-center">
-        <Lock className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-        <p className="text-slate-500">Kein Zugriff. Diese Seite ist nur für Administratoren.</p>
-      </div>
-    )
-  }
-
   return (
     <div className="px-6 py-8 max-w-6xl mx-auto">
       {/* Header */}
@@ -78,7 +69,11 @@ export default function LockersPage() {
             <Lock className="w-6 h-6 text-slate-600" />
             Schließfach-PINs
           </h1>
-          <p className="text-slate-500 mt-1">Jedes Zimmer hat ein eigenes Schließfach — PINs hier verwalten</p>
+          <p className="text-slate-500 mt-1">
+            {isAdmin
+              ? 'Jedes Zimmer hat ein eigenes Schließfach — PINs hier verwalten'
+              : 'PINs der Schließfächer — nur lesbar'}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -114,7 +109,7 @@ export default function LockersPage() {
                   'bg-white rounded-xl border-2 p-4 transition-all',
                   justSaved
                     ? 'border-green-300 bg-green-50'
-                    : edited
+                    : (isAdmin && edited)
                       ? 'border-blue-300'
                       : 'border-slate-200',
                 )}
@@ -142,40 +137,47 @@ export default function LockersPage() {
                   </label>
                   <input
                     type={showPins ? 'text' : 'password'}
-                    value={edits[room.id] ?? room.locker_pin}
-                    onChange={e => setEdits(prev => ({ ...prev, [room.id]: e.target.value }))}
+                    value={isAdmin ? (edits[room.id] ?? room.locker_pin) : room.locker_pin}
+                    onChange={e => isAdmin && setEdits(prev => ({ ...prev, [room.id]: e.target.value }))}
+                    readOnly={!isAdmin}
                     maxLength={10}
                     className={cn(
-                      'w-full rounded-lg border px-2 py-1.5 text-sm font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-blue-500',
-                      edited ? 'border-blue-400 bg-blue-50' : 'border-slate-300',
+                      'w-full rounded-lg border px-2 py-1.5 text-sm font-mono tracking-widest text-center focus:outline-none',
+                      !isAdmin
+                        ? 'border-slate-200 bg-slate-50 cursor-default text-slate-500'
+                        : edited
+                          ? 'border-blue-400 bg-blue-50 focus:ring-2 focus:ring-blue-500'
+                          : 'border-slate-300 focus:ring-2 focus:ring-blue-500',
                     )}
                     placeholder="0000"
                   />
                 </div>
 
-                {/* Actions */}
-                <div className="flex gap-1.5">
-                  <button
-                    onClick={() => savePin(room)}
-                    disabled={isSaving || !edited}
-                    className={cn(
-                      'flex-1 flex items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-semibold transition-colors',
-                      edited
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
-                        : 'bg-slate-100 text-slate-400 cursor-not-allowed',
-                    )}
-                  >
-                    <Save className="w-3 h-3" />
-                    {isSaving ? '…' : 'Speichern'}
-                  </button>
-                  <button
-                    onClick={() => setEdits(prev => ({ ...prev, [room.id]: randomPin() }))}
-                    title="Zufälligen PIN generieren"
-                    className="rounded-lg border border-slate-300 px-2 py-1.5 text-slate-500 hover:bg-slate-50 transition-colors"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                  </button>
-                </div>
+                {/* Actions — admin only */}
+                {isAdmin && (
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => savePin(room)}
+                      disabled={isSaving || !edited}
+                      className={cn(
+                        'flex-1 flex items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-semibold transition-colors',
+                        edited
+                          ? 'bg-blue-600 text-white hover:bg-blue-700'
+                          : 'bg-slate-100 text-slate-400 cursor-not-allowed',
+                      )}
+                    >
+                      <Save className="w-3 h-3" />
+                      {isSaving ? '…' : 'Speichern'}
+                    </button>
+                    <button
+                      onClick={() => setEdits(prev => ({ ...prev, [room.id]: randomPin() }))}
+                      title="Zufälligen PIN generieren"
+                      className="rounded-lg border border-slate-300 px-2 py-1.5 text-slate-500 hover:bg-slate-50 transition-colors"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
               </div>
             )
           })}
@@ -184,8 +186,9 @@ export default function LockersPage() {
 
       <p className="mt-6 text-xs text-slate-400 flex items-center gap-1.5">
         <Lock className="w-3.5 h-3.5" />
-        Der PIN wird automatisch in der Buchungsbestätigung (E-Mail &amp; PDF) an den Gast übermittelt.
-        Nur für Administratoren sichtbar.
+        {isAdmin
+          ? 'Der PIN wird automatisch in der Buchungsbestätigung (E-Mail & PDF) an den Gast übermittelt.'
+          : 'PINs können nur von Administratoren geändert werden.'}
       </p>
     </div>
   )

@@ -15,13 +15,36 @@ export interface RawParsedEntry {
   commission: number | null
   roomTypeRaw: string
   dbCategory: DbCategory
-  splitCount: number     // 1 normally, 2 for "2 x Double", etc.
-  splitRooms: DbCategory[] // one entry per room needed
+  splitCount: number
+  splitRooms: DbCategory[]
   paymentStatus: PaymentStatus
   paymentMethod: PaymentMethod
   isFamily: boolean
   parseWarnings: string[]
   rawBlock: string
+}
+
+// ── Text cleanup ──────────────────────────────────────────────────────────
+
+function cleanRawText(text: string): string {
+  return text
+    // Strip PDF table header / navigation that pollutes the first block
+    .replace(/hotel pension[^]*?(?:check-?in|gastname)\s*/gi, '')
+    .replace(/date\s+of\s+(?:check-?in\s+)?from[^\n]*/gi, '')
+    .replace(/until\s+[a-z]+\s+\d+,?\s+\d{4}/gi, '')
+    .replace(/download\s+\d+.*?list/gi, '')
+    .replace(/reservierungsliste[^\n]*/gi, '')
+    .replace(/guest name.*?booking.*?number\s*/gis, '')
+    .replace(/gastname.*?buchungsnummer\s*/gis, '')
+    .replace(/check-?in\s+check-?out\s+/gi, '')
+    // Strip page footers
+    .replace(/back\s*next\s*show\s*\d+[^\n]*/gi, '')
+    .replace(/advice\s*new\s*\d+/gi, '')
+    .replace(/https?:\/\/admin\.booking\.com[^\n]*/gi, '')
+    .replace(/\d+\s*von\s*\d+[^\n]*/gi, '')        // "2 von 2 22.05.2026"
+    .replace(/page\s+\d+[^\n]*/gi, '')
+    .replace(/commission and charges[^\n]*/gi, '')
+    .replace(/gesamtpreis[^\n]*/gi, '')
 }
 
 // ── Date parsing ──────────────────────────────────────────────────────────
@@ -36,44 +59,43 @@ const MONTHS_DE: Record<string, number> = {
 }
 
 function parseDate(text: string): string | null {
-  // English: May 22, 2026 or May 22 2026
-  const enMatch = text.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4})\b/i)
+  // Normalize whitespace so "May\n22,\n2026" → "May 22, 2026"
+  const t = text.replace(/\s+/g, ' ')
+
+  // English: May 22, 2026
+  const enMatch = t.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4})\b/i)
   if (enMatch) {
     const m = MONTHS_EN[enMatch[1].toLowerCase().slice(0, 3)]
     return `${enMatch[3]}-${String(m).padStart(2, '0')}-${enMatch[2].padStart(2, '0')}`
   }
   // German long: 22. Mai 2026
-  const deLong = text.match(/(\d{1,2})\.\s*(januar|februar|m[äa]rz|april|mai|juni|juli|august|september|oktober|november|dezember)\s+(\d{4})/i)
+  const deLong = t.match(/(\d{1,2})\.\s*(januar|februar|m[äa]rz|april|mai|juni|juli|august|september|oktober|november|dezember)\s+(\d{4})/i)
   if (deLong) {
-    const m = MONTHS_DE[deLong[2].toLowerCase()] ?? MONTHS_DE['märz']
+    const m = MONTHS_DE[deLong[2].toLowerCase()] ?? 1
     return `${deLong[3]}-${String(m).padStart(2, '0')}-${deLong[1].padStart(2, '0')}`
   }
   // German short: 22.05.2026
-  const deShort = text.match(/\b(\d{2})\.(\d{2})\.(\d{4})\b/)
+  const deShort = t.match(/\b(\d{2})\.(\d{2})\.(\d{4})\b/)
   if (deShort) return `${deShort[3]}-${deShort[2]}-${deShort[1]}`
 
   return null
 }
 
 function extractAllDates(text: string): string[] {
+  // Normalize ALL whitespace so split dates ("May\n22,\n2026") become "May 22, 2026"
+  const flat = text.replace(/\s+/g, ' ')
   const found: string[] = []
-  // Scan for all date-like patterns in order
-  const combined = text.replace(/\n/g, ' ')
 
-  // English dates
-  const enRe = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b/gi
-  let m: RegExpExecArray | null
-  const positions: Array<{pos: number, str: string}> = []
-  while ((m = enRe.exec(combined)) !== null) positions.push({ pos: m.index, str: m[0] })
-
-  // German long
-  const deLongRe = /\d{1,2}\.\s*(januar|februar|m[äa]rz|april|mai|juni|juli|august|september|oktober|november|dezember)\s+\d{4}/gi
-  while ((m = deLongRe.exec(combined)) !== null) positions.push({ pos: m.index, str: m[0] })
-
-  // German short (DD.MM.YYYY)
-  const deShortRe = /\b(\d{2})\.(\d{2})\.(\d{4})\b/g
-  while ((m = deShortRe.exec(combined)) !== null) positions.push({ pos: m.index, str: m[0] })
-
+  const patterns = [
+    /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b/gi,
+    /\d{1,2}\.\s*(januar|februar|m[äa]rz|april|mai|juni|juli|august|september|oktober|november|dezember)\s+\d{4}/gi,
+    /\b\d{2}\.\d{2}\.\d{4}\b/g,
+  ]
+  const positions: Array<{ pos: number; str: string }> = []
+  for (const re of patterns) {
+    let m: RegExpExecArray | null
+    while ((m = re.exec(flat)) !== null) positions.push({ pos: m.index, str: m[0] })
+  }
   positions.sort((a, b) => a.pos - b.pos)
 
   for (const { str } of positions) {
@@ -87,11 +109,10 @@ function extractAllDates(text: string): string[] {
 
 function extractGuestCount(text: string): number {
   let total = 0
-  // "2 adults" / "2 Erwachsene"
-  const adultMatch = text.match(/(\d+)\s*(adult|erwachsene?)/i)
+  const flat = text.replace(/\s+/g, ' ')
+  const adultMatch = flat.match(/(\d+)\s*(adult|erwachsen)/i)
   if (adultMatch) total += parseInt(adultMatch[1])
-  // "1 child" / "1 Kind" / "2 children" / "2 Kinder"
-  const childMatch = text.match(/(\d+)\s*(child|children|kind|kinder)/i)
+  const childMatch = flat.match(/(\d+)\s*(child|children|kind|kinder)/i)
   if (childMatch) total += parseInt(childMatch[1])
   return total || 1
 }
@@ -99,8 +120,9 @@ function extractGuestCount(text: string): number {
 // ── Room type parsing ─────────────────────────────────────────────────────
 
 function mapSingleType(text: string): DbCategory {
-  const t = text.toLowerCase()
-  if (t.includes('familien') || t.includes('family') || t.includes('verbindung')) return 'family'
+  // Normalize whitespace (handles "Triple\nRoom" → "Triple Room")
+  const t = text.toLowerCase().replace(/\s+/g, ' ').trim()
+  if (t.includes('familien') || t.includes('family') || t.includes('verbindun')) return 'family'
   if (t.includes('einzel') || t.includes('single')) return 'single'
   if (t.includes('dreibett') || t.includes('triple') || t.includes('schlafsofa') || t.includes('sofa')) return 'double_sofa'
   if (t.includes('doppel') || t.includes('double')) return 'double'
@@ -109,64 +131,58 @@ function mapSingleType(text: string): DbCategory {
 
 interface RoomTypeResult {
   raw: string
-  rooms: DbCategory[]   // one per physical room needed
+  rooms: DbCategory[]
   isFamily: boolean
 }
 
 function parseRoomType(text: string): RoomTypeResult {
-  const lower = text.toLowerCase().trim()
+  const lower = text.toLowerCase().replace(/\s+/g, ' ').trim()
 
-  // Family room always becomes 2 physical rooms
-  if (lower.includes('verbindung') || lower.includes('familien') || lower.includes('family')) {
+  // Family room always needs 2 physical rooms
+  if (lower.includes('verbindun') || lower.includes('familien') || lower.includes('family')) {
     return { raw: text.trim(), rooms: ['double', 'double'], isFamily: true }
   }
 
-  // "2 x Doppelzimmer" / "2 x Double Room"
-  const multiMatch = lower.match(/(\d+)\s*x\s*([^,\n]+)/g)
-  if (multiMatch && multiMatch.length > 0) {
-    const rooms: DbCategory[] = []
-    for (const part of multiMatch) {
-      const m2 = part.match(/(\d+)\s*x\s*(.+)/)
-      if (m2) {
-        const count = parseInt(m2[1])
-        const cat = mapSingleType(m2[2])
-        for (let i = 0; i < count; i++) rooms.push(cat)
-      }
-    }
-    if (rooms.length > 0) return { raw: text.trim(), rooms, isFamily: false }
+  // "2 x Doppelzimmer" / "2 x Double Room" / "1 x Single, 1 x Double"
+  const multiRe = /(\d+)\s*x\s*([^,]+)/g
+  const rooms: DbCategory[] = []
+  let m: RegExpExecArray | null
+  while ((m = multiRe.exec(lower)) !== null) {
+    const count = parseInt(m[1])
+    const cat = mapSingleType(m[2])
+    for (let i = 0; i < count; i++) rooms.push(cat)
   }
+  if (rooms.length > 0) return { raw: text.trim(), rooms, isFamily: false }
 
-  // Single room entry
   const cat = mapSingleType(lower)
   return { raw: text.trim(), rooms: [cat], isFamily: false }
 }
 
-// ── Room type keyword extraction from block ───────────────────────────────
-
-const ROOM_KEYWORDS = [
-  // German
-  'familienzimmer mit verbindungstür', 'familienzimmer', 'doppelzimmer mit schlafsofa',
-  'dreibettzimmer', 'doppelzimmer', 'einzelzimmer',
-  // English
-  'family room', 'double room with sofa', 'triple room', 'double room', 'single room',
-  // Short with multiplier patterns
-]
-
 function extractRoomTypeFromBlock(block: string): string {
-  const lower = block.toLowerCase()
+  // Normalize whitespace so "Triple\nRoom" → "Triple Room"
+  const flat  = block.replace(/\s+/g, ' ')
+  const lower = flat.toLowerCase()
 
-  // Check for multiplier patterns first: "2 x Doppelzimmer", "1 x Einzelzimmer, 1 x Doppelzimmer"
-  const multiRe = /(\d+\s*x\s*[\wäöüÄÖÜ\s]+?)(?=,|\d+\s*x|€|\d{10}|ok\b|$)/gi
-  const multiMatches: string[] = []
+  // Multiplier patterns: "2 x Doppelzimmer", "1 x Single Room, 1 x Double Room"
+  const multiRe = /(\d+\s*x\s+[\wäöüÄÖÜ\s]+?)(?=,\s*\d|€|\d{10}|\bok\b|$)/gi
+  const parts: string[] = []
   let mm: RegExpExecArray | null
-  while ((mm = multiRe.exec(lower)) !== null) {
+  while ((mm = multiRe.exec(flat)) !== null) {
     const candidate = mm[1].trim()
-    if (candidate.match(/\d+\s*x/)) multiMatches.push(candidate)
+    if (/\d+\s*x/i.test(candidate)) parts.push(candidate)
   }
-  if (multiMatches.length > 0) return multiMatches.join(', ')
+  if (parts.length > 0) return parts.join(', ')
 
-  // Check for known keywords
-  for (const kw of ROOM_KEYWORDS) {
+  // Known keywords (order: longest first)
+  const KEYWORDS = [
+    'familienzimmer mit verbindungstür', 'familienzimmer', 'doppelzimmer mit schlafsofa',
+    'dreibettzimmer', 'doppelzimmer', 'einzelzimmer',
+    'family room with connecting', 'family room', 'triple room', 'double room with sofa',
+    'double room', 'single room', 'triple', 'double', 'single',
+    // partial matches for split text
+    'familienzi', 'verbindun',
+  ]
+  for (const kw of KEYWORDS) {
     if (lower.includes(kw)) return kw
   }
   return ''
@@ -175,40 +191,38 @@ function extractRoomTypeFromBlock(block: string): string {
 // ── Payment status ────────────────────────────────────────────────────────
 
 function extractPaymentStatus(block: string): { paymentStatus: PaymentStatus; paymentMethod: PaymentMethod } {
-  const lower = block.toLowerCase()
+  const lower = block.toLowerCase().replace(/\s+/g, ' ')
   if (lower.includes('booking.com') || lower.includes('zahlung über')) {
     return { paymentStatus: 'paid', paymentMethod: 'online' }
   }
-  if (lower.includes('card verified') || lower.includes('karte') || lower.includes('kreditkarte')) {
+  if (lower.includes('card verified') || lower.includes('karte verifiziert')) {
     return { paymentStatus: 'unpaid', paymentMethod: 'credit_card' }
   }
   return { paymentStatus: 'unpaid', paymentMethod: 'unpaid' }
 }
 
-// ── Guest name extraction ─────────────────────────────────────────────────
+// ── Guest name ────────────────────────────────────────────────────────────
 
-function extractGuestName(block: string, firstDate: string | undefined): string {
-  // Take content before the first date
-  let candidate = block
-  if (firstDate) {
-    // Find first date-like pattern and take text before it
-    const datePatterns = [
-      /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d/i,
-      /\d{1,2}\.\s*(januar|februar|m[äa]rz|april|mai|juni|juli|august|september|oktober|november|dezember)/i,
-      /\b\d{2}\.\d{2}\.\d{4}\b/,
-    ]
-    for (const re of datePatterns) {
-      const idx = block.search(re)
-      if (idx > 0) { candidate = block.slice(0, idx); break }
-    }
+function extractGuestName(block: string): string {
+  const flat = block.replace(/\s+/g, ' ')
+
+  // Find the position of first date or guest count
+  const anchors = [
+    /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}/i,
+    /\d{1,2}\.\s*(januar|februar|m[äa]rz|april|mai|juni|juli|august|september|oktober|november|dezember)/i,
+    /\b\d{2}\.\d{2}\.\d{4}\b/,
+    /\d+\s*(adult|erwachsen|child|kind)/i,
+  ]
+  let cutIdx = flat.length
+  for (const re of anchors) {
+    const idx = flat.search(re)
+    if (idx > 0 && idx < cutIdx) cutIdx = idx
   }
 
-  // Remove known noise
+  const candidate = flat.slice(0, cutIdx)
   const cleaned = candidate
-    .replace(/\d+\s*(adult|erwachsen|child|kinder|kind)/gi, '')
-    .replace(/guest name|gastname|check[- ]in|check[- ]out/gi, '')
     .replace(/\d+/g, '')
-    .replace(/[€,\.]/g, ' ')
+    .replace(/[€,.]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 
@@ -218,11 +232,15 @@ function extractGuestName(block: string, firstDate: string | undefined): string 
 // ── Main parser ───────────────────────────────────────────────────────────
 
 export function parseBookingText(rawText: string): RawParsedEntry[] {
-  // Find all 10-digit booking numbers as anchors
-  const bnRe = /\b(\d{10})\b/g
+  // Strip PDF boilerplate first
+  const text = cleanRawText(rawText)
+
+  // Find all 10-digit booking numbers — use (?<!\d)…(?!\d) instead of \b
+  // because numbers sometimes touch letters ("6966189744BackNext")
+  const bnRe = /(?<!\d)(\d{10})(?!\d)/g
   const anchors: Array<{ number: string; end: number }> = []
   let m: RegExpExecArray | null
-  while ((m = bnRe.exec(rawText)) !== null) {
+  while ((m = bnRe.exec(text)) !== null) {
     anchors.push({ number: m[1], end: m.index + m[0].length })
   }
 
@@ -233,7 +251,7 @@ export function parseBookingText(rawText: string): RawParsedEntry[] {
   for (let i = 0; i < anchors.length; i++) {
     const { number, end } = anchors[i]
     const start = i === 0 ? 0 : anchors[i - 1].end
-    const block = rawText.slice(start, end).trim()
+    const block = text.slice(start, end).trim()
     const warnings: string[] = []
 
     // ── Prices ──
@@ -255,34 +273,35 @@ export function parseBookingText(rawText: string): RawParsedEntry[] {
     // ── Room type ──
     const roomTypeRaw = extractRoomTypeFromBlock(block)
     const rtResult = parseRoomType(roomTypeRaw || block)
-    if (!roomTypeRaw) warnings.push('Zimmertyp nicht erkannt')
+    if (!roomTypeRaw) warnings.push('Zimmertyp nicht erkannt — bitte manuell wählen')
 
     // ── Payment ──
     const payment = extractPaymentStatus(block)
 
     // ── Name ──
-    const guestName = extractGuestName(block, dates[0])
+    const guestName = extractGuestName(block)
 
-    // ── Build entries (one per room needed) ──
-    const roomsNeeded = rtResult.rooms.length === 0 ? ['unknown' as DbCategory] : rtResult.rooms
-    const pricePerRoom = prices[0] != null ? Math.round((prices[0] / roomsNeeded.length) * 100) / 100 : null
-    const commissionPerRoom = prices[1] != null ? Math.round((prices[1] / roomsNeeded.length) * 100) / 100 : null
-    const guestPerRoom = Math.max(1, Math.floor(guestCount / roomsNeeded.length))
+    // ── Build one ImportRow per physical room needed ──
+    const roomsNeeded = rtResult.rooms.length > 0 ? rtResult.rooms : ['unknown' as DbCategory]
+    const n = roomsNeeded.length
+    const pricePerRoom  = prices[0]  != null ? Math.round((prices[0]  / n) * 100) / 100 : null
+    const commPerRoom   = prices[1]  != null ? Math.round((prices[1]  / n) * 100) / 100 : null
+    const guestsPerRoom = Math.max(1, Math.floor(guestCount / n))
 
     roomsNeeded.forEach((cat, idx) => {
       results.push({
         bookingNumber: number,
         guestName,
-        checkin: dates[0] ?? '',
+        checkin:  dates[0] ?? '',
         checkout: dates[1] ?? '',
-        guestCount: idx === 0 ? guestCount - guestPerRoom * (roomsNeeded.length - 1) : guestPerRoom,
-        totalPrice: pricePerRoom,
-        commission: commissionPerRoom,
+        guestCount: idx === 0 ? guestCount - guestsPerRoom * (n - 1) : guestsPerRoom,
+        totalPrice:  rtResult.isFamily && idx > 0 ? 0 : pricePerRoom,
+        commission:  rtResult.isFamily && idx > 0 ? 0 : commPerRoom,
         roomTypeRaw: rtResult.raw,
-        dbCategory: cat,
-        splitCount: roomsNeeded.length,
-        splitRooms: roomsNeeded,
-        isFamily: rtResult.isFamily,
+        dbCategory:  cat,
+        splitCount:  n,
+        splitRooms:  roomsNeeded,
+        isFamily:    rtResult.isFamily,
         ...payment,
         parseWarnings: idx === 0 ? warnings : [],
         rawBlock: block,

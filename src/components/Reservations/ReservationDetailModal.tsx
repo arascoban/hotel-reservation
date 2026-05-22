@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   X, Edit2, Save, Trash2, Phone, Mail, Users,
-  Calendar, CreditCard, Utensils, Tag, Hash, AlertTriangle, Ban, Send,
+  Calendar, CreditCard, Utensils, Tag, Hash, AlertTriangle, Ban, Send, MapPin,
 } from 'lucide-react'
 import type {
   ReservationWithRoom, ReservationSource,
@@ -97,9 +97,10 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
   const [editCheckinTime,  setEditCheckinTime]  = useState('12:00')
   const [editCheckoutTime, setEditCheckoutTime] = useState('13:00')
   const [editGuestCount, setEditGuestCount] = useState(1)
-  const [editGuestName,  setEditGuestName]  = useState('')
-  const [editGuestPhone, setEditGuestPhone] = useState('')
-  const [editGuestEmail, setEditGuestEmail] = useState('')
+  const [editGuestName,      setEditGuestName]      = useState('')
+  const [editGuestPhone,     setEditGuestPhone]     = useState('')
+  const [editGuestEmail,     setEditGuestEmail]     = useState('')
+  const [editBillingAddress, setEditBillingAddress] = useState('')
 
   useEffect(() => {
     fetchReservation()
@@ -140,6 +141,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       setEditGuestName(r.guest_name)
       setEditGuestPhone(r.guest_phone ?? '')
       setEditGuestEmail(r.guest_email ?? '')
+      setEditBillingAddress((r as any).billing_address ?? '')
     }
     setLoading(false)
   }
@@ -176,9 +178,12 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       return
     }
 
-    // Save internal_notes (not handled by RPC)
+    // Save internal_notes + billing_address (not handled by RPC)
     await supabase.from('reservations')
-      .update({ internal_notes: editInternalNotes || null })
+      .update({
+        internal_notes:  editInternalNotes  || null,
+        billing_address: editBillingAddress || null,
+      })
       .eq('id', reservationId)
 
     // Auto-set room to "needs cleaning" when guest checks out
@@ -593,6 +598,19 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
         {(r.external_id || editing) && (
           <InfoField label="Externe ID" icon={<Hash className="w-3.5 h-3.5" />}>
             <span className="text-sm text-slate-500 font-mono">{r.external_id ?? '—'}</span>
+          </InfoField>
+        )}
+
+        {/* Billing address */}
+        {((r as any).billing_address || editing) && (
+          <InfoField label="Rechnungsadresse" icon={<MapPin className="w-3.5 h-3.5" />}>
+            {editing ? (
+              <textarea rows={2} value={editBillingAddress} onChange={e => setEditBillingAddress(e.target.value)}
+                className="mt-1 text-sm border border-slate-300 rounded px-2 py-1.5 w-full resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="Straße, PLZ Ort, Land…" />
+            ) : (
+              <p className="text-sm text-slate-700 whitespace-pre-wrap">{(r as any).billing_address || '—'}</p>
+            )}
           </InfoField>
         )}
 
