@@ -68,7 +68,8 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
   const [guestName,    setGuestName]    = useState('')
   const [guestPhone,   setGuestPhone]   = useState('')
   const [guestEmail,   setGuestEmail]   = useState('')
-  const [guestCount,   setGuestCount]   = useState(2)
+  const [adults,       setAdults]       = useState(2)
+  const [children,     setChildren]     = useState(0)
   const [checkinDate,  setCheckinDate]  = useState(defaultCheckin  ?? '')
   const [checkoutDate, setCheckoutDate] = useState(defaultCheckout ?? '')
   const [checkinTime,  setCheckinTime]  = useState('13:00')
@@ -114,7 +115,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
     const { data, error } = await (supabase as any).rpc('get_available_rooms', {
       p_checkin_at:  buildCheckinTimestamp(checkinDate, checkinTime),
       p_checkout_at: buildCheckoutTimestamp(checkoutDate, checkoutTime),
-      p_guest_count: bookingType === 'family' ? 1 : guestCount,
+      p_guest_count: bookingType === 'family' ? 1 : adults + children,
     })
 
     if (!error && data) {
@@ -154,7 +155,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
     }
     setLoadingRooms(false)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkinDate, checkoutDate, checkinTime, checkoutTime, guestCount, bookingType])
+  }, [checkinDate, checkoutDate, checkinTime, checkoutTime, adults, children, bookingType])
 
   useEffect(() => {
     fetchAvailableRooms()
@@ -212,7 +213,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         setFieldErrors({ guest_name: 'Name des Gastes ist erforderlich.' })
         return
       }
-      if (guestCount > selectedFamily.maxCapacity) {
+      if (adults + children > selectedFamily.maxCapacity) {
         setFieldErrors({ guest_count: `Dieses Familienzimmer hat eine maximale Kapazität von ${selectedFamily.maxCapacity} Personen.` })
         return
       }
@@ -226,7 +227,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         guest_phone:        guestPhone  || undefined,
         checkin_at:         buildCheckinTimestamp(checkinDate, checkinTime),
         checkout_at:        buildCheckoutTimestamp(checkoutDate, checkoutTime),
-        guest_count:        guestCount,
+        guest_count:        adults + children,
         breakfast_included: breakfast,
         source,
         payment_method:     payMethod,
@@ -270,7 +271,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         room_id:      roomId,
         checkin_at:   checkinDate  ? buildCheckinTimestamp(checkinDate, checkinTime)   : undefined,
         checkout_at:  checkoutDate ? buildCheckoutTimestamp(checkoutDate, checkoutTime) : undefined,
-        guest_count:  guestCount,
+        guest_count:  adults + children,
       },
       selectedRoom?.max_capacity,
     )
@@ -291,7 +292,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         room_id:            roomId,
         checkin_at:         buildCheckinTimestamp(checkinDate, checkinTime),
         checkout_at:        buildCheckoutTimestamp(checkoutDate, checkoutTime),
-        guest_count:        guestCount,
+        guest_count:        adults + children,
         breakfast_included: breakfast,
         source,
         payment_method:     payMethod,
@@ -453,16 +454,26 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
           </div>
         </div>
 
-        {/* Personen */}
-        <div className="max-w-xs">
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">
-            Personen <span className="text-red-500">*</span>
-          </label>
-          <input type="number" min={1} max={bookingType === 'family' ? 6 : 4} required value={guestCount}
-            onChange={e => setGuestCount(Number(e.target.value))}
-            className={fieldClass('guest_count')} />
+        {/* Personen: Erwachsene + Kinder */}
+        <div className="grid grid-cols-2 gap-4 max-w-xs">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              Erwachsene <span className="text-red-500">*</span>
+            </label>
+            <input type="number" min={1} max={bookingType === 'family' ? 6 : 4} required value={adults}
+              onChange={e => setAdults(Math.max(1, Number(e.target.value)))}
+              className={fieldClass('guest_count')} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              Kinder
+            </label>
+            <input type="number" min={0} max={6} value={children}
+              onChange={e => setChildren(Math.max(0, Number(e.target.value)))}
+              className={fieldClass('guest_count')} />
+          </div>
           {fieldErrors.guest_count && (
-            <p className="mt-1 text-xs text-red-600">{fieldErrors.guest_count}</p>
+            <p className="col-span-2 mt-1 text-xs text-red-600">{fieldErrors.guest_count}</p>
           )}
         </div>
 
@@ -502,7 +513,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
 
             {availableRooms.length === 0 && checkinDate && checkoutDate && !loadingRooms && (
               <p className="mt-1 text-xs text-red-600">
-                Keine Zimmer verfügbar für {guestCount} Person{guestCount !== 1 ? 'en' : ''} an diesen Daten.
+                Keine Zimmer verfügbar für {adults + children} Person{adults + children !== 1 ? 'en' : ''} an diesen Daten.
               </p>
             )}
             {fieldErrors.room_id && (

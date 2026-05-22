@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { randomUUID } from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
 interface ConfirmRow {
   roomId: string
+  secondRoomId?: string | null   // set for family bookings → creates TWO reservations
   guestName: string
   checkin: string       // YYYY-MM-DD
   checkout: string      // YYYY-MM-DD
@@ -23,7 +25,7 @@ interface ConfirmRow {
   email: string
   phone: string
   skip: boolean
-  familyBookingId: string | null   // set when this is part of a family room pair
+  familyBookingId: string | null   // legacy field (ignored when secondRoomId present)
 }
 
 export async function POST(req: NextRequest) {
@@ -40,11 +42,10 @@ export async function POST(req: NextRequest) {
         ? `Provision Booking.com: €${row.commission.toFixed(2)}`
         : null
 
-      const { error } = await supabase.from('reservations').insert({
-        room_id:            row.roomId,
+      const baseData = {
         guest_name:         row.guestName.trim(),
-        guest_email:        row.email  || null,
-        guest_phone:        row.phone  || null,
+        guest_email:        row.email    || null,
+        guest_phone:        row.phone    || null,
         checkin_at:         `${row.checkin}T${row.checkinTime}:00+00`,
         checkout_at:        `${row.checkout}T${row.checkoutTime}:00+00`,
         guest_count:        row.adults + row.children,
@@ -55,10 +56,40 @@ export async function POST(req: NextRequest) {
         source:             'booking_com',
         status:             'confirmed',
         external_id:        row.bookingNumber,
-        notes:              row.notes  || null,   // clean guest notes only
-        internal_notes:     internalNote,          // commission info
-        billing_address:    row.adresse || null,   // address for invoices
-        family_booking_id:  row.familyBookingId || null,  // links connecting room pair
+        notes:              row.notes    || null,
+        internal_notes:     internalNote,
+        billing_address:    row.adresse  || null,
+      }
+
+      // ── Family booking: insert TWO reservations linked by a shared family_booking_id ──
+      if (row.secondRoomId) {
+        const familyId = randomUUID()
+
+        const { error: e1 } = await supabase.from('reservations').insert({
+          ...baseData,
+          room_id:           row.roomId,
+          family_booking_id: familyId,
+        })
+        const { error: e2 } = await supabase.from('reservations').insert({
+          ...baseData,
+          room_id:           row.secondRoomId,
+          family_booking_id: familyId,
+        })
+
+        const ok = !e1 && !e2
+        results.push({
+          bookingNumber: row.bookingNumber,
+          ok,
+          error: e1?.message ?? e2?.message,
+        })
+        continue
+      }
+
+      // ── Regular single-room booking ───────────────────────────────────────
+      const { error } = await supabase.from('reservations').insert({
+        ...baseData,
+        room_id:           row.roomId,
+        family_booking_id: row.familyBookingId || null,
       })
 
       results.push({ bookingNumber: row.bookingNumber, ok: !error, error: error?.message })
