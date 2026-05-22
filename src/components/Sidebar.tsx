@@ -12,6 +12,7 @@ import {
   Search,
   Plus,
   ChevronRight,
+  ChevronDown,
   X,
   CalendarClock,
   RefreshCw,
@@ -24,30 +25,41 @@ import {
   UtensilsCrossed,
   ClipboardList,
   QrCode,
+  Soup,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/cn'
 import { useAdmin } from '@/hooks/useAdmin'
 
 const NAV_BASE = [
-  { href: '/search',          label: 'Suche',                  icon: Search },
-  { href: '/',                label: 'Kalender',               icon: CalendarDays },
-  { href: '/checkins',        label: 'Heutige Ankünfte',       icon: LogIn },
-  { href: '/checkouts',       label: 'Heutige Abreisen',       icon: LogOut },
-  { href: '/upcoming',        label: 'Bevorstehende Ankünfte', icon: CalendarClock },
-  { href: '/unpaid',          label: 'Offene Zahlungen',       icon: CreditCard },
-  { href: '/breakfast',       label: 'Frühstücksliste',        icon: Utensils },
-  { href: '/rooms',           label: 'Zimmerstatus',           icon: Hotel },
-  { href: '/statistics',      label: 'Statistiken',            icon: BarChart3 },
-  { href: '/service-orders',  label: 'Zimmerservice',          icon: UtensilsCrossed },
+  { href: '/search',     label: 'Suche',                  icon: Search },
+  { href: '/',           label: 'Kalender',               icon: CalendarDays },
+  { href: '/checkins',   label: 'Heutige Ankünfte',       icon: LogIn },
+  { href: '/checkouts',  label: 'Heutige Abreisen',       icon: LogOut },
+  { href: '/upcoming',   label: 'Bevorstehende Ankünfte', icon: CalendarClock },
+  { href: '/unpaid',     label: 'Offene Zahlungen',       icon: CreditCard },
+  { href: '/rooms',      label: 'Zimmerstatus',           icon: Hotel },
+  { href: '/statistics', label: 'Statistiken',            icon: BarChart3 },
+]
+
+// Food & Drinks submenu — all staff
+const NAV_FOOD_BASE = [
+  { href: '/breakfast',      label: 'Frühstücksliste',   icon: Utensils },
+  { href: '/service-orders', label: 'Bestellungen',      icon: UtensilsCrossed },
+]
+
+// Food & Drinks submenu — admin only extras
+const NAV_FOOD_ADMIN = [
+  { href: '/menu',     label: 'Speisekarte',  icon: ClipboardList },
+  { href: '/qrcodes',  label: 'QR-Codes',     icon: QrCode },
 ]
 
 const NAV_ADMIN_EXTRAS = [
-  { href: '/lockers',  label: 'Schließfach-PINs',    icon: Lock },
-  { href: '/menu',     label: 'Speisekarte',          icon: ClipboardList },
-  { href: '/qrcodes',  label: 'QR-Codes',             icon: QrCode },
-  { href: '/sync',     label: 'iCal Synchronisation', icon: RefreshCw },
+  { href: '/lockers', label: 'Schließfach-PINs',    icon: Lock },
+  { href: '/sync',    label: 'iCal Synchronisation', icon: RefreshCw },
 ]
+
+const FOOD_HREFS = ['/breakfast', '/service-orders', '/menu', '/qrcodes']
 
 interface Props {
   isOpen?: boolean
@@ -60,7 +72,9 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
   const supabase    = createClient()
   const { isAdmin } = useAdmin()
 
-  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [userEmail, setUserEmail]   = useState<string | null>(null)
+  const isFoodActive                = FOOD_HREFS.some(h => pathname.startsWith(h))
+  const [foodOpen, setFoodOpen]     = useState(isFoodActive)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -68,13 +82,42 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
     })
   }, [supabase])
 
+  // Keep submenu open when navigating to a food page
+  useEffect(() => {
+    if (isFoodActive) setFoodOpen(true)
+  }, [isFoodActive])
+
   async function handleSignOut() {
     await supabase.auth.signOut()
     router.push('/login')
     router.refresh()
   }
 
-  const NAV = isAdmin ? [...NAV_BASE, ...NAV_ADMIN_EXTRAS] : NAV_BASE
+  const NAV    = isAdmin ? [...NAV_BASE, ...NAV_ADMIN_EXTRAS] : NAV_BASE
+  const FOOD   = isAdmin ? [...NAV_FOOD_BASE, ...NAV_FOOD_ADMIN] : NAV_FOOD_BASE
+
+  function NavLink({ href, label, icon: Icon, indent = false }: {
+    href: string; label: string; icon: any; indent?: boolean
+  }) {
+    const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href)
+    return (
+      <Link
+        href={href}
+        onClick={onClose}
+        className={cn(
+          'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
+          indent && 'pl-7',
+          isActive
+            ? 'bg-slate-700 text-white shadow-sm'
+            : 'text-slate-400 hover:bg-slate-800 hover:text-white',
+        )}
+      >
+        <Icon className="w-4 h-4 flex-shrink-0" />
+        <span className="flex-1">{label}</span>
+        {isActive && <ChevronRight className="w-3 h-3 flex-shrink-0 text-slate-400" />}
+      </Link>
+    )
+  }
 
   return (
     <aside
@@ -121,26 +164,45 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
 
       {/* ── Navigation ── */}
       <nav className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto">
-        {NAV.map(({ href, label, icon: Icon }) => {
-          const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href)
-          return (
-            <Link
-              key={href}
-              href={href}
-              onClick={onClose}
-              className={cn(
-                'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
-                isActive
-                  ? 'bg-slate-700 text-white shadow-sm'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white',
-              )}
-            >
-              <Icon className="w-4 h-4 flex-shrink-0" />
-              <span className="flex-1">{label}</span>
-              {isActive && <ChevronRight className="w-3 h-3 flex-shrink-0 text-slate-400" />}
-            </Link>
-          )
-        })}
+
+        {/* Regular nav items (top half) */}
+        {NAV_BASE.map(({ href, label, icon }) => (
+          <NavLink key={href} href={href} label={label} icon={icon} />
+        ))}
+
+        {/* ── Food & Drinks submenu ── */}
+        <div className="pt-1">
+          <button
+            onClick={() => setFoodOpen(o => !o)}
+            className={cn(
+              'flex items-center gap-3 w-full rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
+              isFoodActive
+                ? 'bg-slate-700 text-white'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-white',
+            )}
+          >
+            <Soup className="w-4 h-4 flex-shrink-0" />
+            <span className="flex-1 text-left">Food &amp; Drinks</span>
+            {foodOpen
+              ? <ChevronDown className="w-3.5 h-3.5 flex-shrink-0 text-slate-400" />
+              : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0 text-slate-400" />
+            }
+          </button>
+
+          {foodOpen && (
+            <div className="mt-0.5 space-y-0.5">
+              {FOOD.map(({ href, label, icon }) => (
+                <NavLink key={href} href={href} label={label} icon={icon} indent />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Admin extras */}
+        {isAdmin && NAV_ADMIN_EXTRAS.map(({ href, label, icon }) => (
+          <NavLink key={href} href={href} label={label} icon={icon} />
+        ))}
+
       </nav>
 
       {/* ── Account info ── */}
@@ -149,7 +211,7 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
           <div className="flex items-start gap-2 rounded-xl bg-slate-800 px-3 py-2.5">
             {isAdmin
               ? <ShieldCheck className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
-              : <User className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+              : <User       className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
             }
             <div className="min-w-0">
               <p className="text-xs text-slate-300 truncate leading-tight">{userEmail}</p>
