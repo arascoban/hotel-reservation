@@ -8,7 +8,7 @@ import {
   CalendarDays, LogIn, LogOut, CreditCard, Search, Plus,
   ChevronRight, ChevronDown, X, CalendarClock, RefreshCw,
   BarChart3, Utensils, Hotel, Lock, ShieldCheck, User,
-  UtensilsCrossed, ClipboardList, QrCode, Soup, TrendingUp,
+  UtensilsCrossed, ClipboardList, QrCode, Soup, TrendingUp, FileDown,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/cn'
@@ -58,6 +58,7 @@ const GROUP_FOOD_ADMIN_ITEMS = [
 const NAV_ADMIN_EXTRAS = [
   { href: '/lockers', label: 'Schließfach-PINs',    icon: Lock      },
   { href: '/sync',    label: 'iCal Synchronisation', icon: RefreshCw },
+  { href: '/import',  label: 'Booking.com Import',   icon: FileDown  },
 ]
 
 // ── Helper ───────────────────────────────────────────────────────────────────
