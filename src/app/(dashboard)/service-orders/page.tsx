@@ -190,7 +190,17 @@ export default function ServiceOrdersPage() {
 
         {/* Sound toggle — clicking this also unlocks AudioContext */}
         <button
-          onClick={() => { ensureAudio(); setSoundOn(s => !s) }}
+          onClick={() => {
+            const wasInitialized = !!audioCtxRef.current
+            ensureAudio()
+            // First click just unlocks AudioContext and keeps sound ON
+            // Subsequent clicks toggle on/off
+            if (wasInitialized) {
+              setSoundOn(s => !s)
+            } else {
+              setSoundOn(true)
+            }
+          }}
           className={cn(
             'flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors',
             soundOn ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500',
@@ -203,7 +213,7 @@ export default function ServiceOrdersPage() {
       {/* ── Sound activation hint ───────────────────────────────────────── */}
       {soundOn && !audioCtxRef.current && (
         <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 text-xs text-amber-700 flex items-center gap-2">
-          ⚠️ Klicken Sie einmal auf <strong>„Ton an"</strong> oben rechts, damit der Browser Benachrichtigungstöne erlaubt.
+          ⚠️ Einmal auf <strong>„🔔 Ton an"</strong> klicken, um Benachrichtigungstöne zu aktivieren.
         </div>
       )}
 
