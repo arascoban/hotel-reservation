@@ -61,7 +61,7 @@ const FAMILY_PAIRS: [string, string][] = [
 const PAIR_DEFS: { numbers: [string, string]; maxPersons: number; label: string }[] = [
   { numbers: ['11', '12'], maxPersons: 4, label: 'Familienzimmer 11+12 (Verbindungstür)' },
   { numbers: ['19', '20'], maxPersons: 4, label: 'Familienzimmer 19+20 (Verbindungstür)' },
-  { numbers: ['21', '22'], maxPersons: 3, label: 'Familienzimmer 21+22 (Verbindungstür)' },
+  { numbers: ['21', '22'], maxPersons: 4, label: 'Familienzimmer 21+22 (Verbindungstür)' },
 ]
 
 function filterAvailableRooms(
@@ -154,6 +154,7 @@ export async function POST(req: NextRequest) {
       .from('reservations')
       .select('room_id, checkin_at, checkout_at')
       .not('status', 'in', '("cancelled","no_show")')
+      .is('deleted_at', null)
       .lte('checkin_at', `${maxDate}T23:59:59`)
       .gte('checkout_at', `${minDate}T00:00:00`)
 

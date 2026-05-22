@@ -22,7 +22,7 @@ import TimeInput from '@/components/ui/TimeInput'
 const FAMILY_ROOM_PAIRS = [
   { key: '11+12', label: 'Familienzimmer 11+12 (Verbindungstür)', numbers: ['11', '12'], maxCapacity: 4 },
   { key: '19+20', label: 'Familienzimmer 19+20 (Verbindungstür)', numbers: ['19', '20'], maxCapacity: 4 },
-  { key: '21+22', label: 'Familienzimmer 21+22 (Verbindungstür)', numbers: ['21', '22'], maxCapacity: 3 },
+  { key: '21+22', label: 'Familienzimmer 21+22 (Verbindungstür)', numbers: ['21', '22'], maxCapacity: 4 },
 ]
 
 const SOURCES: { value: ReservationSource; label: string }[] = [
