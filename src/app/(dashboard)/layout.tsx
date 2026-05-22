@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Sidebar from '@/components/Sidebar'
 import GlobalOrderNotifier from '@/components/GlobalOrderNotifier'
+import PushSubscriber from '@/components/PushSubscriber'
 import { Menu } from 'lucide-react'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -20,6 +21,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )}
 
       <GlobalOrderNotifier />
+      <PushSubscriber />
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex-1 lg:ml-64 min-h-screen flex flex-col">

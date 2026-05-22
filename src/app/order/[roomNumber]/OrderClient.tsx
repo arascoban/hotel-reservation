@@ -77,6 +77,13 @@ export default function OrderClient({
 
     setOrderId(data as string)
     setSubmitting(false)
+
+    // Fire push notification to all staff devices (best-effort)
+    fetch('/api/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roomNumber: room.room_number }),
+    }).catch(() => {})
   }
 
   if (orderId) {
