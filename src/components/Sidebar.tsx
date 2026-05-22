@@ -8,7 +8,7 @@ import {
   CalendarDays, LogIn, LogOut, CreditCard, Search, Plus,
   ChevronRight, ChevronDown, X, CalendarClock, RefreshCw,
   BarChart3, Utensils, Hotel, Lock, ShieldCheck, User,
-  UtensilsCrossed, ClipboardList, QrCode, Soup, TrendingUp, FileDown,
+  UtensilsCrossed, ClipboardList, QrCode, Soup, TrendingUp, FileDown, History,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/cn'
@@ -32,11 +32,12 @@ const GROUP_ROOMS_BASE = {
 
 const GROUP_CHECKINS = {
   label: '📅 Ankünfte & Abreisen',
-  hrefs: ['/checkins', '/checkouts', '/upcoming'],
+  hrefs: ['/checkins', '/checkouts', '/upcoming', '/past-guests'],
   items: [
-    { href: '/checkins',  label: 'Heutige Ankünfte',       icon: LogIn        },
-    { href: '/checkouts', label: 'Heutige Abreisen',        icon: LogOut       },
-    { href: '/upcoming',  label: 'Bevorstehende Ankünfte',  icon: CalendarClock},
+    { href: '/checkins',     label: 'Heutige Ankünfte',       icon: LogIn        },
+    { href: '/checkouts',    label: 'Heutige Abreisen',        icon: LogOut       },
+    { href: '/upcoming',     label: 'Bevorstehende Ankünfte',  icon: CalendarClock},
+    { href: '/past-guests',  label: 'Vergangene Gäste',        icon: History      },
   ],
 }
 

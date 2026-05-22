@@ -98,6 +98,20 @@ export default function ReservationBlock({
         </span>
       )}
 
+      {/* Guest count (show when block is wide enough) */}
+      {showText && reservation.guest_count > 0 && (
+        <span className="text-2xs opacity-80 flex-shrink-0 leading-none font-medium">
+          ·{reservation.guest_count}
+        </span>
+      )}
+
+      {/* Family room indicator */}
+      {showText && reservation.family_booking_id && (
+        <span className="text-2xs opacity-90 flex-shrink-0 leading-none" title="Familienzimmer">
+          👨‍👩‍👧
+        </span>
+      )}
+
       {/* Right overflow indicator */}
       {clippedRight && showText && (
         <span className="opacity-60 flex-shrink-0 text-2xs">▶</span>

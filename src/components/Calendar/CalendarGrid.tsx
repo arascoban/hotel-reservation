@@ -25,6 +25,16 @@ const HEADER_HEIGHT  = 68    // px
 // Rooms belonging to the Pension building
 const PENSION_ROOMS = ['04', '05']
 
+// Connecting family room pairs with a unique color per pair
+const FAMILY_PAIR_CONFIG: Record<string, { label: string; color: string; border: string }> = {
+  '21': { label: '21+22', color: 'bg-orange-500', border: 'border-l-4 border-orange-400' },
+  '22': { label: '21+22', color: 'bg-orange-500', border: 'border-l-4 border-orange-400' },
+  '19': { label: '19+20', color: 'bg-teal-500',   border: 'border-l-4 border-teal-400'   },
+  '20': { label: '19+20', color: 'bg-teal-500',   border: 'border-l-4 border-teal-400'   },
+  '11': { label: '11+12', color: 'bg-violet-500', border: 'border-l-4 border-violet-400' },
+  '12': { label: '11+12', color: 'bg-violet-500', border: 'border-l-4 border-violet-400' },
+}
+
 const CATEGORY_LABELS: Record<RoomTypeCategory, string> = {
   single:        'Einzelzimmer',
   double:        'Doppelzimmer',
@@ -381,18 +391,23 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
 
                 {/* Room rows */}
                 {catRooms.map((room, idx) => {
-                  const roomRes   = resByRoom[room.id] ?? []
-                  const isPension = PENSION_ROOMS.includes(room.room_number)
-                  const isEvenRow = idx % 2 === 0
+                  const roomRes    = resByRoom[room.id] ?? []
+                  const isPension  = PENSION_ROOMS.includes(room.room_number)
+                  const isEvenRow  = idx % 2 === 0
+                  const familyCfg  = FAMILY_PAIR_CONFIG[room.room_number]
                   // Use live-fetched status (updates when user returns from Zimmerstatus)
-                  const cs        = roomStatuses.get(room.id) ?? room.cleaning_status ?? 'clean'
+                  const cs         = roomStatuses.get(room.id) ?? room.cleaning_status ?? 'clean'
 
                   // Row background based on cleaning status
                   const rowBg = cs === 'maintenance'
                     ? 'bg-red-50'
                     : cs === 'dirty'
                       ? 'bg-amber-50'
-                      : isEvenRow ? 'bg-white' : 'bg-slate-50/60'
+                      : familyCfg
+                        ? (room.room_number === '21' || room.room_number === '19' || room.room_number === '11')
+                          ? 'bg-white'
+                          : 'bg-slate-50/60'
+                        : isEvenRow ? 'bg-white' : 'bg-slate-50/60'
 
                   // Sticky name cell background (must match row)
                   const nameBg = cs === 'maintenance'
@@ -413,6 +428,8 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
                           'sticky left-0 z-10 flex-shrink-0 flex flex-col justify-center px-3',
                           'border-r-2 border-slate-300 transition-colors',
                           nameBg,
+                          // Family pair: colored left border stripe
+                          familyCfg && familyCfg.border,
                         )}
                         style={{ width: ROOM_COL_WIDTH }}
                       >
@@ -420,6 +437,15 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
                           <span className="text-sm font-bold text-slate-800">
                             Zi. {room.room_number}
                           </span>
+                          {/* Family pair badge */}
+                          {familyCfg && (
+                            <span className={cn(
+                              'text-2xs font-bold text-white rounded px-1 py-0.5 leading-none',
+                              familyCfg.color,
+                            )}>
+                              {familyCfg.label}
+                            </span>
+                          )}
                           {isPension && (
                             <span className="text-2xs font-semibold text-blue-600 bg-blue-50 border border-blue-200 rounded px-1 py-0.5 leading-none">
                               Pension
