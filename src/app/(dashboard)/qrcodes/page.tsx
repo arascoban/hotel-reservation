@@ -73,18 +73,23 @@ export default async function QRCodesPage() {
               className="qr-page w-full h-screen flex flex-col items-center justify-center bg-white"
               style={{ minHeight: '297mm' }}
             >
-              {/* Hotel name */}
-              <p className="text-slate-400 text-sm font-semibold uppercase tracking-widest mb-8">
-                Jägerstieg Hotel &amp; Pension
-              </p>
+              {/* Logo */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="https://i.ibb.co/m597972B/logo.png"
+                alt="Jägerstieg Hotel & Pension"
+                width={160}
+                height={80}
+                style={{ objectFit: 'contain', marginBottom: '24px' }}
+              />
 
               {/* Big QR code */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={qrUrl}
                 alt={room.name}
-                width={280}
-                height={280}
+                width={260}
+                height={260}
                 className="rounded-2xl shadow-lg"
               />
 
@@ -92,20 +97,25 @@ export default async function QRCodesPage() {
               <p className="mt-8 text-4xl font-black text-slate-900">{room.name}</p>
 
               {/* Catchy headline */}
-              <p className="mt-3 text-2xl font-bold text-slate-700">
-                🍽️ Zimmerservice
-              </p>
+              <p className="mt-3 text-2xl font-bold text-slate-700">🍽️ Zimmerservice</p>
               <p className="mt-2 text-base text-slate-500 text-center max-w-xs leading-relaxed">
-                Einfach QR-Code scannen und<br />
-                direkt aus Ihrem Zimmer bestellen!
+                Einfach QR-Code scannen und<br />direkt aus Ihrem Zimmer bestellen!
               </p>
 
               {/* Divider */}
-              <div className="mt-8 w-16 h-1 rounded-full bg-slate-200" />
+              <div className="mt-8 w-24 h-px bg-slate-200" />
 
-              {/* Sub-text */}
-              <p className="mt-4 text-sm text-slate-400 text-center leading-relaxed">
-                Wir bringen Ihre Bestellung<br />direkt zu Ihrer Zimmertür.
+              {/* Payment info */}
+              <p className="mt-5 text-sm font-semibold text-slate-600 text-center">
+                💳 Bezahlung bei Check-out
+              </p>
+              <p className="mt-1 text-sm text-slate-400 text-center">
+                Bar · EC-Karte · Kreditkarte
+              </p>
+
+              {/* Footer */}
+              <p className="mt-6 text-xs text-slate-300 text-center">
+                Wir bringen Ihre Bestellung direkt zu Ihrer Zimmertür.
               </p>
             </div>
           )

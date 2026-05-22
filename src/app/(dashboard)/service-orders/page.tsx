@@ -22,56 +22,67 @@ interface RoomOrder {
 }
 
 const STATUS_CONFIG = {
-  new:       { label: 'Neu',           bg: 'bg-blue-100',   text: 'text-blue-700',   dot: 'bg-blue-500' },
-  preparing: { label: 'In Zubereitung', bg: 'bg-amber-100',  text: 'text-amber-700',  dot: 'bg-amber-500' },
-  delivered: { label: 'Geliefert',     bg: 'bg-green-100',  text: 'text-green-700',  dot: 'bg-green-500' },
-  cancelled: { label: 'Storniert',     bg: 'bg-slate-100',  text: 'text-slate-500',  dot: 'bg-slate-400' },
+  new:       { label: 'Neu',            bg: 'bg-blue-100',  text: 'text-blue-700',  dot: 'bg-blue-500'  },
+  preparing: { label: 'In Zubereitung', bg: 'bg-amber-100', text: 'text-amber-700', dot: 'bg-amber-500' },
+  delivered: { label: 'Geliefert',      bg: 'bg-green-100', text: 'text-green-700', dot: 'bg-green-500' },
+  cancelled: { label: 'Storniert',      bg: 'bg-slate-100', text: 'text-slate-500', dot: 'bg-slate-400' },
 }
 
-const NEXT_STATUS: Record<string, string> = {
-  new:       'preparing',
-  preparing: 'delivered',
-}
-
-const NEXT_LABEL: Record<string, string> = {
+const NEXT_STATUS: Record<string, string> = { new: 'preparing', preparing: 'delivered' }
+const NEXT_LABEL:  Record<string, string> = {
   new:       '👨‍🍳 In Zubereitung',
-  preparing: '✅ Als geliefert markieren',
-}
-
-/** Two-tone notification beep via Web Audio API */
-function playNotification() {
-  try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
-    ;[0, 0.25].forEach((delay, i) => {
-      const osc  = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.type            = 'sine'
-      osc.frequency.value = i === 0 ? 880 : 1100
-      gain.gain.setValueAtTime(0.4, ctx.currentTime + delay)
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.35)
-      osc.start(ctx.currentTime + delay)
-      osc.stop(ctx.currentTime + delay + 0.35)
-    })
-  } catch (_) { /* audio blocked */ }
+  preparing: '✅ Geliefert',
 }
 
 function timeAgo(iso: string) {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
-  if (diff < 60)  return `${diff}s`
-  if (diff < 3600) return `${Math.floor(diff / 60)}min`
-  return `${Math.floor(diff / 3600)}h`
+  if (diff < 60)   return `${diff}s`
+  if (diff < 3600) return `${Math.floor(diff / 60)} min`
+  return `${Math.floor(diff / 3600)} h`
 }
 
 export default function ServiceOrdersPage() {
-  const supabase                      = createClient()
-  const [orders, setOrders]           = useState<RoomOrder[]>([])
-  const [loading, setLoading]         = useState(true)
-  const [soundOn, setSoundOn]         = useState(true)
-  const [liveCount, setLiveCount]     = useState(0)
-  const soundRef                      = useRef(soundOn)
-  soundRef.current                    = soundOn
+  const supabase = createClient()
+
+  const [orders,    setOrders]    = useState<RoomOrder[]>([])
+  const [loading,   setLoading]   = useState(true)
+  const [soundOn,   setSoundOn]   = useState(true)
+  const [toast,     setToast]     = useState<{ roomNumber: string; id: string } | null>(null)
+
+  // Persistent AudioContext — must be created/resumed on user interaction
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const soundOnRef  = useRef(soundOn)
+  soundOnRef.current = soundOn
+
+  /** Call this after a user gesture so the browser unlocks audio */
+  function ensureAudio() {
+    if (typeof window === 'undefined') return null
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
+    }
+    if (audioCtxRef.current.state === 'suspended') audioCtxRef.current.resume()
+    return audioCtxRef.current
+  }
+
+  function playBeep() {
+    if (!soundOnRef.current) return
+    const ctx = audioCtxRef.current
+    if (!ctx || ctx.state !== 'running') return
+    try {
+      ;[0, 0.28].forEach((delay, i) => {
+        const osc  = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        osc.type            = 'sine'
+        osc.frequency.value = i === 0 ? 880 : 1100
+        gain.gain.setValueAtTime(0.5, ctx.currentTime + delay)
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.4)
+        osc.start(ctx.currentTime + delay)
+        osc.stop(ctx.currentTime + delay + 0.4)
+      })
+    } catch (_) {}
+  }
 
   const fetchOrders = useCallback(async () => {
     const { data } = await supabase
@@ -79,77 +90,126 @@ export default function ServiceOrdersPage() {
       .select('*, order_items(id, menu_item_name, quantity, price_at_order)')
       .order('created_at', { ascending: false })
       .limit(100)
-
     if (data) setOrders(data as RoomOrder[])
     setLoading(false)
   }, [supabase])
 
+  const prevIdsRef = useRef<Set<string>>(new Set())
+
   useEffect(() => {
     fetchOrders()
 
-    // Real-time subscription
+    // ── Realtime subscription ──────────────────────────────────────────────
+    // IMPORTANT: You must enable Realtime for the room_orders table in
+    // Supabase Dashboard → Database → Replication → room_orders ✓
     const channel = supabase
-      .channel('room_orders_realtime')
-      .on(
-        'postgres_changes',
+      .channel('room_orders_live')
+      .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'room_orders' },
-        () => {
-          if (soundRef.current) playNotification()
-          setLiveCount(n => n + 1)
+        (payload) => {
+          const newOrder = payload.new as RoomOrder
+          setToast({ roomNumber: newOrder.room_number, id: newOrder.id })
+          playBeep()
           fetchOrders()
         },
       )
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    // ── Polling fallback every 20s (catches orders if realtime is off) ─────
+    const poll = setInterval(() => {
+      fetchOrders().then(() => {
+        // detect new orders by comparing IDs
+        setOrders(prev => {
+          const newIds = new Set(prev.map(o => o.id))
+          const added  = prev.filter(o => !prevIdsRef.current.has(o.id) && o.status === 'new')
+          if (added.length > 0) {
+            setToast({ roomNumber: added[0].room_number, id: added[0].id })
+            playBeep()
+          }
+          prevIdsRef.current = newIds
+          return prev
+        })
+      })
+    }, 20_000)
+
+    return () => {
+      supabase.removeChannel(channel)
+      clearInterval(poll)
+    }
   }, [fetchOrders, supabase])
+
+  // Auto-dismiss toast after 8 s
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 8000)
+    return () => clearTimeout(t)
+  }, [toast])
 
   async function updateStatus(orderId: string, newStatus: string) {
     await supabase
       .from('room_orders')
       .update({ status: newStatus, updated_at: new Date().toISOString() })
       .eq('id', orderId)
-    setOrders(prev =>
-      prev.map(o => o.id === orderId ? { ...o, status: newStatus as any } : o),
-    )
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus as any } : o))
   }
 
-  const activeOrders   = orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled')
-  const historyOrders  = orders.filter(o => o.status === 'delivered' || o.status === 'cancelled')
+  const activeOrders  = orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled')
+  const historyOrders = orders.filter(o => o.status === 'delivered'  || o.status === 'cancelled')
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* ── Header ── */}
+
+      {/* ── New-order toast ─────────────────────────────────────────────── */}
+      {toast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-bounce">
+          <div className="flex items-center gap-3 bg-blue-600 text-white rounded-2xl shadow-2xl px-6 py-4">
+            <span className="text-2xl">🔔</span>
+            <div>
+              <p className="font-black text-lg leading-tight">Neue Bestellung!</p>
+              <p className="text-blue-200 text-sm">Zimmer {toast.roomNumber}</p>
+            </div>
+            <button onClick={() => setToast(null)} className="ml-2 text-blue-300 hover:text-white text-xl">×</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold text-slate-900">Zimmerservice Bestellungen</h1>
+          <h1 className="text-xl font-bold text-slate-900">Zimmerservice</h1>
           {activeOrders.length > 0 && (
             <span className="bg-blue-600 text-white text-xs font-bold rounded-full px-2.5 py-1">
               {activeOrders.length} aktiv
             </span>
           )}
-          {/* Live pulse indicator */}
           <span className="flex items-center gap-1.5 text-xs text-green-600 font-medium">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             Live
           </span>
         </div>
+
+        {/* Sound toggle — clicking this also unlocks AudioContext */}
         <button
-          onClick={() => setSoundOn(s => !s)}
+          onClick={() => { ensureAudio(); setSoundOn(s => !s) }}
           className={cn(
-            'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-            soundOn
-              ? 'bg-slate-900 text-white'
-              : 'bg-slate-100 text-slate-500',
+            'flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors',
+            soundOn ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500',
           )}
         >
           {soundOn ? '🔔 Ton an' : '🔕 Ton aus'}
         </button>
       </div>
 
+      {/* ── Sound activation hint ───────────────────────────────────────── */}
+      {soundOn && !audioCtxRef.current && (
+        <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 text-xs text-amber-700 flex items-center gap-2">
+          ⚠️ Klicken Sie einmal auf <strong>„Ton an"</strong> oben rechts, damit der Browser Benachrichtigungstöne erlaubt.
+        </div>
+      )}
+
       <div className="p-6 max-w-4xl mx-auto space-y-8">
 
-        {/* ── Active orders ── */}
+        {/* ── Active orders ────────────────────────────────────────────── */}
         {loading ? (
           <p className="text-slate-400 text-sm">Lade Bestellungen…</p>
         ) : activeOrders.length === 0 ? (
@@ -160,12 +220,14 @@ export default function ServiceOrdersPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">Aktive Bestellungen</h2>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">Aktive Bestellungen</h2>
             {activeOrders.map(order => {
               const cfg = STATUS_CONFIG[order.status]
               return (
-                <div key={order.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                  {/* Card header */}
+                <div key={order.id} className={cn(
+                  'bg-white rounded-2xl shadow-sm border overflow-hidden transition-all',
+                  order.status === 'new' ? 'border-blue-300 shadow-blue-100' : 'border-slate-200',
+                )}>
                   <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
                     <div className="flex items-center gap-3">
                       <div className="bg-slate-900 text-white rounded-xl px-3 py-1.5 font-bold text-lg">
@@ -179,7 +241,6 @@ export default function ServiceOrdersPage() {
                     <span className="text-xs text-slate-400">{timeAgo(order.created_at)} ago</span>
                   </div>
 
-                  {/* Items */}
                   <div className="px-5 py-3 space-y-1.5">
                     {order.order_items.map(item => (
                       <div key={item.id} className="flex items-center justify-between text-sm">
@@ -196,11 +257,8 @@ export default function ServiceOrdersPage() {
                     )}
                   </div>
 
-                  {/* Footer */}
                   <div className="flex items-center justify-between px-5 py-3 bg-slate-50 border-t border-slate-100">
-                    <span className="font-bold text-slate-900">
-                      Gesamt: €{order.total_price?.toFixed(2) ?? '—'}
-                    </span>
+                    <span className="font-bold text-slate-900">€{order.total_price?.toFixed(2) ?? '—'}</span>
                     <div className="flex gap-2">
                       {NEXT_STATUS[order.status] && (
                         <button
@@ -224,25 +282,21 @@ export default function ServiceOrdersPage() {
           </div>
         )}
 
-        {/* ── History ── */}
+        {/* ── History ─────────────────────────────────────────────────── */}
         {historyOrders.length > 0 && (
-          <div className="space-y-3">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">Verlauf</h2>
+          <div className="space-y-2">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">Verlauf</h2>
             {historyOrders.map(order => {
               const cfg = STATUS_CONFIG[order.status]
               return (
-                <div key={order.id} className="bg-white rounded-xl border border-slate-200 px-5 py-3 flex items-center justify-between opacity-60">
+                <div key={order.id} className="bg-white rounded-xl border border-slate-200 px-5 py-3 flex items-center justify-between opacity-50">
                   <div className="flex items-center gap-3">
-                    <span className="font-bold text-slate-700">Zi. {order.room_number}</span>
-                    <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium', cfg.bg, cfg.text)}>
-                      {cfg.label}
-                    </span>
+                    <span className="font-bold text-slate-700 text-sm">Zi. {order.room_number}</span>
+                    <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium', cfg.bg, cfg.text)}>{cfg.label}</span>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm text-slate-500">
-                      {order.order_items.length} Artikel · €{order.total_price?.toFixed(2) ?? '—'}
-                    </span>
-                    <span className="text-xs text-slate-400">{timeAgo(order.created_at)}</span>
+                  <div className="flex items-center gap-4 text-sm text-slate-400">
+                    <span>{order.order_items.length} Artikel · €{order.total_price?.toFixed(2) ?? '—'}</span>
+                    <span className="text-xs">{timeAgo(order.created_at)}</span>
                   </div>
                 </div>
               )

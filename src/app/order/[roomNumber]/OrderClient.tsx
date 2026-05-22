@@ -90,6 +90,12 @@ export default function OrderClient({
         <p className="text-slate-600 text-xs mt-6">
           Bestell-Nr.: {(orderId as string).slice(0, 8).toUpperCase()}
         </p>
+        <button
+          onClick={() => { setOrderId(null); setCart({}); setNotes('') }}
+          className="mt-8 bg-slate-700 hover:bg-slate-600 active:scale-95 text-white rounded-2xl px-6 py-3 text-sm font-semibold transition-all"
+        >
+          🍽️ Weitere Bestellung aufgeben
+        </button>
       </div>
     )
   }
