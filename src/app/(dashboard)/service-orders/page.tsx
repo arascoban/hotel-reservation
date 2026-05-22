@@ -153,7 +153,9 @@ export default function ServiceOrdersPage() {
   const [confirmDelete,   setConfirmDelete]   = useState<string | null>(null)
   const [confirmPayment,  setConfirmPayment]  = useState(false)
   const [payingRoom,      setPayingRoom]      = useState(false)
-  const [showArchive,     setShowArchive]     = useState(false)
+  const [showArchive,          setShowArchive]          = useState(false)
+  const [confirmDeleteSession, setConfirmDeleteSession] = useState<string | null>(null) // archive key
+  const [confirmDeleteAll,     setConfirmDeleteAll]     = useState(false)
   const detailRef = useRef<HTMLDivElement>(null)
 
   const isAdmin = userEmail === ADMIN_EMAIL
@@ -206,6 +208,20 @@ export default function ServiceOrdersPage() {
     await supabase.from('room_orders').delete().eq('id', orderId)
     setOrders(prev => prev.filter(o => o.id !== orderId))
     setConfirmDelete(null)
+  }
+
+  async function deleteSession(orderIds: string[]) {
+    await supabase.from('room_orders').delete().in('id', orderIds)
+    setOrders(prev => prev.filter(o => !orderIds.includes(o.id)))
+    setConfirmDeleteSession(null)
+  }
+
+  async function deleteAllArchive() {
+    const ids = paidOrders.map(o => o.id)
+    await supabase.from('room_orders').delete().in('id', ids)
+    setOrders(prev => prev.filter(o => !o.paid_at))
+    setConfirmDeleteAll(false)
+    setShowArchive(false)
   }
 
   // Mark all non-cancelled orders for selected room as paid
@@ -575,25 +591,55 @@ export default function ServiceOrdersPage() {
         ══════════════════════════════════════════════════════════════════ */}
         {isAdmin && archiveEntries.length > 0 && (
           <section>
-            <button
-              onClick={() => setShowArchive(v => !v)}
-              className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 transition-colors mb-3"
-            >
-              {showArchive ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-              Archiv — bezahlte Bestellungen ({archiveEntries.length} Sitzungen)
-            </button>
+            {/* Archive header row */}
+            <div className="flex items-center gap-3 mb-3 flex-wrap">
+              <button
+                onClick={() => setShowArchive(v => !v)}
+                className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                {showArchive ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                Archiv — bezahlte Bestellungen ({archiveEntries.length} Sitzungen)
+              </button>
+
+              {/* Delete entire archive */}
+              {showArchive && (
+                confirmDeleteAll ? (
+                  <div className="flex items-center gap-2 ml-auto">
+                    <span className="text-xs text-red-600 font-semibold">Gesamtes Archiv löschen?</span>
+                    <button onClick={deleteAllArchive}
+                      className="rounded-lg bg-red-600 px-3 py-1 text-xs font-bold text-white hover:bg-red-700 transition-colors">
+                      Ja, alles löschen
+                    </button>
+                    <button onClick={() => setConfirmDeleteAll(false)}
+                      className="rounded-lg border border-slate-300 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50 transition-colors">
+                      Abbrechen
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmDeleteAll(true)}
+                    className="ml-auto flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 hover:border-red-300 transition-colors"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Archiv leeren
+                  </button>
+                )
+              )}
+            </div>
 
             {showArchive && (
               <div className="space-y-3">
                 {archiveEntries.map(([key, entry]) => {
-                  const roomNumber = key.split('::')[0]
-                  const roomName   = rooms.find(r => r.room_number === roomNumber)?.name ?? ''
-                  const paidDate   = format(new Date(entry.paidAt), 'dd. MMM yyyy · HH:mm', { locale: de })
+                  const roomNumber  = key.split('::')[0]
+                  const roomName    = rooms.find(r => r.room_number === roomNumber)?.name ?? ''
+                  const paidDate    = format(new Date(entry.paidAt), 'dd. MMM yyyy · HH:mm', { locale: de })
+                  const sessionIds  = entry.orders.map(o => o.id)
+                  const isConfirming = confirmDeleteSession === key
 
                   return (
                     <div key={key} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                      {/* Archive row header */}
-                      <div className="flex items-center justify-between px-5 py-3 bg-slate-50 border-b border-slate-100">
+                      {/* Session header */}
+                      <div className="flex items-center justify-between px-5 py-3 bg-slate-50 border-b border-slate-100 flex-wrap gap-2">
                         <div className="flex items-center gap-3">
                           <span className="font-bold text-slate-700 text-sm">Zi. {roomNumber}</span>
                           <span className="text-xs text-slate-400">{roomName}</span>
@@ -601,13 +647,37 @@ export default function ServiceOrdersPage() {
                             💳 Bezahlt
                           </span>
                         </div>
-                        <div className="flex items-center gap-4 text-xs text-slate-400">
-                          <span>{paidDate}</span>
-                          <span className="font-bold text-slate-700">€{entry.total.toFixed(2)}</span>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <span className="text-xs text-slate-400">{paidDate}</span>
+                          <span className="text-xs font-bold text-slate-700">€{entry.total.toFixed(2)}</span>
+
+                          {/* Delete session */}
+                          {isConfirming ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-red-600 font-semibold">Sitzung löschen?</span>
+                              <button onClick={() => deleteSession(sessionIds)}
+                                className="rounded-lg bg-red-600 px-2 py-1 text-xs font-bold text-white hover:bg-red-700 transition-colors">
+                                Ja
+                              </button>
+                              <button onClick={() => setConfirmDeleteSession(null)}
+                                className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 transition-colors">
+                                Nein
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmDeleteSession(key)}
+                              className="flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-400 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors"
+                              title="Sitzung löschen"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              Löschen
+                            </button>
+                          )}
                         </div>
                       </div>
 
-                      {/* Archive order rows */}
+                      {/* Order rows */}
                       <div className="divide-y divide-slate-100">
                         {entry.orders.map(order => (
                           <div key={order.id} className="px-5 py-2.5 flex items-center justify-between opacity-60">
@@ -623,13 +693,9 @@ export default function ServiceOrdersPage() {
                                 STATUS_CONFIG[order.status].bg, STATUS_CONFIG[order.status].text)}>
                                 {STATUS_CONFIG[order.status].label}
                               </span>
-                              <span className="text-xs font-semibold text-slate-500">€{order.total_price?.toFixed(2) ?? '—'}</span>
-                              {isAdmin && (
-                                <button onClick={() => deleteOrder(order.id)}
-                                  className="p-1 rounded text-slate-200 hover:text-red-400 transition-colors" title="Löschen">
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              )}
+                              <span className="text-xs font-semibold text-slate-500">
+                                €{order.total_price?.toFixed(2) ?? '—'}
+                              </span>
                             </div>
                           </div>
                         ))}
