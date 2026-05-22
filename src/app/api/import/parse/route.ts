@@ -156,12 +156,22 @@ export async function POST(req: NextRequest) {
     const usedInImport = new Set<string>()
     const importRows: ImportRow[] = []
 
-    // ── Sort: non-family first so single/double bookings claim rooms
-    //    (e.g. room 22) before family pairs are evaluated.
-    const sortedEntries = [...parsed].sort((a, b) => {
-      if (a.isFamily === b.isFamily) return 0
-      return a.isFamily ? 1 : -1   // non-family first
-    })
+    // ── Sort priority:
+    //   0 = single     → claim the 3 single rooms first
+    //   1 = family     → claim connecting pairs (11+12, 19+20, 21+22) before doubles
+    //   2 = double     → get whatever pair rooms are left over
+    //   3 = double_sofa / unknown → last
+    // This prevents double-room bookings from stealing 19+20 / 11+12 before families.
+    function entrySortOrder(e: ExcelRow): number {
+      if (e.isFamily)              return 1
+      switch (e.dbCategory) {
+        case 'single':      return 0
+        case 'double':      return 2
+        case 'double_sofa': return 3
+        default:            return 4
+      }
+    }
+    const sortedEntries = [...parsed].sort((a, b) => entrySortOrder(a) - entrySortOrder(b))
 
     for (const entry of sortedEntries) {
       // Family pair partners are pushed when we process splitIndex=0 — skip them here
@@ -229,15 +239,15 @@ export async function POST(req: NextRequest) {
 
               // Build a human-readable explanation
               if (pair[0] === '21') {
-                assignmentNote = `Zi. 21+22 zugewiesen (Einzelzimmer war frei, ${totalGuests} Gäste)`
+                assignmentNote = `Zi. 21+22 zugewiesen — Einzelzimmer (Zi. 21) war noch frei (${totalGuests} Gäste)`
               } else {
                 // Why didn't we use 21+22?
-                const room22 = allRooms.find(r => r.room_number === '22')
-                const room22taken = room22 && (bookedForEntry.has(room22.id) || usedInImport.has(room22.id))
+                const room21 = allRooms.find(r => r.room_number === '21')
+                const room21taken = room21 && (bookedForEntry.has(room21.id) || usedInImport.has(room21.id))
                 const reason = totalGuests > 3
                   ? `${totalGuests} Gäste → Doppelzimmer-Paar bevorzugt`
-                  : room22taken
-                    ? 'Einzelzimmer (Zi. 22) bereits vergeben'
+                  : room21taken
+                    ? 'Einzelzimmer (Zi. 21) bereits von Einzelgast belegt'
                     : 'Zi. 21+22 nicht verfügbar'
                 assignmentNote = `Zi. ${pair[0]}+${pair[1]} zugewiesen — ${reason}`
               }
@@ -246,14 +256,25 @@ export async function POST(req: NextRequest) {
           }
 
           if (!suggested0) {
-            assignmentNote = 'Kein freies Zimmer-Paar gefunden — bitte manuell zuweisen'
+            // Explain exactly why each pair failed
+            const reasons: string[] = []
+            for (const pair of orderedPairs) {
+              const r0 = allRooms.find(r => r.room_number === pair[0])
+              const r1 = allRooms.find(r => r.room_number === pair[1])
+              if (!r0 || !r1) { reasons.push(`Zi. ${pair[0]}+${pair[1]}: nicht konfiguriert`); continue }
+              const r0why = bookedForEntry.has(r0.id) ? 'DB-Konflikt' : usedInImport.has(r0.id) ? 'schon vergeben' : 'frei'
+              const r1why = bookedForEntry.has(r1.id) ? 'DB-Konflikt' : usedInImport.has(r1.id) ? 'schon vergeben' : 'frei'
+              reasons.push(`Zi. ${pair[0]}(${r0why})+${pair[1]}(${r1why})`)
+            }
+            assignmentNote = `Kein Paar frei — ${reasons.join(', ')} — bitte manuell zuweisen`
           }
         }
 
-        const avail0 = filterAvailableRooms(allRooms, bookedForEntry, entry.dbCategory, new Set())
-        const avail1 = partner
-          ? filterAvailableRooms(allRooms, bookedForEntry, partner.dbCategory, new Set())
-          : avail0
+        // For family entries show ALL free rooms (any category) so the dropdown
+        // always includes the pre-selected pair room even if categories differ.
+        const familyFreeRooms = allRooms.filter(r => !bookedForEntry.has(r.id))
+        const avail0 = familyFreeRooms
+        const avail1 = familyFreeRooms
 
         importRows.push(buildRow(entry, randomUUID(), warnings, avail0, suggested0, alreadyImported, assignmentNote))
 
