@@ -69,8 +69,8 @@ export default function PastGuestsPage() {
   }
 
   return (
-    <div className="px-6 py-8 max-w-6xl mx-auto">
-      <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
+    <div className="px-4 py-5 sm:px-6 sm:py-8 max-w-6xl mx-auto">
+      <div className="mb-5 sm:mb-6 flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <History className="w-6 h-6 text-slate-500" />
@@ -87,7 +87,7 @@ export default function PastGuestsPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Gästename suchen…"
-            className="pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-60"
+            className="pl-9 pr-4 py-2 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-60"
           />
         </div>
       </div>
@@ -101,7 +101,8 @@ export default function PastGuestsPage() {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[560px]">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
                 <th className="px-4 py-3 text-left font-semibold text-slate-600">Zimmer</th>
@@ -148,6 +149,8 @@ export default function PastGuestsPage() {
               ))}
             </tbody>
           </table>
+
+          </div>
 
           {/* Pagination */}
           {totalPages > 1 && (

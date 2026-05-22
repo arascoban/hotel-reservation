@@ -431,7 +431,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       )}
 
       {/* Body */}
-      <div className="p-5 space-y-5 overflow-y-auto max-h-[55vh]">
+      <div className="p-5 space-y-5 overflow-y-auto max-h-[65vh] sm:max-h-[55vh]">
 
         {/* Room */}
         <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
@@ -726,9 +726,9 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
 
 function ModalShell({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
       <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative z-10 w-full sm:max-w-lg bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden">
         {children}
       </div>
     </div>

@@ -413,7 +413,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
           Aufenthaltsdetails
         </h2>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Anreise: date + time */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
@@ -605,7 +605,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
           Quelle &amp; Zahlung
         </h2>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">Buchungsquelle</label>
             <select value={source} onChange={e => setSource(e.target.value as ReservationSource)}

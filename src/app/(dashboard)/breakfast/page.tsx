@@ -38,7 +38,7 @@ export default async function BreakfastPage() {
   ]
 
   return (
-    <div className="px-6 py-8 max-w-4xl mx-auto">
+    <div className="px-4 py-5 sm:px-6 sm:py-8 max-w-4xl mx-auto">
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
@@ -69,19 +69,17 @@ export default async function BreakfastPage() {
           return (
             <div key={label}>
               {/* Day header */}
-              <div className={`flex items-center justify-between mb-3 pb-2 border-b-2 ${isToday ? 'border-amber-400' : 'border-slate-200'}`}>
+              <div className={`flex items-start sm:items-center justify-between gap-2 mb-3 pb-2 border-b-2 flex-wrap ${isToday ? 'border-amber-400' : 'border-slate-200'}`}>
                 <div>
-                  <h2 className={`text-lg font-bold ${isToday ? 'text-amber-700' : 'text-slate-700'}`}>
+                  <h2 className={`text-base sm:text-lg font-bold ${isToday ? 'text-amber-700' : 'text-slate-700'}`}>
                     {label}
-                    <span className="ml-2 text-sm font-normal text-slate-400">
-                      {format(date, 'EEEE, d. MMMM yyyy', { locale: de })}
+                    <span className="ml-2 text-xs sm:text-sm font-normal text-slate-400">
+                      {format(date, 'EEE, d. MMM yyyy', { locale: de })}
                     </span>
                   </h2>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${isToday ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
-                    {guests.length} Zimmer · {totalGuests} Pers.
-                  </div>
+                <div className={`rounded-lg px-3 py-1.5 text-sm font-semibold flex-shrink-0 ${isToday ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                  {guests.length} Zi. · {totalGuests} Pers.
                 </div>
               </div>
 
@@ -91,7 +89,8 @@ export default async function BreakfastPage() {
                 </div>
               ) : (
                 <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                  <table className="w-full text-sm">
+                  <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[540px]">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50">
                         <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Zimmer</th>
@@ -142,6 +141,7 @@ export default async function BreakfastPage() {
                       </tr>
                     </tfoot>
                   </table>
+                  </div>
                 </div>
               )}
             </div>

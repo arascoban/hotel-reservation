@@ -40,9 +40,9 @@ export default async function UpcomingPage() {
   const upcoming = reservations.filter(r => !r.checkin_at.startsWith(from))
 
   return (
-    <div className="px-6 py-8 max-w-6xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Bevorstehende Ankünfte</h1>
+    <div className="px-4 py-5 sm:px-6 sm:py-8 max-w-6xl mx-auto">
+      <div className="mb-5 sm:mb-6">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Bevorstehende Ankünfte</h1>
         <p className="text-slate-500 mt-1">
           Ankünfte in den nächsten 14 Tagen ·{' '}
           {format(today, 'd. MMMM', { locale: de })} – {format(addDays(today, 14), 'd. MMMM yyyy', { locale: de })}
@@ -55,7 +55,7 @@ export default async function UpcomingPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-5 sm:mb-6">
         <StatCard label="Ankünfte gesamt"  value={reservations.length} color="blue" />
         <StatCard label="Heute"            value={today0.length}       color="green" />
         <StatCard label="In den nächsten 14 Tagen" value={upcoming.length} color="amber" />
@@ -81,9 +81,9 @@ function StatCard({ label, value, color }: { label: string; value: number; color
     green: 'bg-green-50 border-green-200 text-green-700',
   }
   return (
-    <div className={`rounded-xl border p-4 ${colorMap[color]}`}>
-      <p className="text-3xl font-bold">{value}</p>
-      <p className="text-sm mt-1 opacity-80">{label}</p>
+    <div className={`rounded-xl border p-3 sm:p-4 ${colorMap[color]}`}>
+      <p className="text-2xl sm:text-3xl font-bold">{value}</p>
+      <p className="text-xs sm:text-sm mt-1 opacity-80 leading-tight">{label}</p>
     </div>
   )
 }

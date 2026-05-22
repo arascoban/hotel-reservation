@@ -61,7 +61,7 @@ export default function LockersPage() {
   }
 
   return (
-    <div className="px-6 py-8 max-w-6xl mx-auto">
+    <div className="px-4 py-5 sm:px-6 sm:py-8 max-w-6xl mx-auto">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
         <div>

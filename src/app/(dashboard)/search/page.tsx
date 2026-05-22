@@ -39,7 +39,7 @@ const SOURCES: { value: ReservationSource | ''; label: string }[] = [
   { value: 'other',       label: 'Sonstige' },
 ]
 
-const selectClass = 'rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white'
+const selectClass = 'w-full sm:w-auto rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white'
 
 export default function SearchPage() {
   const supabase    = createClient()
@@ -124,9 +124,9 @@ export default function SearchPage() {
   }
 
   return (
-    <div className="px-6 py-8 max-w-6xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Reservierungen suchen</h1>
+    <div className="px-4 py-5 sm:px-6 sm:py-8 max-w-6xl mx-auto">
+      <div className="mb-5 sm:mb-6">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Reservierungen suchen</h1>
         <p className="text-slate-500 mt-1">
           Nach Gast, Datum, Quelle, Status oder Zahlung filtern.
         </p>
@@ -148,7 +148,7 @@ export default function SearchPage() {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap gap-3">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3">
           <select value={status} onChange={e => setStatus(e.target.value as ReservationStatus | '')}
             className={selectClass}>
             {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -164,16 +164,16 @@ export default function SearchPage() {
             {SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
 
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-slate-600 whitespace-nowrap">Anreise ab</label>
+          <div className="col-span-2 sm:col-span-1 flex items-center gap-2">
+            <label className="text-sm text-slate-600 whitespace-nowrap">ab</label>
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-              className={cn(selectClass, 'cursor-pointer')} />
+              className={cn(selectClass, 'cursor-pointer flex-1')} />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="col-span-2 sm:col-span-1 flex items-center gap-2">
             <label className="text-sm text-slate-600 whitespace-nowrap">bis</label>
             <input type="date" value={dateTo} min={dateFrom} onChange={e => setDateTo(e.target.value)}
-              className={cn(selectClass, 'cursor-pointer')} />
+              className={cn(selectClass, 'cursor-pointer flex-1')} />
           </div>
         </div>
 

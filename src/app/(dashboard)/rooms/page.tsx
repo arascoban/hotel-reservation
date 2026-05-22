@@ -115,19 +115,19 @@ export default function RoomsPage() {
   }
 
   return (
-    <div className="px-6 py-8 max-w-6xl mx-auto">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="px-4 py-5 sm:px-6 sm:py-8 max-w-6xl mx-auto">
+      <div className="mb-5 sm:mb-6 flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Zimmerstatus</h1>
-          <p className="text-slate-500 mt-1">Auf eine Karte klicken zum Wechseln des Status</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Zimmerstatus</h1>
+          <p className="text-slate-500 mt-1 text-sm">Auf eine Karte klicken zum Wechseln des Status</p>
         </div>
-        <button onClick={() => load()} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+        <button onClick={() => load()} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors flex-shrink-0">
           ↻ Aktualisieren
         </button>
       </div>
 
       {/* Summary bar */}
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-6">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3 mb-5 sm:mb-6">
         {[
           { label: 'Gesamt',        value: summary.total,                          color: 'text-slate-900' },
           { label: 'Belegt',        value: summary.occupied,                       color: 'text-blue-700'  },
@@ -136,15 +136,15 @@ export default function RoomsPage() {
           { label: 'Sauber',        value: summary.clean,                          color: 'text-green-700' },
           { label: 'Reinigen',      value: summary.dirty,                          color: 'text-amber-700' },
         ].map(s => (
-          <div key={s.label} className="bg-white rounded-xl border border-slate-200 p-4 text-center">
-            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-            <p className="text-xs text-slate-500 mt-1">{s.label}</p>
+          <div key={s.label} className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 text-center">
+            <p className={`text-xl sm:text-2xl font-bold ${s.color}`}>{s.value}</p>
+            <p className="text-xs text-slate-500 mt-1 leading-tight">{s.label}</p>
           </div>
         ))}
       </div>
 
       {/* Status cycle legend */}
-      <div className="flex items-center gap-3 mb-4 text-xs text-slate-500">
+      <div className="hidden sm:flex items-center gap-3 mb-4 text-xs text-slate-500">
         <span className="font-medium">Klicken zum Wechseln:</span>
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Sauber</span>
         <span>→</span>

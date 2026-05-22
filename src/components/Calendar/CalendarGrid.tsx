@@ -221,7 +221,7 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
     <div className="flex flex-col h-full bg-slate-50">
 
       {/* ── Toolbar ─────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 px-4 py-3 bg-white border-b-2 border-slate-300 flex-shrink-0 shadow-sm">
+      <div className="flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-3 bg-white border-b-2 border-slate-300 flex-shrink-0 shadow-sm flex-wrap">
 
         {/* Month navigation */}
         <div className="flex items-center gap-1.5">
@@ -232,7 +232,7 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
             <ChevronLeft className="w-4 h-4" />
           </button>
 
-          <h2 className="text-base font-bold text-slate-900 w-40 text-center select-none">
+          <h2 className="text-sm sm:text-base font-bold text-slate-900 w-32 sm:w-40 text-center select-none">
             {format(currentMonth, 'MMMM yyyy', { locale: de })}
           </h2>
 
@@ -251,7 +251,7 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
           Heute
         </button>
 
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2 sm:gap-3">
           <label className="flex items-center gap-2 text-sm text-slate-500 cursor-pointer select-none">
             <input
               type="checkbox"
