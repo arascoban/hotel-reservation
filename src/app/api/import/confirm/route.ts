@@ -23,6 +23,7 @@ interface ConfirmRow {
   email: string
   phone: string
   skip: boolean
+  familyBookingId: string | null   // set when this is part of a family room pair
 }
 
 export async function POST(req: NextRequest) {
@@ -57,6 +58,7 @@ export async function POST(req: NextRequest) {
         notes:              row.notes  || null,   // clean guest notes only
         internal_notes:     internalNote,          // commission info
         billing_address:    row.adresse || null,   // address for invoices
+        family_booking_id:  row.familyBookingId || null,  // links connecting room pair
       })
 
       results.push({ bookingNumber: row.bookingNumber, ok: !error, error: error?.message })

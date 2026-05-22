@@ -28,8 +28,6 @@ export default async function OrderPage({
   const supabase = await createClient()
 
   // Validate token server-side via SECURITY DEFINER RPC
-  // Even if a guest changes the room number in the URL, it won't match
-  // because the token is bound to the original room.
   const { data: roomData } = await supabase.rpc('validate_room_token', {
     p_room_number: roomNumber,
     p_token:       token,
@@ -38,6 +36,21 @@ export default async function OrderPage({
   if (!roomData || roomData.length === 0) return <InvalidQR />
 
   const room = roomData[0] as { room_id: string; room_name: string; room_number: string }
+
+  // Fetch current reservation to get checkout date (limits cleaning date picker)
+  const { data: resData } = await supabase
+    .from('reservations')
+    .select('checkout_at')
+    .eq('room_id', room.room_id)
+    .not('status', 'in', '("cancelled","no_show","checked_out")')
+    .is('deleted_at', null)
+    .gte('checkout_at', new Date().toISOString())
+    .order('checkin_at')
+    .limit(1)
+
+  const checkoutDate = resData?.[0]?.checkout_at
+    ? resData[0].checkout_at.slice(0, 10)   // YYYY-MM-DD
+    : null
 
   const { data: menuItems } = await supabase
     .from('menu_items')
@@ -49,6 +62,7 @@ export default async function OrderPage({
       room={room}
       menuItems={(menuItems ?? []) as MenuItem[]}
       token={token}
+      checkoutDate={checkoutDate}
     />
   )
 }
