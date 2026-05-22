@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import PrintAllButton from './PrintAllButton'
 import Image from 'next/image'
 
-const BASE_URL = 'https://jaegerstieg-reservation.vercel.app'
+const BASE_URL = 'https://jaegerstieg.vercel.app'
 
 export const dynamic = 'force-dynamic'
 
