@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   CalendarDays, LogIn, LogOut, CreditCard, Search, Plus,
   ChevronRight, ChevronDown, X, CalendarClock, RefreshCw,
@@ -14,31 +14,64 @@ import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/cn'
 import { useAdmin } from '@/hooks/useAdmin'
 
-// ── Nav groups ──────────────────────────────────────────────────────────────
+// ── Notification counts hook ─────────────────────────────────────────────────
+
+function useNotificationCounts() {
+  const supabase = createClient()
+  const [foodCount,  setFoodCount]  = useState(0)
+  const [cleanCount, setCleanCount] = useState(0)
+
+  const load = useCallback(async () => {
+    const today = new Date().toISOString().slice(0, 10)
+    const [{ count: food }, { count: clean }] = await Promise.all([
+      supabase
+        .from('room_orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'new'),
+      supabase
+        .from('cleaning_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending')
+        .gte('request_date', today),
+    ])
+    setFoodCount(food  ?? 0)
+    setCleanCount(clean ?? 0)
+  }, [supabase])
+
+  useEffect(() => {
+    load()
+    const t = setInterval(load, 30_000)
+    return () => clearInterval(t)
+  }, [load])
+
+  return { foodCount, cleanCount }
+}
+
+// ── Nav types ────────────────────────────────────────────────────────────────
+
+interface NavItem {
+  href:    string
+  label:   string
+  icon:    any
+  badge?:  number
+}
+
+// ── Nav groups (static, no badges — badges injected dynamically) ─────────────
 
 const NAV_STANDALONE = [
   { href: '/search', label: 'Suche',    icon: Search       },
   { href: '/',       label: 'Kalender', icon: CalendarDays },
 ]
 
-const GROUP_ROOMS_BASE = {
-  label: '🏨 Zimmer & Schlüssel',
-  hrefs: ['/rooms', '/lockers'],
-  items: [
-    { href: '/rooms',   label: 'Zimmerstatus',    icon: Hotel },
-    { href: '/lockers', label: 'Schließfach-PINs', icon: Lock  },
-  ],
-}
-
 const GROUP_CHECKINS = {
   label: '📅 Ankünfte & Abreisen',
   hrefs: ['/checkins', '/checkouts', '/upcoming', '/past-guests'],
   items: [
-    { href: '/checkins',     label: 'Heutige Ankünfte',       icon: LogIn        },
-    { href: '/checkouts',    label: 'Heutige Abreisen',        icon: LogOut       },
-    { href: '/upcoming',     label: 'Bevorstehende Ankünfte',  icon: CalendarClock},
-    { href: '/past-guests',  label: 'Vergangene Gäste',        icon: History      },
-  ],
+    { href: '/checkins',    label: 'Heutige Ankünfte',      icon: LogIn         },
+    { href: '/checkouts',   label: 'Heutige Abreisen',       icon: LogOut        },
+    { href: '/upcoming',    label: 'Bevorstehende Ankünfte', icon: CalendarClock },
+    { href: '/past-guests', label: 'Vergangene Gäste',       icon: History       },
+  ] as NavItem[],
 }
 
 const GROUP_FINANCE = {
@@ -47,37 +80,35 @@ const GROUP_FINANCE = {
   items: [
     { href: '/unpaid',     label: 'Offene Zahlungen', icon: CreditCard },
     { href: '/statistics', label: 'Statistiken',      icon: TrendingUp },
-  ],
+  ] as NavItem[],
 }
-
-const GROUP_FOOD_BASE = {
-  label: '🍽️ Food & Drinks',
-  hrefs: ['/breakfast', '/service-orders', '/menu', '/qrcodes'],
-  items: [
-    { href: '/breakfast',      label: 'Frühstücksliste', icon: Utensils        },
-    { href: '/service-orders', label: 'Bestellungen',    icon: UtensilsCrossed },
-  ],
-}
-
-const GROUP_FOOD_ADMIN_ITEMS = [
-  { href: '/menu',    label: 'Speisekarte', icon: ClipboardList },
-  { href: '/qrcodes', label: 'QR-Codes',    icon: QrCode        },
-]
 
 const NAV_ADMIN_EXTRAS = [
   { href: '/sync',   label: 'iCal Synchronisation', icon: RefreshCw },
   { href: '/import', label: 'Booking.com Import',   icon: FileDown  },
 ]
 
+const GROUP_FOOD_ADMIN_ITEMS: NavItem[] = [
+  { href: '/menu',    label: 'Speisekarte', icon: ClipboardList },
+  { href: '/qrcodes', label: 'QR-Codes',    icon: QrCode        },
+]
+
 // ── Helper ───────────────────────────────────────────────────────────────────
 
 interface Props { isOpen?: boolean; onClose?: () => void }
 
+function Badge({ count }: { count: number }) {
+  if (count <= 0) return null
+  return (
+    <span className="ml-1 min-w-[1.25rem] h-5 flex items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white leading-none flex-shrink-0">
+      {count > 99 ? '99+' : count}
+    </span>
+  )
+}
+
 function NavLink({
-  href, label, icon: Icon, indent = false, onClick,
-}: {
-  href: string; label: string; icon: any; indent?: boolean; onClick?: () => void
-}) {
+  href, label, icon: Icon, indent = false, onClick, badge,
+}: NavItem & { indent?: boolean; onClick?: () => void }) {
   const pathname = usePathname()
   const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href)
   return (
@@ -94,7 +125,8 @@ function NavLink({
     >
       <Icon className="w-4 h-4 flex-shrink-0" />
       <span className="flex-1">{label}</span>
-      {isActive && <ChevronRight className="w-3 h-3 flex-shrink-0 text-slate-400" />}
+      <Badge count={badge ?? 0} />
+      {isActive && !(badge && badge > 0) && <ChevronRight className="w-3 h-3 flex-shrink-0 text-slate-400" />}
     </Link>
   )
 }
@@ -102,13 +134,15 @@ function NavLink({
 function SubMenu({
   label, hrefs, items, onClose,
 }: {
-  label: string; hrefs: string[]; items: { href: string; label: string; icon: any }[]; onClose?: () => void
+  label: string; hrefs: string[]; items: NavItem[]; onClose?: () => void
 }) {
-  const pathname   = usePathname()
-  const isActive   = hrefs.some(h => pathname.startsWith(h))
+  const pathname = usePathname()
+  const isActive = hrefs.some(h => pathname.startsWith(h))
   const [open, setOpen] = useState(isActive)
 
   useEffect(() => { if (isActive) setOpen(true) }, [isActive])
+
+  const totalBadge = items.reduce((sum, i) => sum + (i.badge ?? 0), 0)
 
   return (
     <div>
@@ -122,6 +156,8 @@ function SubMenu({
         )}
       >
         <span className="flex-1 text-left truncate">{label}</span>
+        {/* Show total badge on group header when collapsed */}
+        {!open && totalBadge > 0 && <Badge count={totalBadge} />}
         {open
           ? <ChevronDown  className="w-3.5 h-3.5 flex-shrink-0 text-slate-400" />
           : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0 text-slate-400" />
@@ -130,7 +166,7 @@ function SubMenu({
       {open && (
         <div className="mt-0.5 space-y-0.5">
           {items.map(i => (
-            <NavLink key={i.href} href={i.href} label={i.label} icon={i.icon} indent onClick={onClose} />
+            <NavLink key={i.href} {...i} indent onClick={onClose} />
           ))}
         </div>
       )}
@@ -145,6 +181,7 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
   const supabase    = createClient()
   const { isAdmin } = useAdmin()
   const [userEmail, setUserEmail] = useState<string | null>(null)
+  const { foodCount, cleanCount } = useNotificationCounts()
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserEmail(data.user?.email ?? null))
@@ -156,15 +193,25 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
     router.refresh()
   }
 
-  const foodGroup = {
-    ...GROUP_FOOD_BASE,
-    items: isAdmin
-      ? [...GROUP_FOOD_BASE.items, ...GROUP_FOOD_ADMIN_ITEMS]
-      : GROUP_FOOD_BASE.items,
+  // Groups built dynamically with live badge counts
+  const roomsGroup = {
+    label: '🏨 Zimmer & Schlüssel',
+    hrefs: ['/rooms', '/lockers'],
+    items: [
+      { href: '/rooms',   label: 'Zimmerstatus',    icon: Hotel, badge: cleanCount || undefined },
+      { href: '/lockers', label: 'Schließfach-PINs', icon: Lock  },
+    ] as NavItem[],
   }
 
-  // Locker PINs always visible (read-only for Mitarbeiter, editable for Admin)
-  const roomsGroup = GROUP_ROOMS_BASE
+  const foodGroup = {
+    label: '🍽️ Food & Drinks',
+    hrefs: ['/breakfast', '/service-orders', '/menu', '/qrcodes'],
+    items: [
+      { href: '/breakfast',      label: 'Frühstücksliste', icon: Utensils                              },
+      { href: '/service-orders', label: 'Bestellungen',    icon: UtensilsCrossed, badge: foodCount || undefined },
+      ...(isAdmin ? GROUP_FOOD_ADMIN_ITEMS : []),
+    ] as NavItem[],
+  }
 
   return (
     <aside className={cn(
@@ -198,24 +245,16 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
       {/* Navigation */}
       <nav className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto">
 
-        {/* Standalone top items */}
         {NAV_STANDALONE.map(({ href, label, icon }) => (
           <NavLink key={href} href={href} label={label} icon={icon} onClick={onClose} />
         ))}
 
-        {/* Ankünfte & Abreisen */}
         <SubMenu {...GROUP_CHECKINS} onClose={onClose} />
+        <SubMenu {...roomsGroup}     onClose={onClose} />
+        <SubMenu {...foodGroup}      onClose={onClose} />
 
-        {/* Zimmer & Schlüssel */}
-        <SubMenu {...roomsGroup} onClose={onClose} />
-
-        {/* Food & Drinks */}
-        <SubMenu {...foodGroup} onClose={onClose} />
-
-        {/* Finanzen & Statistiken — Admin only */}
         {isAdmin && <SubMenu {...GROUP_FINANCE} onClose={onClose} />}
 
-        {/* Admin-only extras */}
         {isAdmin && NAV_ADMIN_EXTRAS.map(({ href, label, icon }) => (
           <NavLink key={href} href={href} label={label} icon={icon} onClick={onClose} />
         ))}

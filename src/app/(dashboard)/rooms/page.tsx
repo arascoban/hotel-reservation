@@ -7,6 +7,14 @@ import type { RoomCleaningStatus } from '@/types/database'
 import { getRoomFloor } from '@/lib/reservations'
 import { cn } from '@/lib/cn'
 
+interface CleaningRequest {
+  room_id:         string | null
+  room_number:     string
+  request_date:    string
+  time_preference: string
+  created_at:      string
+}
+
 interface RoomWithStatus {
   id: string
   room_number: string
@@ -14,12 +22,12 @@ interface RoomWithStatus {
   cleaning_status: RoomCleaningStatus
   cleaning_note: string | null
   cleaning_updated_at: string
-  // current occupancy
   guest_name?: string
   checkin_at?: string
   checkout_at?: string
-  occupied: boolean      // currently checked in
-  upcoming: boolean      // arriving within next 14 days
+  occupied: boolean
+  upcoming: boolean
+  cleaningRequest?: CleaningRequest
 }
 
 const STATUS_CONFIG: Record<RoomCleaningStatus, { label: string; bg: string; dot: string; badge: string }> = {
@@ -30,6 +38,13 @@ const STATUS_CONFIG: Record<RoomCleaningStatus, { label: string; bg: string; dot
 
 const NEXT_STATUS: Record<RoomCleaningStatus, RoomCleaningStatus> = {
   clean: 'dirty', dirty: 'maintenance', maintenance: 'clean',
+}
+
+const TIME_LABELS: Record<string, string> = {
+  now:       'Sofort',
+  morning:   'Vormittag (08–12)',
+  afternoon: 'Nachmittag (12–17)',
+  evening:   'Abend (17–20)',
 }
 
 export default function RoomsPage() {
@@ -44,12 +59,11 @@ export default function RoomsPage() {
     const today  = format(now, 'yyyy-MM-dd')
     const in14   = format(new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd')
 
-    const [{ data: roomData }, { data: resData }] = await Promise.all([
+    const [{ data: roomData }, { data: resData }, { data: cleanData }] = await Promise.all([
       supabase.from('rooms')
         .select('id, room_number, name, cleaning_status, cleaning_note, cleaning_updated_at')
         .eq('is_active', true)
         .order('sort_order'),
-      // Fetch current + upcoming (next 14 days) reservations
       supabase.from('reservations')
         .select('room_id, guest_name, checkin_at, checkout_at')
         .not('status', 'in', '("cancelled","no_show","checked_out")')
@@ -57,23 +71,36 @@ export default function RoomsPage() {
         .lte('checkin_at', `${in14}T23:59:59`)
         .gte('checkout_at', `${today}T00:00:01`)
         .order('checkin_at'),
+      supabase.from('cleaning_requests')
+        .select('room_id, room_number, request_date, time_preference, created_at')
+        .eq('status', 'pending')
+        .gte('request_date', today)
+        .order('created_at', { ascending: false }),
     ])
 
-    // For each room keep the EARLIEST upcoming/current reservation
+    // Map reservations to rooms
     const resMap = new Map<string, { guest_name: string; checkin_at: string; checkout_at: string; occupied: boolean; upcoming: boolean }>()
     const nowIso = now.toISOString()
     for (const r of (resData ?? [])) {
       const isNow = r.checkin_at <= nowIso && r.checkout_at > nowIso
       const entry = resMap.get(r.room_id)
-      // Prefer currently-occupied entry; then earliest upcoming
       if (!entry || (!entry.occupied && (isNow || r.checkin_at < entry.checkin_at))) {
-        resMap.set(r.room_id, {
-          guest_name:  r.guest_name,
-          checkin_at:  r.checkin_at,
-          checkout_at: r.checkout_at,
-          occupied:    isNow,
-          upcoming:    !isNow,
-        })
+        resMap.set(r.room_id, { guest_name: r.guest_name, checkin_at: r.checkin_at, checkout_at: r.checkout_at, occupied: isNow, upcoming: !isNow })
+      }
+    }
+
+    // Map cleaning requests to rooms (by room_id or room_number)
+    const cleanMap = new Map<string, CleaningRequest>()
+    for (const req of (cleanData ?? [])) {
+      if (req.room_id) {
+        if (!cleanMap.has(req.room_id)) cleanMap.set(req.room_id, req as CleaningRequest)
+      }
+    }
+    // Fallback: match by room_number for older requests without room_id
+    for (const req of (cleanData ?? [])) {
+      if (!req.room_id) {
+        const room = (roomData ?? []).find(r => r.room_number === req.room_number)
+        if (room && !cleanMap.has(room.id)) cleanMap.set(room.id, req as CleaningRequest)
       }
     }
 
@@ -81,12 +108,13 @@ export default function RoomsPage() {
       const res = resMap.get(room.id)
       return {
         ...room,
-        cleaning_status: (room.cleaning_status ?? 'clean') as RoomCleaningStatus,
-        occupied:    res?.occupied  ?? false,
-        upcoming:    res?.upcoming  ?? false,
-        guest_name:  res?.guest_name,
-        checkin_at:  res?.checkin_at,
-        checkout_at: res?.checkout_at,
+        cleaning_status:  (room.cleaning_status ?? 'clean') as RoomCleaningStatus,
+        occupied:         res?.occupied  ?? false,
+        upcoming:         res?.upcoming  ?? false,
+        guest_name:       res?.guest_name,
+        checkin_at:       res?.checkin_at,
+        checkout_at:      res?.checkout_at,
+        cleaningRequest:  cleanMap.get(room.id),
       }
     }))
     setLoading(false)
@@ -98,12 +126,14 @@ export default function RoomsPage() {
     const next = NEXT_STATUS[room.cleaning_status]
     setSaving(room.id)
     await supabase.from('rooms').update({
-      cleaning_status: next,
+      cleaning_status:     next,
       cleaning_updated_at: new Date().toISOString(),
     }).eq('id', room.id)
     setSaving(null)
     load()
   }
+
+  const cleaningCount = rooms.filter(r => r.cleaningRequest).length
 
   const summary = {
     total:       rooms.length,
@@ -111,7 +141,7 @@ export default function RoomsPage() {
     upcoming:    rooms.filter(r => r.upcoming).length,
     clean:       rooms.filter(r => r.cleaning_status === 'clean').length,
     dirty:       rooms.filter(r => r.cleaning_status === 'dirty').length,
-    maintenance: rooms.filter(r => r.cleaning_status === 'maintenance').length,
+    cleaning:    cleaningCount,
   }
 
   return (
@@ -129,12 +159,12 @@ export default function RoomsPage() {
       {/* Summary bar */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3 mb-5 sm:mb-6">
         {[
-          { label: 'Gesamt',        value: summary.total,                          color: 'text-slate-900' },
-          { label: 'Belegt',        value: summary.occupied,                       color: 'text-blue-700'  },
-          { label: 'Anreise 14 T.', value: summary.upcoming,                       color: 'text-violet-700'},
+          { label: 'Gesamt',        value: summary.total,                                   color: 'text-slate-900' },
+          { label: 'Belegt',        value: summary.occupied,                                color: 'text-blue-700'  },
+          { label: 'Anreise 14 T.', value: summary.upcoming,                                color: 'text-violet-700'},
           { label: 'Frei',          value: summary.total - summary.occupied - summary.upcoming, color: 'text-slate-500' },
-          { label: 'Sauber',        value: summary.clean,                          color: 'text-green-700' },
-          { label: 'Reinigen',      value: summary.dirty,                          color: 'text-amber-700' },
+          { label: 'Sauber',        value: summary.clean,                                   color: 'text-green-700' },
+          { label: '🧹 Reinigung',  value: summary.cleaning,                                color: 'text-cyan-700'  },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 text-center">
             <p className={`text-xl sm:text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -153,6 +183,7 @@ export default function RoomsPage() {
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Wartung</span>
         <span>→</span>
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Sauber</span>
+        <span className="ml-4 flex items-center gap-1"><span className="text-cyan-500">🧹</span> Gast-Reinigungsanfrage</span>
       </div>
 
       {loading ? (
@@ -160,8 +191,9 @@ export default function RoomsPage() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
           {rooms.map(room => {
-            const cfg = STATUS_CONFIG[room.cleaning_status]
+            const cfg      = STATUS_CONFIG[room.cleaning_status]
             const isSaving = saving === room.id
+            const hasCleaning = !!room.cleaningRequest
             return (
               <button
                 key={room.id}
@@ -169,7 +201,7 @@ export default function RoomsPage() {
                 disabled={isSaving}
                 className={cn(
                   'relative rounded-xl border-2 p-3 text-left transition-all hover:shadow-md active:scale-95',
-                  cfg.bg,
+                  hasCleaning ? 'bg-cyan-50 border-cyan-300' : cfg.bg,
                   isSaving && 'opacity-50 cursor-wait',
                 )}
               >
@@ -194,26 +226,33 @@ export default function RoomsPage() {
 
                 {/* Currently occupied */}
                 {room.occupied && room.guest_name && (
-                  <p className="mt-1.5 text-2xs text-blue-600 font-medium truncate">
-                    {room.guest_name}
-                  </p>
+                  <p className="mt-1.5 text-2xs text-blue-600 font-medium truncate">{room.guest_name}</p>
                 )}
                 {room.occupied && room.checkout_at && (
-                  <p className="text-2xs text-slate-400 truncate">
-                    Abreise {format(new Date(room.checkout_at), 'd. MMM')}
-                  </p>
+                  <p className="text-2xs text-slate-400 truncate">Abreise {format(new Date(room.checkout_at), 'd. MMM')}</p>
                 )}
 
-                {/* Upcoming (not yet checked in) */}
+                {/* Upcoming */}
                 {!room.occupied && room.upcoming && room.guest_name && (
-                  <p className="mt-1.5 text-2xs text-violet-600 font-medium truncate">
-                    {room.guest_name}
-                  </p>
+                  <p className="mt-1.5 text-2xs text-violet-600 font-medium truncate">{room.guest_name}</p>
                 )}
                 {!room.occupied && room.upcoming && room.checkin_at && (
-                  <p className="text-2xs text-violet-400 truncate">
-                    Anreise {format(new Date(room.checkin_at), 'd. MMM')}
-                  </p>
+                  <p className="text-2xs text-violet-400 truncate">Anreise {format(new Date(room.checkin_at), 'd. MMM')}</p>
+                )}
+
+                {/* Cleaning request from guest */}
+                {hasCleaning && (
+                  <div className="mt-2 pt-2 border-t border-cyan-200">
+                    <p className="text-2xs font-bold text-cyan-700 flex items-center gap-1">
+                      🧹 Reinigung gewünscht
+                    </p>
+                    <p className="text-2xs text-cyan-600 mt-0.5 leading-tight">
+                      {TIME_LABELS[room.cleaningRequest!.time_preference] ?? room.cleaningRequest!.time_preference}
+                    </p>
+                    <p className="text-2xs text-slate-400 mt-0.5">
+                      {format(new Date(room.cleaningRequest!.request_date), 'd. MMM')}
+                    </p>
+                  </div>
                 )}
               </button>
             )

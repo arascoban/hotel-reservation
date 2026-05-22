@@ -61,6 +61,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    // Fire push notification (best-effort)
+    const TIME_LABELS: Record<string, string> = {
+      now:       'Sofort',
+      morning:   'Vormittag',
+      afternoon: 'Nachmittag',
+      evening:   'Abend',
+    }
+    fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? 'https://jaegerstieg.vercel.app'}/api/push/send`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        roomNumber,
+        title:   '🧹 Zimmerreinigung angefragt',
+        body:    `Zimmer ${roomNumber} · ${TIME_LABELS[timePreference] ?? timePreference}`,
+        url:     '/rooms',
+      }),
+    }).catch(() => {})
+
     return NextResponse.json({ id: data.id })
   } catch (err: any) {
     return NextResponse.json({ error: err?.message ?? 'Unbekannter Fehler' }, { status: 500 })
