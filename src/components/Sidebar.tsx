@@ -21,26 +21,32 @@ import {
   Lock,
   ShieldCheck,
   User,
+  UtensilsCrossed,
+  ClipboardList,
+  QrCode,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/cn'
 import { useAdmin } from '@/hooks/useAdmin'
 
 const NAV_BASE = [
-  { href: '/search',     label: 'Suche',                  icon: Search },
-  { href: '/',           label: 'Kalender',               icon: CalendarDays },
-  { href: '/checkins',   label: 'Heutige Ankünfte',       icon: LogIn },
-  { href: '/checkouts',  label: 'Heutige Abreisen',       icon: LogOut },
-  { href: '/upcoming',   label: 'Bevorstehende Ankünfte', icon: CalendarClock },
-  { href: '/unpaid',     label: 'Offene Zahlungen',       icon: CreditCard },
-  { href: '/breakfast',  label: 'Frühstücksliste',        icon: Utensils },
-  { href: '/rooms',      label: 'Zimmerstatus',           icon: Hotel },
-  { href: '/statistics', label: 'Statistiken',            icon: BarChart3 },
+  { href: '/search',          label: 'Suche',                  icon: Search },
+  { href: '/',                label: 'Kalender',               icon: CalendarDays },
+  { href: '/checkins',        label: 'Heutige Ankünfte',       icon: LogIn },
+  { href: '/checkouts',       label: 'Heutige Abreisen',       icon: LogOut },
+  { href: '/upcoming',        label: 'Bevorstehende Ankünfte', icon: CalendarClock },
+  { href: '/unpaid',          label: 'Offene Zahlungen',       icon: CreditCard },
+  { href: '/breakfast',       label: 'Frühstücksliste',        icon: Utensils },
+  { href: '/rooms',           label: 'Zimmerstatus',           icon: Hotel },
+  { href: '/statistics',      label: 'Statistiken',            icon: BarChart3 },
+  { href: '/service-orders',  label: 'Zimmerservice',          icon: UtensilsCrossed },
 ]
 
 const NAV_ADMIN_EXTRAS = [
-  { href: '/lockers', label: 'Schließfach-PINs',   icon: Lock },
-  { href: '/sync',    label: 'iCal Synchronisation', icon: RefreshCw },
+  { href: '/lockers',  label: 'Schließfach-PINs',    icon: Lock },
+  { href: '/menu',     label: 'Speisekarte',          icon: ClipboardList },
+  { href: '/qrcodes',  label: 'QR-Codes',             icon: QrCode },
+  { href: '/sync',     label: 'iCal Synchronisation', icon: RefreshCw },
 ]
 
 interface Props {
