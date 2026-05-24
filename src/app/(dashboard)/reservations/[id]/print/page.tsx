@@ -40,17 +40,21 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
       {/* ── Global print styles ───────────────────────────────────────────────── */}
       <style>{`
         @media print {
-          /* Hide everything that isn't the confirmation */
           .no-print { display: none !important; }
           aside, nav, header { display: none !important; }
-          /* Remove sidebar margin offset */
           .lg\\:ml-64, [class*="ml-64"] { margin-left: 0 !important; }
-          /* Remove min-height so content doesn't force a second page */
-          .print-doc { min-height: 0 !important; }
-          /* Keep colour backgrounds (Chrome strips them by default) */
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          @page { margin: 12mm; size: A4 portrait; }
-          body { background: white !important; font-size: 12px; margin: 0 !important; }
+          /* margin:0 so the element fills the full paper — padding inside .print-doc acts as the margin */
+          @page { margin: 0; size: A4 portrait; }
+          body { background: white !important; margin: 0 !important; }
+          .print-outer { background: white !important; padding: 0 !important; }
+          .print-doc {
+            width: 210mm !important;
+            min-height: 297mm !important;
+            padding: 15mm !important;
+            box-shadow: none !important;
+            margin: 0 !important;
+          }
         }
         body { background: #e2e8f0; }
       `}</style>
@@ -62,9 +66,9 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
       </div>
 
       {/* ── Confirmation document ─────────────────────────────────────────────── */}
-      <div className="py-8 px-4">
+      <div className="print-outer py-8 px-4">
       <div className="print-doc bg-white shadow-2xl mx-auto flex flex-col"
-           style={{ width: '210mm', minHeight: '297mm', padding: '15mm' }}>
+           style={{ width: '794px', minHeight: '1123px', padding: '56px' }}>
 
         {/* Header row */}
         <div className="flex items-center justify-between mb-6 pb-5 border-b-2 border-slate-200">

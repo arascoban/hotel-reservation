@@ -11,7 +11,7 @@ function fmtNum(n: number)      { return String(n).padStart(6, '0') }
 function eur(n: number)         { return `€ ${n.toFixed(2)}` }
 
 const PAY_LABELS: Record<string, string> = {
-  cash: 'Bargeld', ec_card: 'EC-Karte', credit_card: 'Kreditkarte', online: 'Online',
+  cash: 'Bar', ec_card: 'EC-Karte', credit_card: 'Kreditkarte', online: 'Online', unpaid: 'Ausstehend',
 }
 
 const VAT_RATE = 0.07   // 7% reduced rate for German hotel accommodation
@@ -37,9 +37,18 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           aside, nav, header { display: none !important; }
           .lg\\:ml-64,[class*="ml-64"] { margin-left: 0 !important; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          @page { margin: 15mm; size: A4 portrait; }
+          /* margin:0 so the element fills the full paper — padding inside the .page div acts as the margin */
+          @page { margin: 0; size: A4 portrait; }
           body  { background: white !important; margin: 0 !important; }
-          .page { box-shadow: none !important; border: none !important; min-height: 0 !important; }
+          .print-outer { background: white !important; padding: 0 !important; }
+          .page {
+            width: 210mm !important;
+            min-height: 297mm !important;
+            padding: 15mm !important;
+            box-shadow: none !important;
+            border: none !important;
+            margin: 0 !important;
+          }
         }
         body { background: #e2e8f0; }
       `}</style>
@@ -52,9 +61,9 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
       </div>
 
       {/* A4 paper shell */}
-      <div className="py-8 px-4">
+      <div className="print-outer py-8 px-4">
         <div className="page bg-white shadow-2xl mx-auto flex flex-col"
-             style={{ width: '210mm', minHeight: '297mm', padding: '15mm' }}>
+             style={{ width: '794px', minHeight: '1123px', padding: '56px' }}>
 
           {/* ── HEADER ──────────────────────────────────────────────────────── */}
           <div className="flex items-start justify-between pb-6 border-b-2 border-slate-800 mb-6">
@@ -168,26 +177,23 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
             <div className="w-72">
               <div className="border border-slate-200 rounded-xl overflow-hidden">
                 <div className="flex justify-between px-4 py-2.5 text-sm border-b border-slate-100">
-                  <span className="text-slate-500">Nettobetrag (ohne MwSt.)</span>
+                  <span className="text-slate-500">Nettobetrag</span>
                   <span className="font-medium text-slate-700">{eur(net)}</span>
                 </div>
                 <div className="flex justify-between px-4 py-2.5 text-sm border-b border-slate-100">
-                  <span className="text-slate-500">7% MwSt. (enthaltener Anteil)</span>
+                  <span className="text-slate-500">7% MwSt.</span>
                   <span className="font-medium text-slate-700">{eur(vat)}</span>
                 </div>
                 <div className="flex justify-between px-4 py-3.5 bg-slate-800 text-white">
-                  <span className="font-bold text-sm">Gesamtbetrag (brutto)</span>
+                  <span className="font-bold text-sm">Gesamtbetrag</span>
                   <span className="font-black text-lg">{eur(gross)}</span>
                 </div>
               </div>
 
-              {/* Payment badge */}
-              <div className="mt-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold text-green-600 uppercase tracking-wide">Bezahlt</p>
-                  <p className="text-sm font-semibold text-green-800">{PAY_LABELS[inv.payment_method] ?? inv.payment_method}</p>
-                </div>
-                <span className="text-2xl">✅</span>
+              {/* Payment method */}
+              <div className="mt-3 flex justify-between items-center px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-sm">
+                <span className="text-slate-500">Zahlungsart</span>
+                <span className="font-semibold text-slate-800">{PAY_LABELS[inv.payment_method] ?? inv.payment_method}</span>
               </div>
             </div>
           </div>
@@ -216,7 +222,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
               </div>
             </div>
             <p className="text-center text-xs text-slate-300 mt-3 border-t border-slate-100 pt-3">
-              Vielen Dank für Ihren Aufenthalt! · Alle Preise sind Bruttopreise inkl. 7% MwSt.
+              Vielen Dank für Ihren Aufenthalt! · Alle Preise inkl. 7% MwSt.
             </p>
           </div>
 
