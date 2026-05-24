@@ -7,10 +7,8 @@ import PrintButton       from '../../reservations/[id]/print/PrintButton'
 
 export const dynamic = 'force-dynamic'
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
 function fmtNum(n: number) { return String(n).padStart(6, '0') }
-function eur(n: number)    {
+function eur(n: number) {
   return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 }
 
@@ -18,18 +16,10 @@ const BREAKFAST_VAT = 0.07
 const SERVICE_VAT   = 0.19
 
 const PAY_LABELS: Record<string, string> = {
-  cash:        'Bar',
-  ec_card:     'EC-Karte',
-  credit_card: 'Kreditkarte',
-  online:      'Online',
-  unpaid:      'Ausstehend',
+  cash: 'Bar', ec_card: 'EC-Karte', credit_card: 'Kreditkarte', online: 'Online', unpaid: 'Ausstehend',
 }
 
-interface ServiceItem {
-  name: string; qty: number; unit_price: number; total: number
-}
-
-// ── Page ─────────────────────────────────────────────────────────────────────
+interface ServiceItem { name: string; qty: number; unit_price: number; total: number }
 
 export default async function InvoicePrintPage({ params }: { params: { id: string } }) {
   const supabase = await createClient()
@@ -42,13 +32,13 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
   const checkout    = new Date(inv.checkout_at)
   const invoiceDate = new Date(inv.created_at)
 
-  const guestCount         = (inv.guest_count            ?? 1)     as number
-  const nights             = (inv.nights                 ?? 1)     as number
+  const guestCount         = (inv.guest_count            ?? 1)  as number
+  const nights             = (inv.nights                 ?? 1)  as number
   const breakfastPPP       = (inv.breakfast_price_per_person ?? 10) as number
   const hasBreakfast       = !!inv.breakfast_included
   const serviceItems: ServiceItem[] = Array.isArray(inv.room_service_items) ? inv.room_service_items : []
-  const serviceTotal       = (inv.room_service_total     ?? 0)     as number
-  const totalPrice         = (inv.total_price            ?? 0)     as number
+  const serviceTotal       = (inv.room_service_total ?? 0) as number
+  const totalPrice         = (inv.total_price ?? 0) as number
 
   const breakfastGross     = hasBreakfast ? guestCount * nights * breakfastPPP : 0
   const accommodationGross = totalPrice - breakfastGross
@@ -63,7 +53,6 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
   const vat19     = serviceTotal - svc_net
   const sumBrutto = grandTotal
 
-  // Parse guest address into lines
   const addressLines = (inv.guest_address ?? '').split('\n').filter(Boolean) as string[]
 
   return (
@@ -75,15 +64,18 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           .lg\\:ml-64,[class*="ml-64"] { margin-left: 0 !important; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           @page { margin: 0; size: A4 portrait; }
-          body  { background: white !important; margin: 0 !important; }
-          .print-outer { background: white !important; padding: 0 !important; }
+          body  { background: white !important; margin: 0 !important; padding: 0 !important; }
+          .print-outer { background: white !important; padding: 0 !important; margin: 0 !important; }
+          /* Critical: no min-height in print so we don't force a blank 2nd page */
           .page {
             width: 210mm !important;
-            min-height: 297mm !important;
-            padding: 15mm !important;
+            min-height: 0 !important;
+            height: auto !important;
+            padding: 14mm !important;
             box-shadow: none !important;
             border: none !important;
             margin: 0 !important;
+            page-break-after: avoid !important;
           }
         }
         body { background: #e2e8f0; }
@@ -99,72 +91,61 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
       {/* ── A4 document ─────────────────────────────────────────────────────── */}
       <div className="print-outer py-8 px-4">
         <div className="page bg-white shadow-2xl mx-auto flex flex-col"
-             style={{ width: '794px', minHeight: '1123px', padding: '56px' }}>
+             style={{ width: '794px', minHeight: '1123px', padding: '52px' }}>
 
-          {/* ══ SECTION 1: Logo (left) + Company block (right) ════════════════ */}
+          {/* ══ HEADER: Logo left · RECHNUNG + company info right ════════════ */}
           <div className="flex items-start justify-between mb-5">
 
-            {/* Left: logo */}
+            {/* Left: logo (bigger) */}
             <div className="flex-shrink-0">
-              <div className="bg-slate-800 rounded-xl px-4 py-3 inline-block">
-                <Image
-                  src="/logo.png"
-                  alt="Jägerstieg Hotel & Pension"
-                  width={140} height={70}
-                  className="object-contain"
-                />
+              <div className="bg-slate-800 rounded-xl px-5 py-3.5 inline-block">
+                <Image src="/logo.png" alt="Jägerstieg Hotel & Pension"
+                  width={160} height={80} className="object-contain" />
               </div>
             </div>
 
-            {/* Right: full company info — right-aligned */}
-            <div className="text-right text-sm leading-relaxed">
-              <p className="font-bold text-slate-900">Hotel-Pension Jägerstieg</p>
-              <p className="text-slate-600">Verwaltung und Vertrieb G. Cetin Holding GmbH</p>
-              <p className="text-slate-600">Von Eichendorf-Str. 16</p>
-              <p className="text-slate-600">37539 Bad Grund</p>
-              <p className="mt-2 text-slate-500">Telefon: +49 5327 2828</p>
-              <p className="text-slate-500">E-Mail: info@jaegerstieg.de</p>
-              <p className="mt-2 text-slate-600 font-medium">CEO: A. Eddie Çetin</p>
+            {/* Right: RECHNUNG header first, then company info below — all right-aligned */}
+            <div className="text-right">
+              {/* RECHNUNG block at the very top right */}
+              <p className="text-4xl font-black text-slate-900 tracking-tight leading-none mb-1">RECHNUNG</p>
+              <p className="text-sm text-slate-500">
+                Nr.&nbsp;<strong className="text-slate-800 font-mono tracking-wide">{fmtNum(inv.invoice_number)}</strong>
+              </p>
+              <p className="text-sm text-slate-500 mt-0.5">
+                Datum:&nbsp;<strong className="text-slate-700">{format(invoiceDate, 'dd.MM.yyyy')}</strong>
+              </p>
+
+              {/* Company info below RECHNUNG */}
+              <div className="mt-4 text-sm leading-relaxed border-t border-slate-100 pt-3">
+                <p className="font-bold text-slate-900">Hotel-Pension Jägerstieg</p>
+                <p className="text-slate-600">Verwaltung und Vertrieb G. Cetin Holding GmbH</p>
+                <p className="text-slate-500">Von Eichendorf-Str. 16</p>
+                <p className="text-slate-500">37539 Bad Grund</p>
+                <p className="mt-1.5 text-slate-500">Telefon: +49 5327 2828</p>
+                <p className="text-slate-500">E-Mail: info@jaegerstieg.de</p>
+                <p className="mt-1.5 text-slate-600 font-medium">CEO: A. Eddie Çetin</p>
+              </div>
             </div>
           </div>
 
-          {/* Divider */}
-          <div className="border-t-2 border-slate-800 mb-6" />
+          {/* Full-width divider */}
+          <div className="border-t-2 border-slate-800 mb-5" />
 
-          {/* ══ SECTION 2: Guest address (left) + RECHNUNG block (right) ══════ */}
-          <div className="flex items-start justify-between mb-8">
-
-            {/* Left: guest address */}
-            <div className="text-sm leading-relaxed">
-              {/* Small sender line above address (like a window envelope) */}
-              <p className="text-xs text-slate-400 mb-2 border-b border-slate-200 pb-1">
-                Hotel-Pension Jägerstieg · Von Eichendorf-Str. 16 · 37539 Bad Grund
-              </p>
-              <p className="font-semibold text-slate-900">{inv.guest_name}</p>
-              {inv.guest_email && <p className="text-slate-500">{inv.guest_email}</p>}
-              {addressLines.map((line: string, i: number) => (
-                <p key={i} className="text-slate-600">{line}</p>
-              ))}
-            </div>
-
-            {/* Right: RECHNUNG header */}
-            <div className="text-right">
-              <p className="text-4xl font-black text-slate-900 tracking-tight mb-2">RECHNUNG</p>
-              <p className="text-sm text-slate-500">
-                Datum:{' '}
-                <strong className="text-slate-700">
-                  {format(invoiceDate, 'dd.MM.yyyy')}
-                </strong>
-              </p>
-              <p className="text-sm text-slate-500 mt-0.5">
-                Rechnungsnummer:{' '}
-                <strong className="text-slate-700 font-mono">{fmtNum(inv.invoice_number)}</strong>
-              </p>
-            </div>
+          {/* ══ GUEST ADDRESS ════════════════════════════════════════════════ */}
+          <div className="mb-7">
+            {/* Tiny sender line above guest address (window envelope style) */}
+            <p className="text-xs text-slate-400 mb-2">
+              Hotel-Pension Jägerstieg · Von Eichendorf-Str. 16 · 37539 Bad Grund
+            </p>
+            <p className="font-semibold text-slate-900 text-sm">{inv.guest_name}</p>
+            {inv.guest_email && <p className="text-sm text-slate-500">{inv.guest_email}</p>}
+            {addressLines.map((line: string, i: number) => (
+              <p key={i} className="text-sm text-slate-600">{line}</p>
+            ))}
           </div>
 
           {/* ══ STAY INFO BAR ══════════════════════════════════════════════════ */}
-          <div className="rounded-xl bg-slate-800 text-white px-6 py-4 mb-7 grid grid-cols-4 gap-4 text-center text-sm">
+          <div className="rounded-xl bg-slate-800 text-white px-6 py-4 mb-6 grid grid-cols-4 gap-4 text-center text-sm">
             <div>
               <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Zimmer</p>
               <p className="font-bold">{inv.room_name}</p>
@@ -189,9 +170,9 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
             </div>
           </div>
 
-          {/* ══ EARLY DEPARTURE WARNING ════════════════════════════════════════ */}
+          {/* Early departure warning */}
           {inv.early_departure && (
-            <div className="rounded-xl bg-amber-50 border border-amber-300 px-4 py-3 mb-6 flex items-center gap-3">
+            <div className="rounded-xl bg-amber-50 border border-amber-300 px-4 py-3 mb-5 flex items-center gap-3">
               <span>⚠️</span>
               <div>
                 <p className="text-sm font-bold text-amber-800">Vorzeitige Abreise</p>
@@ -205,31 +186,27 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           )}
 
           {/* ══ LINE ITEMS TABLE ═══════════════════════════════════════════════ */}
-          <table className="w-full text-sm mb-6 border-collapse">
+          <table className="w-full text-sm mb-5 border-collapse">
             <thead>
               <tr className="bg-slate-800 text-white text-xs uppercase tracking-wide">
                 <th className="px-3 py-2.5 text-left font-semibold rounded-tl-lg w-8">Pos.</th>
                 <th className="px-3 py-2.5 text-left font-semibold">Beschreibung</th>
                 <th className="px-3 py-2.5 text-center font-semibold w-12">Anz.</th>
                 <th className="px-3 py-2.5 text-right font-semibold w-28">Einzelpreis</th>
-                <th className="px-3 py-2.5 text-center font-semibold w-16">MwSt.</th>
+                <th className="px-3 py-2.5 text-center font-semibold w-14">MwSt.</th>
                 <th className="px-3 py-2.5 text-right font-semibold w-28">Gesamt Netto</th>
                 <th className="px-3 py-2.5 text-right font-semibold rounded-tr-lg w-28">Gesamt Brutto</th>
               </tr>
             </thead>
             <tbody>
 
-              {/* ── Pos 1: Übernachtung ── */}
+              {/* Pos 1: Übernachtung */}
               <tr className="border-b border-slate-100">
                 <td className="px-3 py-3 text-slate-400 text-xs align-top">1</td>
                 <td className="px-3 py-3 text-slate-800 align-top">
                   <span className="font-medium">Übernachtung</span>
                   <span className="block text-xs text-slate-400 mt-0.5">
-                    {inv.room_name} (Zi. {inv.room_number}) ·{' '}
-                    {format(checkin, 'dd.MM.')}–{format(checkout, 'dd.MM.yyyy')}
-                  </span>
-                  <span className="block text-xs text-slate-400">
-                    Für {guestCount} Person{guestCount !== 1 ? 'en' : ''}
+                    {inv.room_name} · {format(checkin, 'dd.MM.')}–{format(checkout, 'dd.MM.yyyy')}
                   </span>
                   {inv.early_departure && (
                     <span className="inline-block mt-1 text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">
@@ -244,15 +221,12 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                 <td className="px-3 py-3 text-right font-semibold text-slate-800 align-top">{eur(accommodationGross)}</td>
               </tr>
 
-              {/* ── Pos 2: Frühstück ── */}
+              {/* Pos 2: Frühstück */}
               {hasBreakfast && (
                 <tr className="border-b border-slate-100">
                   <td className="px-3 py-3 text-slate-400 text-xs align-top">2</td>
                   <td className="px-3 py-3 text-slate-800 align-top">
                     <span className="font-medium">Frühstück</span>
-                    <span className="block text-xs text-slate-400 mt-0.5">
-                      {guestCount} Person{guestCount !== 1 ? 'en' : ''} × {nights} Nacht{nights !== 1 ? 'e' : ''}
-                    </span>
                   </td>
                   <td className="px-3 py-3 text-center text-slate-600 align-top">{guestCount * nights}</td>
                   <td className="px-3 py-3 text-right text-slate-600 align-top">{eur(breakfastPPP)}</td>
@@ -262,7 +236,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                 </tr>
               )}
 
-              {/* ── Pos 3: Zimmerservice ── */}
+              {/* Pos 3: Zimmerservice */}
               {serviceTotal > 0 && (
                 <tr className="border-b border-slate-100">
                   <td className="px-3 py-3 text-slate-400 text-xs align-top">{hasBreakfast ? 3 : 2}</td>
@@ -289,16 +263,15 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
             </tbody>
           </table>
 
-          {/* ══ TOTALS + PAYMENT ══════════════════════════════════════════════ */}
-          <div className="flex items-start justify-between mb-8 gap-6">
-
-            {/* Left: booking reference / notes */}
-            <div className="text-xs text-slate-400 space-y-1 flex-1 pt-1">
+          {/* ══ TOTALS ════════════════════════════════════════════════════════ */}
+          <div className="flex items-start justify-between mb-6 gap-6">
+            {/* Left: notes */}
+            <div className="text-xs text-slate-400 flex-1 pt-1 space-y-1">
               {inv.notes && <p className="text-slate-600 text-sm">{inv.notes}</p>}
             </div>
 
-            {/* Right: totals */}
-            <div className="w-72 flex-shrink-0">
+            {/* Right: amounts */}
+            <div className="w-68 flex-shrink-0" style={{ width: '260px' }}>
               <table className="w-full text-sm">
                 <tbody>
                   <tr className="border-b border-slate-100">
@@ -316,22 +289,18 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                     </tr>
                   )}
                   <tr>
-                    <td colSpan={2} className="pt-1 pb-0">
+                    <td colSpan={2} className="pt-2">
                       <div className="flex justify-between items-center bg-slate-800 text-white px-4 py-3 rounded-lg">
-                        <span className="font-bold">Summe Brutto</span>
+                        <span className="font-bold text-sm">Summe Brutto</span>
                         <span className="font-black text-lg">{eur(sumBrutto)}</span>
                       </div>
                     </td>
                   </tr>
                 </tbody>
               </table>
-
-              {/* Payment method */}
-              <div className="mt-3 flex justify-between items-center px-4 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm">
+              <div className="mt-2.5 flex justify-between items-center px-4 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm">
                 <span className="text-slate-500">Zahlungsart</span>
-                <span className="font-semibold text-slate-800">
-                  {PAY_LABELS[inv.payment_method] ?? inv.payment_method}
-                </span>
+                <span className="font-semibold text-slate-800">{PAY_LABELS[inv.payment_method] ?? inv.payment_method}</span>
               </div>
             </div>
           </div>
@@ -340,30 +309,22 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           <div className="flex-1" />
 
           {/* ══ FOOTER ════════════════════════════════════════════════════════ */}
-          <div className="border-t border-slate-200 pt-6 mt-4">
-            <p className="text-sm text-slate-700 mb-6">Zahlung nach Rechnungserhalt.</p>
-
-            {/* Signature area */}
+          <div className="border-t border-slate-200 pt-5 mt-4">
+            <p className="text-sm text-slate-700 mb-5">Zahlung nach Rechnungserhalt.</p>
             <div className="flex items-end justify-between">
               <div>
-                {/* Cursive-style CEO name */}
-                <p className="text-2xl text-slate-700 mb-0.5" style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>
+                <p className="text-xl text-slate-700" style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>
                   A. Eddie Çetin
                 </p>
-                <p className="text-xs text-slate-500">Geschäftsführer</p>
+                <p className="text-xs text-slate-500 mt-0.5">Geschäftsführer</p>
               </div>
-
-              {/* Right: hotel footer info */}
               <div className="text-right text-xs text-slate-400">
                 <p>Rechnung Nr. {fmtNum(inv.invoice_number)}</p>
-                <p className="mt-0.5">
-                  Datum: {format(invoiceDate, 'd. MMMM yyyy', { locale: de })}
-                </p>
+                <p className="mt-0.5">Datum: {format(invoiceDate, 'd. MMMM yyyy', { locale: de })}</p>
                 <p className="mt-1">Jägerstieg Hotel &amp; Pension · info@jaegerstieg.de</p>
               </div>
             </div>
-
-            <p className="text-center text-xs text-slate-300 mt-5 border-t border-slate-100 pt-3">
+            <p className="text-center text-xs text-slate-300 mt-4 border-t border-slate-100 pt-3">
               Vielen Dank für Ihren Aufenthalt! · Alle Preise inkl. MwSt.
             </p>
           </div>

@@ -19,47 +19,57 @@ import { useAdmin } from '@/hooks/useAdmin'
 
 function useNotificationCounts() {
   const supabase = createClient()
-  const [foodCount,  setFoodCount]  = useState(0)
-  const [cleanCount, setCleanCount] = useState(0)
+  const [foodCount,    setFoodCount]    = useState(0)
+  const [cleanCount,   setCleanCount]   = useState(0)
+  const [checkinCount, setCheckinCount] = useState(0)
+  const [checkoutCount,setCheckoutCount]= useState(0)
 
   const load = useCallback(async () => {
-    const today = new Date().toISOString().slice(0, 10)
-    const [{ count: food }, { count: clean }] = await Promise.all([
-      supabase
-        .from('room_orders')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'new'),
-      supabase
-        .from('cleaning_requests')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending')
-        .gte('request_date', today),
+    const today    = new Date().toISOString().slice(0, 10)
+    const todayEnd = `${today}T23:59:59`
+    const todayStart = `${today}T00:00:00`
+
+    const [
+      { count: food },
+      { count: clean },
+      { count: checkins },
+      { count: checkouts },
+    ] = await Promise.all([
+      supabase.from('room_orders').select('*', { count: 'exact', head: true }).eq('status', 'new'),
+      supabase.from('cleaning_requests').select('*', { count: 'exact', head: true })
+        .eq('status', 'pending').gte('request_date', today),
+      // Guests arriving today who haven't checked in yet
+      supabase.from('reservations').select('*', { count: 'exact', head: true })
+        .eq('status', 'confirmed')
+        .gte('checkin_at', todayStart)
+        .lte('checkin_at', todayEnd)
+        .is('deleted_at', null),
+      // Guests departing today who haven't checked out yet
+      supabase.from('reservations').select('*', { count: 'exact', head: true })
+        .in('status', ['confirmed', 'checked_in'])
+        .gte('checkout_at', todayStart)
+        .lte('checkout_at', todayEnd)
+        .is('deleted_at', null),
     ])
-    setFoodCount(food  ?? 0)
-    setCleanCount(clean ?? 0)
+    setFoodCount(food       ?? 0)
+    setCleanCount(clean     ?? 0)
+    setCheckinCount(checkins  ?? 0)
+    setCheckoutCount(checkouts ?? 0)
   }, [supabase])
 
   useEffect(() => {
     load()
-
-    // Realtime: re-fetch counts the instant any order or cleaning request changes
-    // (covers: new order arrives, order marked delivered, cleaning marked done, etc.)
     const channel = supabase
       .channel('sidebar_notification_counts')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'room_orders' },       load)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'cleaning_requests' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' },      load)
       .subscribe()
-
-    // Polling fallback every 30 s in case realtime isn't enabled for a table
     const t = setInterval(load, 30_000)
-
-    return () => {
-      supabase.removeChannel(channel)
-      clearInterval(t)
-    }
+    return () => { supabase.removeChannel(channel); clearInterval(t) }
   }, [load, supabase])
 
-  return { foodCount, cleanCount }
+  return { foodCount, cleanCount, checkinCount, checkoutCount }
 }
 
 // ── Nav types ────────────────────────────────────────────────────────────────
@@ -197,7 +207,7 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
   const supabase    = createClient()
   const { isAdmin } = useAdmin()
   const [userEmail, setUserEmail] = useState<string | null>(null)
-  const { foodCount, cleanCount } = useNotificationCounts()
+  const { foodCount, cleanCount, checkinCount, checkoutCount } = useNotificationCounts()
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserEmail(data.user?.email ?? null))
@@ -207,6 +217,18 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
     await supabase.auth.signOut()
     router.push('/login')
     router.refresh()
+  }
+
+  // Check-in/out group built dynamically with today's pending counts
+  const checkinsGroup = {
+    label: '📅 Ankünfte & Abreisen',
+    hrefs: ['/checkins', '/checkouts', '/upcoming', '/past-guests'],
+    items: [
+      { href: '/checkins',    label: 'Heutige Ankünfte',       icon: LogIn,         badge: checkinCount  || undefined },
+      { href: '/checkouts',   label: 'Heutige Abreisen',        icon: LogOut,        badge: checkoutCount || undefined },
+      { href: '/upcoming',    label: 'Bevorstehende Ankünfte',  icon: CalendarClock  },
+      { href: '/past-guests', label: 'Vergangene Gäste',        icon: History        },
+    ] as NavItem[],
   }
 
   // Groups built dynamically with live badge counts
@@ -265,7 +287,7 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
           <NavLink key={href} href={href} label={label} icon={icon} onClick={onClose} />
         ))}
 
-        <SubMenu {...GROUP_CHECKINS} onClose={onClose} />
+        <SubMenu {...checkinsGroup}  onClose={onClose} />
         <SubMenu {...roomsGroup}     onClose={onClose} />
         <SubMenu {...foodGroup}      onClose={onClose} />
 
