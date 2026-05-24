@@ -36,6 +36,31 @@ export async function POST(req: NextRequest) {
     const toImport = rows.filter(r => !r.skip && r.roomId && r.roomId !== '__DUPLICATE__')
     const results: Array<{ bookingNumber: string; ok: boolean; error?: string }> = []
 
+    // ── Upsert customers for all imported guests ──────────────────────────────
+    // We upsert by lower(name) — if a customer with the same name already exists, skip.
+    const uniqueGuests = new Map<string, ConfirmRow>()
+    for (const row of toImport) {
+      const key = row.guestName.trim().toLowerCase()
+      if (key && !uniqueGuests.has(key)) uniqueGuests.set(key, row)
+    }
+    for (const [, row] of uniqueGuests) {
+      // Only insert if no existing customer with same name exists
+      const { data: existing } = await supabase
+        .from('customers')
+        .select('id')
+        .ilike('name', row.guestName.trim())
+        .maybeSingle()
+      if (!existing) {
+        await supabase.from('customers').insert({
+          name:    row.guestName.trim(),
+          email:   row.email   || null,
+          phone:   row.phone   || null,
+          street:  row.adresse || null,
+          source:  'booking.com',
+        })
+      }
+    }
+
     for (const row of toImport) {
       // Commission → internal_notes (never shown to guest)
       const internalNote = row.commission != null

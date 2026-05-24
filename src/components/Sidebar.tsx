@@ -9,7 +9,7 @@ import {
   ChevronRight, ChevronDown, X, CalendarClock, RefreshCw,
   BarChart3, Utensils, Hotel, Lock, ShieldCheck, User,
   UtensilsCrossed, ClipboardList, QrCode, Soup, TrendingUp, FileDown, History,
-  FileText,
+  FileText, Users,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/cn'
@@ -84,8 +84,9 @@ interface NavItem {
 // ── Nav groups (static, no badges — badges injected dynamically) ─────────────
 
 const NAV_STANDALONE = [
-  { href: '/search', label: 'Suche',    icon: Search       },
-  { href: '/',       label: 'Kalender', icon: CalendarDays },
+  { href: '/search',    label: 'Suche',    icon: Search       },
+  { href: '/',          label: 'Kalender', icon: CalendarDays },
+  { href: '/customers', label: 'Kunden',   icon: Users        },
 ]
 
 const GROUP_CHECKINS = {

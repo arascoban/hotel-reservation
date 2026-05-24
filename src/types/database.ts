@@ -66,6 +66,21 @@ export interface Guest {
   updated_at: string
 }
 
+export interface Customer {
+  id: string
+  name: string
+  email: string | null
+  phone: string | null
+  street: string | null
+  postcode: string | null
+  city: string | null
+  country: string | null
+  notes: string | null
+  source: string
+  created_at: string
+  updated_at: string
+}
+
 export interface Reservation {
   id: string
   room_id: string
@@ -171,6 +186,11 @@ export type Database = {
         Row: Guest
         Insert: Omit<Guest, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<Guest, 'id' | 'created_at' | 'updated_at'>>
+      }
+      customers: {
+        Row: Customer
+        Insert: Omit<Customer, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<Customer, 'id' | 'created_at' | 'updated_at'>>
       }
       reservations: {
         Row: Reservation
