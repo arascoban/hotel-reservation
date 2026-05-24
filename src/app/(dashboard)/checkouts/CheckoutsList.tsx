@@ -15,38 +15,62 @@ export default function CheckoutsList({ initialReservations }: Props) {
   const supabase = createClient()
   const [reservations, setReservations] = useState<ReservationWithRoom[]>(initialReservations)
   const [checkingOut, setCheckingOut] = useState<string | null>(null)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
 
   // Quick one-click checkout:
-  // 1. Sets reservation status → checked_out
-  // 2. Sets room cleaning_status → dirty (Reinigen)
+  // 1. Sets reservation status → checked_out  (both rooms if family booking)
+  // 2. Sets room cleaning_status → dirty       (both rooms if family booking)
   async function handleQuickCheckout(r: ReservationWithRoom) {
     if (r.status === 'checked_out') return
     setCheckingOut(r.id)
+    setCheckoutError(null)
 
-    // Update reservation status
+    // ── 1. Check out the primary reservation ────────────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: rpcError } = await (supabase as any).rpc('update_reservation', {
       p_reservation_id: r.id,
       p_status: 'checked_out',
     })
 
-    if (!rpcError) {
-      // Auto-set room to "Reinigen" (dirty) on checkout
-      await supabase
-        .from('rooms')
-        .update({
+    if (rpcError) {
+      setCheckoutError('Checkout fehlgeschlagen. Bitte erneut versuchen.')
+      setCheckingOut(null)
+      return
+    }
+
+    // Set primary room → Reinigen (dirty)
+    await supabase.from('rooms').update({
+      cleaning_status: 'dirty',
+      cleaning_updated_at: new Date().toISOString(),
+    }).eq('id', r.room_id)
+
+    // ── 2. Family booking: also check out the linked room ───────────────────
+    if (r.family_booking_id) {
+      const { data: linked } = await supabase
+        .from('reservations')
+        .select('id, room_id, status')
+        .eq('family_booking_id', r.family_booking_id)
+        .neq('id', r.id)
+
+      for (const sibling of (linked ?? [])) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any).rpc('update_reservation', {
+          p_reservation_id: sibling.id,
+          p_status: 'checked_out',
+        })
+        await supabase.from('rooms').update({
           cleaning_status: 'dirty',
           cleaning_updated_at: new Date().toISOString(),
-        })
-        .eq('id', r.room_id)
-
-      // Update local state immediately
-      setReservations(prev =>
-        prev.map(res =>
-          res.id === r.id ? { ...res, status: 'checked_out' as const } : res
-        )
-      )
+        }).eq('id', sibling.room_id)
+      }
     }
+
+    // ── 3. Update local state so the row moves to "Ausgecheckt" immediately ─
+    setReservations(prev =>
+      prev.map(res =>
+        res.id === r.id ? { ...res, status: 'checked_out' as const } : res
+      )
+    )
 
     setCheckingOut(null)
   }
@@ -57,6 +81,14 @@ export default function CheckoutsList({ initialReservations }: Props) {
 
   return (
     <>
+      {/* Error banner */}
+      {checkoutError && (
+        <div className="mb-4 rounded-xl bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm flex items-center justify-between">
+          <span>{checkoutError}</span>
+          <button onClick={() => setCheckoutError(null)} className="ml-3 text-red-400 hover:text-red-600">✕</button>
+        </div>
+      )}
+
       {/* Still in room — show quick checkout buttons */}
       {stillinRoom.length > 0 && (
         <div className="mb-6">
