@@ -119,12 +119,22 @@ export default function CheckoutsList({ initialReservations, today }: Props) {
       const { data: numData, error: numErr } = await (supabase as any).rpc('get_next_invoice_number')
       if (numErr) { setGlobalError('Rechnungsnummer konnte nicht generiert werden.'); setProcessing(false); return }
 
-      const { data: resExtra } = await supabase
-        .from('reservations')
-        .select('billing_address, guest_street, guest_postcode, guest_city, guest_country, notes')
-        .eq('id', pending.id).single()
+      // Fetch reservation extras (address + notes) and room service orders in parallel
+      const [{ data: resExtra }, { data: orders }] = await Promise.all([
+        supabase
+          .from('reservations')
+          .select('billing_address, guest_street, guest_postcode, guest_city, guest_country, notes')
+          .eq('id', pending.id).single(),
+        supabase
+          .from('room_orders')
+          .select('id, status, order_items(menu_item_name, quantity, price_at_order)')
+          .eq('room_id', pending.room_id)
+          .neq('status', 'cancelled')
+          .gte('created_at', pending.checkin_at)
+          .lte('created_at', now),
+      ])
 
-      // Build formatted address from structured fields (fallback to legacy billing_address)
+      // Build formatted address
       const rx = resExtra as any
       const addrParts = [
         rx?.guest_street,
@@ -135,27 +145,54 @@ export default function CheckoutsList({ initialReservations, today }: Props) {
         ? addrParts.join('\n')
         : (rx?.billing_address ?? null)
 
+      // Aggregate room service items across all orders
+      type ServiceItem = { name: string; qty: number; unit_price: number; total: number }
+      const serviceItemMap = new Map<string, ServiceItem>()
+      for (const order of (orders ?? []) as any[]) {
+        for (const item of (order.order_items ?? []) as any[]) {
+          const key = item.menu_item_name
+          const lineTotal = item.quantity * item.price_at_order
+          if (serviceItemMap.has(key)) {
+            const existing = serviceItemMap.get(key)!
+            existing.qty   += item.quantity
+            existing.total += lineTotal
+          } else {
+            serviceItemMap.set(key, {
+              name:       item.menu_item_name,
+              qty:        item.quantity,
+              unit_price: item.price_at_order,
+              total:      lineTotal,
+            })
+          }
+        }
+      }
+      const serviceItems = Array.from(serviceItemMap.values())
+      const serviceTotal = serviceItems.reduce((s, i) => s + i.total, 0)
+
       const invoicePayload: Record<string, unknown> = {
-        invoice_number:     numData as number,
-        reservation_id:     pending.id,
-        guest_name:         pending.guest_name,
-        guest_email:        pending.guest_email ?? null,
-        guest_address:      guestAddress,
-        room_number:        pending.rooms.room_number,
-        room_name:          pending.rooms.name,
-        checkin_at:         pending.checkin_at,
-        checkout_at:        pending.checkout_at,
-        nights:             finalNights,
-        total_price:        finalPrice,
-        payment_method:     payMethod,
-        breakfast_included: pending.breakfast_included,
-        notes:              (resExtra as any)?.notes ?? null,
-        created_by:         (await supabase.auth.getUser()).data.user?.email ?? null,
-        created_at:         now,
+        invoice_number:              numData as number,
+        reservation_id:              pending.id,
+        guest_name:                  pending.guest_name,
+        guest_email:                 pending.guest_email ?? null,
+        guest_address:               guestAddress,
+        room_number:                 pending.rooms.room_number,
+        room_name:                   pending.rooms.name,
+        checkin_at:                  pending.checkin_at,
+        checkout_at:                 pending.checkout_at,
+        nights:                      finalNights,
+        total_price:                 finalPrice,
+        payment_method:              payMethod,
+        breakfast_included:          pending.breakfast_included,
+        notes:                       (resExtra as any)?.notes ?? null,
+        created_by:                  (await supabase.auth.getUser()).data.user?.email ?? null,
+        created_at:                  now,
+        guest_count:                 pending.guest_count,
+        breakfast_price_per_person:  10,
+        room_service_total:          Math.round(serviceTotal * 100) / 100,
+        room_service_items:          serviceItems.length > 0 ? serviceItems : null,
       }
 
       // Only include early-departure columns when actually used
-      // (safe even if migration 015 hasn't been applied yet)
       if (earlyDeparture) {
         invoicePayload.early_departure = true
         invoicePayload.original_nights = plannedNights
