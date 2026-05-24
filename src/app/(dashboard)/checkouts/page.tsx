@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { format } from 'date-fns'
+import { format, subDays } from 'date-fns'
 import { de } from 'date-fns/locale'
 import CheckoutsList from './CheckoutsList'
 import type { ReservationWithRoom } from '@/types/database'
@@ -9,7 +9,9 @@ export const dynamic = 'force-dynamic'
 
 export default async function CheckOutsPage() {
   const supabase = await createClient()
-  const today = format(new Date(), 'yyyy-MM-dd')
+  const today     = format(new Date(), 'yyyy-MM-dd')
+  // Employees see last 3 days; admin sees last 30 days (archive)
+  const fromDate  = format(subDays(new Date(), 29), 'yyyy-MM-dd')
 
   // Determine admin status server-side
   const { data: { user } } = await supabase.auth.getUser()
@@ -18,10 +20,10 @@ export default async function CheckOutsPage() {
   let q = supabase
     .from('reservations')
     .select('*, rooms(*, room_types(*))')
-    .gte('checkout_at', `${today}T00:00:00`)
+    .gte('checkout_at', `${fromDate}T00:00:00`)
     .lt('checkout_at',  `${today}T23:59:59`)
     .in('status', ['confirmed', 'checked_in', 'checked_out'])
-    .order('checkout_at')
+    .order('checkout_at', { ascending: false })
 
   if (!isAdmin) q = (q as typeof q).is('deleted_at', null)
 
@@ -32,7 +34,7 @@ export default async function CheckOutsPage() {
     isAdmin,
   )
 
-  const stillinRoom  = reservations.filter(r => r.status === 'checked_in')
+  const stillinRoom  = reservations.filter(r => r.status === 'checked_in' || r.status === 'confirmed')
   const departed     = reservations.filter(r => r.status === 'checked_out')
 
   return (

@@ -9,6 +9,7 @@ import {
   ChevronRight, ChevronDown, X, CalendarClock, RefreshCw,
   BarChart3, Utensils, Hotel, Lock, ShieldCheck, User,
   UtensilsCrossed, ClipboardList, QrCode, Soup, TrendingUp, FileDown, History,
+  FileText,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/cn'
@@ -90,10 +91,11 @@ const GROUP_CHECKINS = {
 
 const GROUP_FINANCE = {
   label: '📊 Finanzen & Statistiken',
-  hrefs: ['/unpaid', '/statistics'],
+  hrefs: ['/unpaid', '/statistics', '/invoices'],
   items: [
-    { href: '/unpaid',     label: 'Offene Zahlungen', icon: CreditCard },
-    { href: '/statistics', label: 'Statistiken',      icon: TrendingUp },
+    { href: '/unpaid',    label: 'Offene Zahlungen', icon: CreditCard },
+    { href: '/invoices',  label: 'Rechnungen',       icon: FileText   },
+    { href: '/statistics', label: 'Statistiken',     icon: TrendingUp },
   ] as NavItem[],
 }
 
