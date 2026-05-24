@@ -25,14 +25,18 @@ export default function CheckoutsList({ initialReservations }: Props) {
     setCheckingOut(r.id)
     setCheckoutError(null)
 
-    // ── 1. Check out the primary reservation ────────────────────────────────
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: rpcError } = await (supabase as any).rpc('update_reservation', {
-      p_reservation_id: r.id,
-      p_status: 'checked_out',
-    })
+    // ── 1. Check out primary reservation (direct update — no RPC capacity check) ──
+    // We avoid the update_reservation RPC here because it re-validates guest_count
+    // against max_capacity, which fails for family rooms where the total guest count
+    // is split across two rooms but stored identically on both rows.
+    const now = new Date().toISOString()
 
-    if (rpcError) {
+    const { error: updateError } = await supabase
+      .from('reservations')
+      .update({ status: 'checked_out', updated_at: now })
+      .eq('id', r.id)
+
+    if (updateError) {
       setCheckoutError('Checkout fehlgeschlagen. Bitte erneut versuchen.')
       setCheckingOut(null)
       return
@@ -41,26 +45,29 @@ export default function CheckoutsList({ initialReservations }: Props) {
     // Set primary room → Reinigen (dirty)
     await supabase.from('rooms').update({
       cleaning_status: 'dirty',
-      cleaning_updated_at: new Date().toISOString(),
+      cleaning_updated_at: now,
     }).eq('id', r.room_id)
 
     // ── 2. Family booking: also check out the linked room ───────────────────
     if (r.family_booking_id) {
-      const { data: linked } = await supabase
+      // Update all sibling reservations with the same family_booking_id in one query
+      await supabase
         .from('reservations')
-        .select('id, room_id, status')
+        .update({ status: 'checked_out', updated_at: now })
         .eq('family_booking_id', r.family_booking_id)
         .neq('id', r.id)
 
-      for (const sibling of (linked ?? [])) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any).rpc('update_reservation', {
-          p_reservation_id: sibling.id,
-          p_status: 'checked_out',
-        })
+      // Set sibling rooms to dirty
+      const { data: siblings } = await supabase
+        .from('reservations')
+        .select('room_id')
+        .eq('family_booking_id', r.family_booking_id)
+        .neq('id', r.id)
+
+      for (const sibling of (siblings ?? [])) {
         await supabase.from('rooms').update({
           cleaning_status: 'dirty',
-          cleaning_updated_at: new Date().toISOString(),
+          cleaning_updated_at: now,
         }).eq('id', sibling.room_id)
       }
     }
