@@ -6,7 +6,8 @@ import { useAdmin }          from '@/hooks/useAdmin'
 import type { ReservationWithRoom } from '@/types/database'
 import { LogOut, Undo2, FileText, X, AlertTriangle } from 'lucide-react'
 import { cn }                from '@/lib/cn'
-import { startOfDay, subDays, differenceInCalendarDays } from 'date-fns'
+import { format, startOfDay, subDays, addDays, differenceInCalendarDays } from 'date-fns'
+import { de }                from 'date-fns/locale'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -27,9 +28,12 @@ function fmtNum(n: number) { return String(n).padStart(6, '0') }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-interface Props { initialReservations: ReservationWithRoom[] }
+interface Props {
+  initialReservations: ReservationWithRoom[]
+  today: string   // 'yyyy-MM-dd'
+}
 
-export default function CheckoutsList({ initialReservations }: Props) {
+export default function CheckoutsList({ initialReservations, today }: Props) {
   const supabase    = createClient()
   const { isAdmin } = useAdmin()
 
@@ -51,13 +55,19 @@ export default function CheckoutsList({ initialReservations }: Props) {
   // ── admin un-checkout ─────────────────────────────────────────────────────
   const [undoing, setUndoing] = useState<string | null>(null)
 
-  // ── split by date ─────────────────────────────────────────────────────────
+  // ── date helpers ──────────────────────────────────────────────────────────
+  const tomorrow   = format(addDays(new Date(), 1), 'yyyy-MM-dd')
+  const overmorrow = format(addDays(new Date(), 2), 'yyyy-MM-dd')
   const threeDaysAgo = startOfDay(subDays(new Date(), 2))
 
-  const stillinRoom = useMemo(
-    () => reservations.filter(r => r.status === 'checked_in' || r.status === 'confirmed'),
-    [reservations],
-  )
+  // Pending = not yet checked out, split into today / tomorrow / day after
+  const todayRows      = useMemo(() => reservations.filter(r =>
+    r.status !== 'checked_out' && r.checkout_at.slice(0, 10) === today), [reservations, today])
+  const tomorrowRows   = useMemo(() => reservations.filter(r =>
+    r.status !== 'checked_out' && r.checkout_at.slice(0, 10) === tomorrow), [reservations, tomorrow])
+  const overmorrowRows = useMemo(() => reservations.filter(r =>
+    r.status !== 'checked_out' && r.checkout_at.slice(0, 10) === overmorrow), [reservations, overmorrow])
+
   const departed = useMemo(() => {
     const all = reservations.filter(r => r.status === 'checked_out')
     return isAdmin ? all : all.filter(r => new Date(r.checkout_at) >= threeDaysAgo)
@@ -203,12 +213,21 @@ export default function CheckoutsList({ initialReservations }: Props) {
         </div>
       )}
 
-      {/* ── Noch im Zimmer ───────────────────────────────────────────────── */}
-      {stillinRoom.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
-            Noch im Zimmer ({stillinRoom.length})
-          </h2>
+      {/* ── Heute / Morgen / Übermorgen sections ─────────────────────────── */}
+      {[
+        { rows: todayRows,      label: 'Heute',        date: today,      accent: 'border-slate-900 bg-slate-900 text-white' },
+        { rows: tomorrowRows,   label: 'Morgen',       date: tomorrow,   accent: 'border-blue-600  bg-blue-600  text-white' },
+        { rows: overmorrowRows, label: 'Übermorgen',   date: overmorrow, accent: 'border-violet-600 bg-violet-600 text-white' },
+      ].map(({ rows, label, date, accent }) => rows.length > 0 && (
+        <div key={label} className="mb-6">
+          <div className="flex items-center gap-3 mb-3">
+            <span className={cn('rounded-lg px-3 py-1 text-xs font-bold uppercase tracking-wide', accent)}>
+              {label}
+            </span>
+            <span className="text-sm text-slate-500">
+              {format(new Date(date), 'EEEE, d. MMMM', { locale: de })} · {rows.length} Abreise{rows.length !== 1 ? 'n' : ''}
+            </span>
+          </div>
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[540px]">
@@ -217,13 +236,13 @@ export default function CheckoutsList({ initialReservations }: Props) {
                     <th className="px-4 py-3 font-semibold text-slate-600">Zimmer</th>
                     <th className="px-4 py-3 font-semibold text-slate-600">Gast</th>
                     <th className="px-4 py-3 text-center font-semibold text-slate-600">Pers.</th>
-                    <th className="px-4 py-3 font-semibold text-slate-600">Abreise</th>
+                    <th className="px-4 py-3 font-semibold text-slate-600">Uhrzeit</th>
                     <th className="px-4 py-3 font-semibold text-slate-600">Zahlung</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {stillinRoom.map(r => (
+                  {rows.map(r => (
                     <tr key={r.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3 font-bold text-slate-900">
                         Zi. {r.rooms.room_number}
@@ -261,7 +280,7 @@ export default function CheckoutsList({ initialReservations }: Props) {
             </div>
           </div>
         </div>
-      )}
+      ))}
 
       {/* ── Bereits ausgecheckt – letzte 3 Tage ──────────────────────────── */}
       {departed.length > 0 && (

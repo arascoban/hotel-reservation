@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { format, subDays } from 'date-fns'
+import { format, subDays, addDays } from 'date-fns'
 import { de } from 'date-fns/locale'
 import CheckoutsList from './CheckoutsList'
 import type { ReservationWithRoom } from '@/types/database'
@@ -8,22 +8,23 @@ import { isAdminUser, deduplicateReservations } from '@/lib/admin'
 export const dynamic = 'force-dynamic'
 
 export default async function CheckOutsPage() {
-  const supabase = await createClient()
-  const today     = format(new Date(), 'yyyy-MM-dd')
-  // Employees see last 3 days; admin sees last 30 days (archive)
-  const fromDate  = format(subDays(new Date(), 29), 'yyyy-MM-dd')
+  const supabase   = await createClient()
+  const now        = new Date()
+  const today      = format(now, 'yyyy-MM-dd')
+  const overmorrow = format(addDays(now, 2), 'yyyy-MM-dd')   // day after tomorrow
+  const fromDate   = format(subDays(now, 29), 'yyyy-MM-dd')  // 30-day archive for admin
 
-  // Determine admin status server-side
   const { data: { user } } = await supabase.auth.getUser()
   const isAdmin = isAdminUser(user?.email)
 
+  // Fetch past (archive) + today + tomorrow + day-after-tomorrow
   let q = supabase
     .from('reservations')
     .select('*, rooms(*, room_types(*))')
     .gte('checkout_at', `${fromDate}T00:00:00`)
-    .lt('checkout_at',  `${today}T23:59:59`)
+    .lte('checkout_at', `${overmorrow}T23:59:59`)
     .in('status', ['confirmed', 'checked_in', 'checked_out'])
-    .order('checkout_at', { ascending: false })
+    .order('checkout_at', { ascending: true })
 
   if (!isAdmin) q = (q as typeof q).is('deleted_at', null)
 
@@ -34,15 +35,15 @@ export default async function CheckOutsPage() {
     isAdmin,
   )
 
-  const stillinRoom  = reservations.filter(r => r.status === 'checked_in' || r.status === 'confirmed')
-  const departed     = reservations.filter(r => r.status === 'checked_out')
+  const pending  = reservations.filter(r => r.status !== 'checked_out')
+  const departed = reservations.filter(r => r.status === 'checked_out')
 
   return (
     <div className="px-4 py-5 sm:px-6 sm:py-8 max-w-6xl mx-auto">
       <div className="mb-5 sm:mb-6">
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Heutige Abreisen</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Abreisen</h1>
         <p className="text-slate-500 mt-1">
-          {format(new Date(), 'EEEE, d. MMMM yyyy', { locale: de })} · {reservations.length} Abreise{reservations.length !== 1 ? 'n' : ''}
+          Heute, Morgen &amp; Übermorgen · {format(now, 'EEEE, d. MMMM yyyy', { locale: de })}
         </p>
       </div>
 
@@ -53,12 +54,12 @@ export default async function CheckOutsPage() {
       )}
 
       <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-5 sm:mb-6">
-        <StatCard label="Abreisen gesamt"    value={reservations.length} color="blue" />
-        <StatCard label="Noch im Zimmer"     value={stillinRoom.length}  color="amber" />
-        <StatCard label="Bereits ausgecheckt" value={departed.length}    color="green" />
+        <StatCard label="Ausstehend"         value={pending.length}  color="amber" />
+        <StatCard label="Bereits ausgecheckt" value={departed.length} color="green" />
+        <StatCard label="Gesamt (3 Tage)"    value={reservations.length} color="blue" />
       </div>
 
-      <CheckoutsList initialReservations={reservations} />
+      <CheckoutsList initialReservations={reservations} today={today} />
     </div>
   )
 }
