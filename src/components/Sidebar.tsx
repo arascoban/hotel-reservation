@@ -269,7 +269,7 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
         <SubMenu {...roomsGroup}     onClose={onClose} />
         <SubMenu {...foodGroup}      onClose={onClose} />
 
-        {isAdmin && <SubMenu {...GROUP_FINANCE} onClose={onClose} />}
+        <SubMenu {...GROUP_FINANCE} onClose={onClose} />
 
         {isAdmin && NAV_ADMIN_EXTRAS.map(({ href, label, icon }) => (
           <NavLink key={href} href={href} label={label} icon={icon} onClick={onClose} />

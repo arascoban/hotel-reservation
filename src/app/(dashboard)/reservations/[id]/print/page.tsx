@@ -52,17 +52,19 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
           @page { margin: 12mm; size: A4 portrait; }
           body { background: white !important; font-size: 12px; margin: 0 !important; }
         }
-        body { background: #f8fafc; }
+        body { background: #e2e8f0; }
       `}</style>
 
       {/* ── On-screen toolbar (hidden when printing) ─────────────────────────── */}
-      <div className="no-print flex items-center gap-3 px-6 pt-5 pb-3 bg-white border-b border-slate-200">
+      <div className="no-print flex items-center gap-3 px-6 pt-5 pb-3 bg-white border-b border-slate-200 sticky top-0 z-10">
         <PrintButton />
-        <a href="/reservations" className="text-sm text-slate-500 hover:text-slate-700">← Zurück</a>
+        <a href="/" className="text-sm text-slate-500 hover:text-slate-700">← Zurück</a>
       </div>
 
       {/* ── Confirmation document ─────────────────────────────────────────────── */}
-      <div className="print-doc max-w-xl mx-auto px-8 py-8 bg-white">
+      <div className="py-8 px-4">
+      <div className="print-doc bg-white shadow-2xl mx-auto flex flex-col"
+           style={{ width: '210mm', minHeight: '297mm', padding: '15mm' }}>
 
         {/* Header row */}
         <div className="flex items-center justify-between mb-6 pb-5 border-b-2 border-slate-200">
@@ -164,10 +166,12 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
         )}
 
         {/* Footer */}
-        <div className="border-t border-slate-200 pt-3 text-xs text-slate-400 text-center space-y-0.5">
-          <p>Wir freuen uns auf Ihren Besuch! · Jägerstieg Hotel &amp; Pension</p>
-          <p>info@jaegerstieg.de</p>
+        <div className="flex-1" />
+        <div className="border-t border-slate-200 pt-4 mt-4 text-xs text-slate-400 text-center space-y-0.5">
+          <p className="font-medium text-slate-500">Wir freuen uns auf Ihren Besuch!</p>
+          <p>Jägerstieg Hotel &amp; Pension · info@jaegerstieg.de</p>
         </div>
+      </div>
       </div>
 
     </>
