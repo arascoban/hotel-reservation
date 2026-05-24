@@ -122,32 +122,43 @@ export default function CheckoutsList({ initialReservations, today }: Props) {
       const { data: resExtra } = await supabase
         .from('reservations').select('billing_address, notes').eq('id', pending.id).single()
 
+      const invoicePayload: Record<string, unknown> = {
+        invoice_number:     numData as number,
+        reservation_id:     pending.id,
+        guest_name:         pending.guest_name,
+        guest_email:        pending.guest_email ?? null,
+        guest_address:      (resExtra as any)?.billing_address ?? null,
+        room_number:        pending.rooms.room_number,
+        room_name:          pending.rooms.name,
+        checkin_at:         pending.checkin_at,
+        checkout_at:        pending.checkout_at,
+        nights:             finalNights,
+        total_price:        finalPrice,
+        payment_method:     payMethod,
+        breakfast_included: pending.breakfast_included,
+        notes:              (resExtra as any)?.notes ?? null,
+        created_by:         (await supabase.auth.getUser()).data.user?.email ?? null,
+        created_at:         now,
+      }
+
+      // Only include early-departure columns when actually used
+      // (safe even if migration 015 hasn't been applied yet)
+      if (earlyDeparture) {
+        invoicePayload.early_departure = true
+        invoicePayload.original_nights = plannedNights
+        invoicePayload.original_price  = pending.total_price ?? null
+      }
+
       const { data: invData, error: invErr } = await supabase
         .from('invoices')
-        .insert({
-          invoice_number:     numData as number,
-          reservation_id:     pending.id,
-          guest_name:         pending.guest_name,
-          guest_email:        pending.guest_email ?? null,
-          guest_address:      (resExtra as any)?.billing_address ?? null,
-          room_number:        pending.rooms.room_number,
-          room_name:          pending.rooms.name,
-          checkin_at:         pending.checkin_at,
-          checkout_at:        pending.checkout_at,
-          nights:             finalNights,
-          total_price:        finalPrice,
-          payment_method:     payMethod,
-          breakfast_included: pending.breakfast_included,
-          notes:              (resExtra as any)?.notes ?? null,
-          early_departure:    earlyDeparture,
-          original_nights:    earlyDeparture ? plannedNights   : null,
-          original_price:     earlyDeparture ? (pending.total_price ?? null) : null,
-          created_by:         (await supabase.auth.getUser()).data.user?.email ?? null,
-          created_at:         now,
-        })
+        .insert(invoicePayload)
         .select('id').single()
 
-      if (invErr || !invData) { setGlobalError('Rechnung konnte nicht erstellt werden.'); setProcessing(false); return }
+      if (invErr || !invData) {
+        setGlobalError(`Rechnung konnte nicht erstellt werden. (${invErr?.message ?? 'Unbekannter Fehler'})`)
+        setProcessing(false)
+        return
+      }
       invoiceId = invData.id
     }
 
