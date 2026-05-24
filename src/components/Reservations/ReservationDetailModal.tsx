@@ -22,6 +22,7 @@ import { useAdmin } from '@/hooks/useAdmin'
 import { cn } from '@/lib/cn'
 import DateInput from '@/components/ui/DateInput'
 import TimeInput from '@/components/ui/TimeInput'
+import CountryInput from '@/components/ui/CountryInput'
 
 const STATUS_STYLES: Record<ReservationStatus, string> = {
   confirmed:   'bg-blue-100 text-blue-800',
@@ -100,7 +101,10 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
   const [editGuestName,      setEditGuestName]      = useState('')
   const [editGuestPhone,     setEditGuestPhone]     = useState('')
   const [editGuestEmail,     setEditGuestEmail]     = useState('')
-  const [editBillingAddress, setEditBillingAddress] = useState('')
+  const [editGuestStreet,   setEditGuestStreet]   = useState('')
+  const [editGuestPostcode, setEditGuestPostcode] = useState('')
+  const [editGuestCity,     setEditGuestCity]     = useState('')
+  const [editGuestCountry,  setEditGuestCountry]  = useState('')
 
   useEffect(() => {
     fetchReservation()
@@ -141,7 +145,10 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       setEditGuestName(r.guest_name)
       setEditGuestPhone(r.guest_phone ?? '')
       setEditGuestEmail(r.guest_email ?? '')
-      setEditBillingAddress((r as any).billing_address ?? '')
+      setEditGuestStreet((r as any).guest_street   ?? '')
+      setEditGuestPostcode((r as any).guest_postcode ?? '')
+      setEditGuestCity((r as any).guest_city     ?? '')
+      setEditGuestCountry((r as any).guest_country  ?? '')
     }
     setLoading(false)
   }
@@ -178,11 +185,23 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       return
     }
 
-    // Save internal_notes + billing_address (not handled by RPC)
+    // Build combined billing_address string for backward compat
+    const addrParts = [
+      editGuestStreet.trim(),
+      [editGuestPostcode.trim(), editGuestCity.trim()].filter(Boolean).join(' '),
+      editGuestCountry.trim(),
+    ].filter(Boolean)
+    const billingAddress = addrParts.length > 0 ? addrParts.join('\n') : null
+
+    // Save internal_notes + structured address fields (not handled by RPC)
     await supabase.from('reservations')
       .update({
         internal_notes:  editInternalNotes  || null,
-        billing_address: editBillingAddress || null,
+        billing_address: billingAddress,
+        guest_street:    editGuestStreet   || null,
+        guest_postcode:  editGuestPostcode || null,
+        guest_city:      editGuestCity     || null,
+        guest_country:   editGuestCountry  || null,
       })
       .eq('id', reservationId)
 
@@ -601,15 +620,55 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
           </InfoField>
         )}
 
-        {/* Billing address */}
-        {((r as any).billing_address || editing) && (
+        {/* Address (structured) */}
+        {(editing || (r as any).guest_street || (r as any).guest_city || (r as any).billing_address) && (
           <InfoField label="Rechnungsadresse" icon={<MapPin className="w-3.5 h-3.5" />}>
             {editing ? (
-              <textarea rows={2} value={editBillingAddress} onChange={e => setEditBillingAddress(e.target.value)}
-                className="mt-1 text-sm border border-slate-300 rounded px-2 py-1.5 w-full resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder="Straße, PLZ Ort, Land…" />
+              <div className="mt-1 space-y-2">
+                {/* Straße + Hausnummer */}
+                <input
+                  type="text"
+                  value={editGuestStreet}
+                  onChange={e => setEditGuestStreet(e.target.value)}
+                  placeholder="Straße &amp; Hausnummer"
+                  className="w-full text-sm border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                {/* PLZ + Stadt */}
+                <div className="grid grid-cols-3 gap-2">
+                  <input
+                    type="text"
+                    value={editGuestPostcode}
+                    onChange={e => setEditGuestPostcode(e.target.value)}
+                    placeholder="PLZ"
+                    className="text-sm border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  <input
+                    type="text"
+                    value={editGuestCity}
+                    onChange={e => setEditGuestCity(e.target.value)}
+                    placeholder="Stadt"
+                    className="col-span-2 text-sm border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                {/* Land */}
+                <CountryInput
+                  value={editGuestCountry}
+                  onChange={setEditGuestCountry}
+                  className="w-full text-sm border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
             ) : (
-              <p className="text-sm text-slate-700 whitespace-pre-wrap">{(r as any).billing_address || '—'}</p>
+              <div className="text-sm text-slate-700 space-y-0.5">
+                {(r as any).guest_street   && <p>{(r as any).guest_street}</p>}
+                {((r as any).guest_postcode || (r as any).guest_city) && (
+                  <p>{[(r as any).guest_postcode, (r as any).guest_city].filter(Boolean).join(' ')}</p>
+                )}
+                {(r as any).guest_country  && <p>{(r as any).guest_country}</p>}
+                {/* Fallback: old billing_address free-form text */}
+                {!(r as any).guest_street && !(r as any).guest_city && (r as any).billing_address && (
+                  <p className="whitespace-pre-wrap">{(r as any).billing_address}</p>
+                )}
+              </div>
             )}
           </InfoField>
         )}

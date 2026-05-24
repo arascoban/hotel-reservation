@@ -16,6 +16,7 @@ import type { AvailableRoom, ReservationSource, PaymentMethod, PaymentStatus } f
 import { cn } from '@/lib/cn'
 import DateInput from '@/components/ui/DateInput'
 import TimeInput from '@/components/ui/TimeInput'
+import CountryInput from '@/components/ui/CountryInput'
 
 // ── Family room definitions ────────────────────────────────────────────────────
 // Each pair shares a connecting door; booking a family room blocks BOTH rooms.
@@ -83,6 +84,12 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
   const [notes,          setNotes]          = useState('')
   const [internalNotes,  setInternalNotes]  = useState('')
   const [extId,          setExtId]          = useState('')
+
+  // ── Address ─────────────────────────────────────────────────────
+  const [guestStreet,   setGuestStreet]   = useState('')
+  const [guestPostcode, setGuestPostcode] = useState('')
+  const [guestCity,     setGuestCity]     = useState('')
+  const [guestCountry,  setGuestCountry]  = useState('')
 
   // ── UI state ────────────────────────────────────────────────────
   const [availableRooms,    setAvailableRooms]    = useState<AvailableRoom[]>([])
@@ -244,7 +251,15 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
 
         // Link them with the same family_booking_id so they deduplicate in list views
         const familyId = crypto.randomUUID()
-        const familyExtra = { family_booking_id: familyId, internal_notes: internalNotes || null }
+        const addressFields = {
+          guest_street:   guestStreet   || null,
+          guest_postcode: guestPostcode || null,
+          guest_city:     guestCity     || null,
+          guest_country:  guestCountry  || null,
+          // keep billing_address in sync for backward compat
+          billing_address: buildBillingAddress(guestStreet, guestPostcode, guestCity, guestCountry),
+        }
+        const familyExtra = { family_booking_id: familyId, internal_notes: internalNotes || null, ...addressFields }
         await supabase.from('reservations').update(familyExtra).eq('id', id1)
         await supabase.from('reservations').update(familyExtra).eq('id', id2)
 
@@ -302,8 +317,18 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         external_id:        extId      || undefined,
       })
 
-      if (internalNotes) {
-        await supabase.from('reservations').update({ internal_notes: internalNotes }).eq('id', newId)
+      // Save extra fields (internal notes + address) that the RPC doesn't handle
+      const extras: Record<string, unknown> = {}
+      if (internalNotes) extras.internal_notes = internalNotes
+      if (guestStreet || guestPostcode || guestCity || guestCountry) {
+        extras.guest_street   = guestStreet   || null
+        extras.guest_postcode = guestPostcode || null
+        extras.guest_city     = guestCity     || null
+        extras.guest_country  = guestCountry  || null
+        extras.billing_address = buildBillingAddress(guestStreet, guestPostcode, guestCity, guestCountry)
+      }
+      if (Object.keys(extras).length > 0) {
+        await supabase.from('reservations').update(extras).eq('id', newId)
       }
 
       router.push('/')
@@ -320,6 +345,12 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
   }
 
   // ── Helpers ─────────────────────────────────────────────────────
+
+  function buildBillingAddress(street: string, postcode: string, city: string, country: string): string | null {
+    const parts = [street.trim(), [postcode.trim(), city.trim()].filter(Boolean).join(' '), country.trim()].filter(Boolean)
+    return parts.length > 0 ? parts.join('\n') : null
+  }
+
   function fieldClass(name: string) {
     return cn(
       'w-full rounded-lg border px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent',
@@ -404,6 +435,47 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
               <p className="mt-1 text-xs text-red-600">{fieldErrors.guest_email}</p>
             )}
           </div>
+        </div>
+      </section>
+
+      {/* ── Adresse ─── */}
+      <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+        <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">
+          Adresse <span className="text-slate-400 font-normal normal-case">(für Rechnung)</span>
+        </h2>
+
+        {/* Straße + Hausnummer */}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">Straße &amp; Hausnummer</label>
+          <input type="text" value={guestStreet}
+            onChange={e => setGuestStreet(e.target.value)}
+            className={fieldClass('guest_street')} placeholder="Musterstraße 12" />
+        </div>
+
+        {/* PLZ + Stadt in one row */}
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">PLZ</label>
+            <input type="text" value={guestPostcode}
+              onChange={e => setGuestPostcode(e.target.value)}
+              className={fieldClass('guest_postcode')} placeholder="12345" />
+          </div>
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Stadt</label>
+            <input type="text" value={guestCity}
+              onChange={e => setGuestCity(e.target.value)}
+              className={fieldClass('guest_city')} placeholder="Musterstadt" />
+          </div>
+        </div>
+
+        {/* Land with autocomplete */}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">Land</label>
+          <CountryInput
+            value={guestCountry}
+            onChange={setGuestCountry}
+            className={fieldClass('guest_country')}
+          />
         </div>
       </section>
 

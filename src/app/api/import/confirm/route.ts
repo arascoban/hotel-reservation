@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
         notes:              row.notes    || null,
         internal_notes:     internalNote,
         billing_address:    row.adresse  || null,
+        guest_street:       row.adresse  || null,   // structured street field
       }
 
       // ── Family booking: insert TWO reservations linked by a shared family_booking_id ──

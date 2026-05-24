@@ -86,6 +86,10 @@ export interface Reservation {
   internal_notes: string | null
   external_id: string | null
   billing_address: string | null
+  guest_street:    string | null
+  guest_postcode:  string | null
+  guest_city:      string | null
+  guest_country:   string | null
   family_booking_id: string | null
   locker_id: string | null
   deleted_at: string | null
