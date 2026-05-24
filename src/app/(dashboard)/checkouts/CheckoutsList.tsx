@@ -51,7 +51,8 @@ export default function CheckoutsList({ initialReservations }: Props) {
     setCheckingOut(null)
   }
 
-  const stillinRoom = reservations.filter(r => r.status === 'checked_in')
+  // confirmed = booked but never checked in, checked_in = currently in room
+  const stillinRoom = reservations.filter(r => r.status === 'checked_in' || r.status === 'confirmed')
   const departed    = reservations.filter(r => r.status === 'checked_out')
 
   return (
