@@ -71,7 +71,10 @@ const PAY_OPTIONS = [
   { value: 'online',      label: 'Online' },
 ]
 
-function fmtNum(n: number) { return String(n).padStart(6, '0') }
+function fmtNum(n: number, year?: number) {
+  const y = (year ?? new Date().getFullYear()).toString().slice(-2)
+  return `R${y}_${String(n).padStart(3, '0')}`
+}
 
 // ── Helper: build guest address string ────────────────────────────────────────
 function buildAddress(r: Reservation): string {
@@ -157,7 +160,7 @@ function EditModal({
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
            onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-          <h2 className="text-lg font-bold text-slate-900">Rechnung bearbeiten · {fmtNum(inv.invoice_number)}</h2>
+          <h2 className="text-lg font-bold text-slate-900">Rechnung bearbeiten · {fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())}</h2>
           <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100"><X className="w-5 h-5" /></button>
         </div>
 
@@ -632,7 +635,7 @@ export default function InvoicesPage() {
                 {invoices.map(inv => (
                   <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3">
-                      <span className="font-mono font-bold text-slate-900">{fmtNum(inv.invoice_number)}</span>
+                      <span className="font-mono font-bold text-slate-900">{fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())}</span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="font-medium text-slate-900 flex items-center gap-1.5">

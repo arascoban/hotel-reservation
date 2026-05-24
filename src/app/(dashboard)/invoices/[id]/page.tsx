@@ -7,7 +7,10 @@ import PrintButton       from '../../reservations/[id]/print/PrintButton'
 
 export const dynamic = 'force-dynamic'
 
-function fmtNum(n: number) { return String(n).padStart(6, '0') }
+function fmtNum(n: number, year?: number) {
+  const y = (year ?? new Date().getFullYear()).toString().slice(-2)
+  return `R${y}_${String(n).padStart(3, '0')}`
+}
 function eur(n: number) {
   return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 }
@@ -85,7 +88,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
       <div className="no-print flex items-center gap-3 px-6 pt-5 pb-3 bg-white border-b border-slate-200 sticky top-0 z-10">
         <PrintButton />
         <a href="/invoices" className="text-sm text-slate-500 hover:text-slate-700">← Rechnungen</a>
-        <span className="ml-auto text-xs text-slate-400">Rechnung {fmtNum(inv.invoice_number)}</span>
+        <span className="ml-auto text-xs text-slate-400">Rechnung {fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())}</span>
       </div>
 
       {/* ── A4 document ─────────────────────────────────────────────────────── */}
@@ -109,7 +112,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
               {/* RECHNUNG block at the very top right */}
               <p className="text-4xl font-black text-slate-900 tracking-tight leading-none mb-1">RECHNUNG</p>
               <p className="text-sm text-slate-500">
-                Nr.&nbsp;<strong className="text-slate-800 font-mono tracking-wide">{fmtNum(inv.invoice_number)}</strong>
+                Nr.&nbsp;<strong className="text-slate-800 font-mono tracking-wide">{fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())}</strong>
               </p>
               <p className="text-sm text-slate-500 mt-0.5">
                 Datum:&nbsp;<strong className="text-slate-700">{format(invoiceDate, 'dd.MM.yyyy')}</strong>
@@ -319,7 +322,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                 <p className="text-xs text-slate-500 mt-0.5">Geschäftsführer</p>
               </div>
               <div className="text-right text-xs text-slate-400">
-                <p>Rechnung Nr. {fmtNum(inv.invoice_number)}</p>
+                <p>Rechnung Nr. {fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())}</p>
                 <p className="mt-0.5">Datum: {format(invoiceDate, 'd. MMMM yyyy', { locale: de })}</p>
                 <p className="mt-1">Jägerstieg Hotel &amp; Pension · info@jaegerstieg.de</p>
               </div>
