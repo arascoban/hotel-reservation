@@ -52,29 +52,54 @@ CREATE POLICY "customers_delete" ON customers
   FOR DELETE USING (auth.role() = 'authenticated');
 
 -- ── Backfill from existing reservations ─────────────────────────────────────
--- One customer record per unique guest_name, picking the most recent reservation's contact data.
+-- One customer record per unique guest_name, using only columns that are
+-- guaranteed to exist (guest_name, guest_email, guest_phone).
+-- Address fields (guest_street etc.) are added by migration 016 — if that
+-- migration has already been run the DO block below will also populate them.
 
-INSERT INTO customers (name, email, phone, street, postcode, city, country, source, created_at)
+INSERT INTO customers (name, email, phone, source, created_at)
 SELECT DISTINCT ON (lower(trim(guest_name)))
-  trim(guest_name)                          AS name,
-  NULLIF(trim(COALESCE(guest_email, '')), '')   AS email,
-  NULLIF(trim(COALESCE(guest_phone, '')), '')   AS phone,
-  NULLIF(trim(COALESCE(guest_street, '')), '')  AS street,
-  NULLIF(trim(COALESCE(guest_postcode, '')), '') AS postcode,
-  NULLIF(trim(COALESCE(guest_city, '')), '')    AS city,
-  NULLIF(trim(COALESCE(guest_country, '')), '') AS country,
-  'reservation'                             AS source,
-  MIN(created_at)                           AS created_at
+  trim(guest_name)                               AS name,
+  NULLIF(trim(COALESCE(guest_email, '')), '')    AS email,
+  NULLIF(trim(COALESCE(guest_phone, '')), '')    AS phone,
+  'reservation'                                  AS source,
+  MIN(created_at)                                AS created_at
 FROM reservations
 WHERE guest_name IS NOT NULL
   AND trim(guest_name) <> ''
   AND deleted_at IS NULL
 GROUP BY lower(trim(guest_name)), trim(guest_name),
          trim(COALESCE(guest_email, '')),
-         trim(COALESCE(guest_phone, '')),
-         trim(COALESCE(guest_street, '')),
-         trim(COALESCE(guest_postcode, '')),
-         trim(COALESCE(guest_city, '')),
-         trim(COALESCE(guest_country, ''))
+         trim(COALESCE(guest_phone, ''))
 ORDER BY lower(trim(guest_name)), MIN(created_at) DESC
 ON CONFLICT DO NOTHING;
+
+-- ── Optionally enrich with address fields if migration 016 was applied ────────
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'reservations' AND column_name = 'guest_street'
+  ) THEN
+    UPDATE customers c
+    SET
+      street   = sub.street,
+      postcode = sub.postcode,
+      city     = sub.city,
+      country  = sub.country
+    FROM (
+      SELECT DISTINCT ON (lower(trim(guest_name)))
+        trim(guest_name)                                AS name,
+        NULLIF(trim(COALESCE(guest_street,   '')), '') AS street,
+        NULLIF(trim(COALESCE(guest_postcode, '')), '') AS postcode,
+        NULLIF(trim(COALESCE(guest_city,     '')), '') AS city,
+        NULLIF(trim(COALESCE(guest_country,  '')), '') AS country
+      FROM reservations
+      WHERE guest_name IS NOT NULL AND trim(guest_name) <> ''
+        AND deleted_at IS NULL
+      ORDER BY lower(trim(guest_name)), created_at DESC
+    ) sub
+    WHERE lower(trim(c.name)) = lower(trim(sub.name));
+  END IF;
+END;
+$$;
