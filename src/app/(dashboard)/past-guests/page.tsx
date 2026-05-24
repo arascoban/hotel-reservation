@@ -43,7 +43,7 @@ export default function PastGuestsPage() {
       .select('id, guest_name, guest_email, guest_phone, guest_count, checkin_at, checkout_at, total_price, payment_status, source, breakfast_included, rooms(room_number, name)', { count: 'exact' })
       .not('status', 'in', '("cancelled","no_show")')
       .is('deleted_at', null)
-      .lt('checkout_at', now)
+      .or(`status.eq.checked_out,checkout_at.lt.${now}`)
       .order('checkout_at', { ascending: false })
       .range(from, to)
 

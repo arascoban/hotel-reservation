@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
-import ReservationTable from '@/components/Reservations/ReservationTable'
+import CheckoutsList from './CheckoutsList'
 import type { ReservationWithRoom } from '@/types/database'
 import { isAdminUser, deduplicateReservations } from '@/lib/admin'
 
@@ -56,7 +56,7 @@ export default async function CheckOutsPage() {
         <StatCard label="Bereits ausgecheckt" value={departed.length}    color="green" />
       </div>
 
-      <ReservationTable reservations={reservations} />
+      <CheckoutsList initialReservations={reservations} />
     </div>
   )
 }
