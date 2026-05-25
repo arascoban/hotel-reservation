@@ -22,7 +22,8 @@ const PAY_LABELS: Record<string, string> = {
   cash: 'Bar', ec_card: 'EC-Karte', credit_card: 'Kreditkarte', online: 'Online', unpaid: 'Ausstehend',
 }
 
-interface ServiceItem { name: string; qty: number; unit_price: number; total: number }
+interface ServiceItem    { name: string; qty: number; unit_price: number; total: number }
+interface CustomLineItem { id: string; description: string; qty: number; unit_price: number; vat_rate: 7 | 19 }
 
 export default async function InvoicePrintPage({ params }: { params: { id: string } }) {
   const supabase = await createClient()
@@ -39,22 +40,39 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
   const nights             = (inv.nights                 ?? 1)  as number
   const breakfastPPP       = (inv.breakfast_price_per_person ?? 10) as number
   const hasBreakfast       = !!inv.breakfast_included
-  const serviceItems: ServiceItem[] = Array.isArray(inv.room_service_items) ? inv.room_service_items : []
-  const serviceTotal       = (inv.room_service_total ?? 0) as number
-  const totalPrice         = (inv.total_price ?? 0) as number
+  const serviceItems: ServiceItem[]  = Array.isArray(inv.room_service_items) ? inv.room_service_items : []
+  const serviceTotal                 = (inv.room_service_total ?? 0) as number
+  const totalPrice                   = (inv.total_price ?? 0) as number
+  const customItems: CustomLineItem[] = Array.isArray(inv.line_items) ? (inv.line_items as CustomLineItem[]) : []
+
+  // Custom item totals (unit_price is gross, inclusive of VAT)
+  const custom7Gross  = customItems.filter(i => i.vat_rate === 7) .reduce((s, i) => s + i.qty * i.unit_price, 0)
+  const custom19Gross = customItems.filter(i => i.vat_rate === 19).reduce((s, i) => s + i.qty * i.unit_price, 0)
+  const custom7Net    = custom7Gross  > 0 ? custom7Gross  / 1.07 : 0
+  const custom19Net   = custom19Gross > 0 ? custom19Gross / 1.19 : 0
+  const customTotal   = custom7Gross + custom19Gross
 
   const breakfastGross     = hasBreakfast ? guestCount * nights * breakfastPPP : 0
   const accommodationGross = totalPrice - breakfastGross
-  const grandTotal         = totalPrice + serviceTotal
+  const grandTotal         = totalPrice + serviceTotal + customTotal
   const pricePerNight      = nights > 0 ? accommodationGross / nights : accommodationGross
 
   const acc_net   = accommodationGross / (1 + BREAKFAST_VAT)
   const bfst_net  = breakfastGross     / (1 + BREAKFAST_VAT)
   const svc_net   = serviceTotal > 0   ? serviceTotal / (1 + SERVICE_VAT) : 0
-  const sumNetto  = acc_net + bfst_net + svc_net
-  const vat7      = (accommodationGross - acc_net) + (breakfastGross - bfst_net)
-  const vat19     = serviceTotal - svc_net
+  const sumNetto  = acc_net + bfst_net + svc_net + custom7Net + custom19Net
+  const vat7      = (accommodationGross - acc_net) + (breakfastGross - bfst_net) + (custom7Gross - custom7Net)
+  const vat19     = (serviceTotal - svc_net) + (custom19Gross - custom19Net)
   const sumBrutto = grandTotal
+
+  // Position numbers
+  let posIdx = 0
+  const POS = {
+    accommodation: ++posIdx,
+    breakfast:     hasBreakfast    ? ++posIdx : null,
+    service:       serviceTotal > 0 ? ++posIdx : null,
+    customStart:   posIdx + 1,
+  }
 
   const addressLines = (inv.guest_address ?? '').split('\n').filter(Boolean) as string[]
 
@@ -205,7 +223,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
 
               {/* Pos 1: Übernachtung */}
               <tr className="border-b border-slate-100">
-                <td className="px-3 py-3 text-slate-400 text-xs align-top">1</td>
+                <td className="px-3 py-3 text-slate-400 text-xs align-top">{POS.accommodation}</td>
                 <td className="px-3 py-3 text-slate-800 align-top">
                   <span className="font-medium">Übernachtung</span>
                   <span className="block text-xs text-slate-400 mt-0.5">
@@ -227,7 +245,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
               {/* Pos 2: Frühstück */}
               {hasBreakfast && (
                 <tr className="border-b border-slate-100">
-                  <td className="px-3 py-3 text-slate-400 text-xs align-top">2</td>
+                  <td className="px-3 py-3 text-slate-400 text-xs align-top">{POS.breakfast}</td>
                   <td className="px-3 py-3 text-slate-800 align-top">
                     <span className="font-medium">Frühstück</span>
                   </td>
@@ -239,10 +257,10 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                 </tr>
               )}
 
-              {/* Pos 3: Zimmerservice */}
+              {/* Pos 3+: Zimmerservice */}
               {serviceTotal > 0 && (
                 <tr className="border-b border-slate-100">
-                  <td className="px-3 py-3 text-slate-400 text-xs align-top">{hasBreakfast ? 3 : 2}</td>
+                  <td className="px-3 py-3 text-slate-400 text-xs align-top">{POS.service}</td>
                   <td className="px-3 py-3 text-slate-800 align-top">
                     <span className="font-medium">Zimmerservice</span>
                     {serviceItems.length > 0 && (
@@ -262,6 +280,25 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                   <td className="px-3 py-3 text-right font-semibold text-slate-800 align-top">{eur(serviceTotal)}</td>
                 </tr>
               )}
+
+              {/* Custom extra line items */}
+              {customItems.map((item, idx) => {
+                const gross = item.qty * item.unit_price
+                const net   = gross / (1 + item.vat_rate / 100)
+                return (
+                  <tr key={item.id} className="border-b border-slate-100">
+                    <td className="px-3 py-3 text-slate-400 text-xs align-top">{POS.customStart + idx}</td>
+                    <td className="px-3 py-3 text-slate-800 align-top">
+                      <span className="font-medium">{item.description || 'Sonstiges'}</span>
+                    </td>
+                    <td className="px-3 py-3 text-center text-slate-600 align-top">{item.qty}</td>
+                    <td className="px-3 py-3 text-right text-slate-600 align-top">{eur(item.unit_price)}</td>
+                    <td className="px-3 py-3 text-center text-slate-500 text-xs align-top">{item.vat_rate} %</td>
+                    <td className="px-3 py-3 text-right text-slate-600 align-top">{eur(net)}</td>
+                    <td className="px-3 py-3 text-right font-semibold text-slate-800 align-top">{eur(gross)}</td>
+                  </tr>
+                )
+              })}
 
             </tbody>
           </table>
@@ -285,7 +322,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                     <td className="py-2 text-slate-500">MwSt. 7 %</td>
                     <td className="py-2 text-right font-medium text-slate-700">{eur(vat7)}</td>
                   </tr>
-                  {serviceTotal > 0 && (
+                  {(serviceTotal > 0 || custom19Gross > 0) && (
                     <tr className="border-b border-slate-100">
                       <td className="py-2 text-slate-500">MwSt. 19 %</td>
                       <td className="py-2 text-right font-medium text-slate-700">{eur(vat19)}</td>
