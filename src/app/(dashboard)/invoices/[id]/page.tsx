@@ -76,12 +76,9 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
   const room1BreakfastGross = hasBreakfast ? adultCount * nights * breakfastPPP : 0
   const room2BreakfastGross = hasRoom2 && hasBreakfast ? room2AdultCount * room2DisplayNights * breakfastPPP : 0
   const breakfastGross      = room1BreakfastGross + room2BreakfastGross
-  // Breakfast Anz: person-nights (single room) or total persons (2 rooms)
-  const totalBfstPersons    = adultCount + (hasRoom2 ? room2AdultCount : 0)
-  const bfstAnz             = hasRoom2 ? totalBfstPersons : adultCount * nights
-  const bfstEinzel          = hasRoom2 && totalBfstPersons > 0
-    ? breakfastGross / totalBfstPersons
-    : breakfastPPP
+  // Breakfast Anz = Personen × Nächte (per room, summed)
+  const bfstAnz    = adultCount * nights + (hasRoom2 ? room2AdultCount * room2DisplayNights : 0)
+  const bfstEinzel = breakfastPPP
 
   // Accommodation = room price minus its breakfast share
   const accommodationGross      = totalPrice - room1BreakfastGross
@@ -272,7 +269,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                     <span className="font-medium">Frühstück</span>
                     <span className="block text-xs text-slate-400 mt-0.5">
                       {hasRoom2
-                        ? `${totalBfstPersons} Pers. (Zi. ${inv.room_number} + Zi. ${inv.room2_number})`
+                        ? `Zi. ${inv.room_number}: ${adultCount} Pers. × ${nights} Nächte · Zi. ${inv.room2_number}: ${room2AdultCount} Pers. × ${room2DisplayNights} Nächte`
                         : `${adultCount} Pers. × ${nights} Nacht${nights !== 1 ? 'e' : ''}`
                       }
                     </span>
