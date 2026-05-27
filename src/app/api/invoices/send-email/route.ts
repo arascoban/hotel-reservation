@@ -18,7 +18,7 @@ function createTransporter() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { pdfBase64, guestEmail, guestSurname, checkinStr, checkoutStr, invoiceRef } =
+    const { pdfBase64, guestEmail, salutation, guestSurname, checkinStr, checkoutStr, invoiceRef } =
       await req.json()
 
     if (!guestEmail)  return NextResponse.json({ error: 'Kein E-Mail hinterlegt.' }, { status: 400 })
@@ -31,11 +31,17 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Build gender-correct salutation
+    const greeting =
+      salutation === 'Herr' ? `Sehr geehrter Herr ${guestSurname}` :
+      salutation === 'Frau' ? `Sehr geehrte Frau ${guestSurname}`  :
+      `Sehr geehrte/r Frau/Herr ${guestSurname}`
+
     const subject =
       `Ihre Rechnung für Ihren Aufenthalt vom ${checkinStr} bis ${checkoutStr}`
 
     const text =
-      `Sehr geehrte/r Frau/Herr ${guestSurname},\n\n` +
+      `${greeting},\n\n` +
       `vielen Dank für Ihren Aufenthalt in unserem Hotel.\n\n` +
       `Anbei erhalten Sie die Rechnung für Ihren Aufenthalt vom ${checkinStr} bis ${checkoutStr}.\n\n` +
       `Sollten Sie Fragen zur Rechnung haben oder weitere Informationen benötigen, stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\n` +

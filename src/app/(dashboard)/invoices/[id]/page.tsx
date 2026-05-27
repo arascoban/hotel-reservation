@@ -155,6 +155,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
         <SendEmailButton
           invoiceRef={invoiceRef}
           guestEmail={inv.guest_email ?? null}
+          salutation={inv.salutation ?? null}
           guestSurname={guestSurname}
           checkinStr={checkinStr}
           checkoutStr={checkoutStr}

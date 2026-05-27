@@ -54,6 +54,7 @@ interface Invoice {
   room2_guest_count: number | null
   discount: number
   room2_child_count: number | null
+  salutation: string | null
   created_at: string
   created_by: string | null
 }
@@ -264,6 +265,7 @@ function EditModal({
   const [error,  setError]  = useState<string | null>(null)
   const [rooms,  setRooms]  = useState<Room[]>([])
 
+  const [salutation,   setSalutation]   = useState(inv.salutation ?? '')
   const [guestName,    setGuestName]    = useState(inv.guest_name)
   const [guestEmail,   setGuestEmail]   = useState(inv.guest_email ?? '')
   const [guestAddress, setGuestAddress] = useState(inv.guest_address ?? '')
@@ -329,6 +331,7 @@ function EditModal({
   async function handleSave() {
     setSaving(true); setError(null)
     const payload: Record<string, unknown> = {
+      salutation:                 salutation || null,
       guest_name:                 guestName,
       guest_email:                guestEmail || null,
       guest_address:              guestAddress || null,
@@ -390,7 +393,14 @@ function EditModal({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
+            <Field label="Anrede">
+              <select value={salutation} onChange={e => setSalutation(e.target.value)} className={inp}>
+                <option value="">—</option>
+                <option value="Herr">Herr</option>
+                <option value="Frau">Frau</option>
+              </select>
+            </Field>
             <Field label="Gastname">
               <input value={guestName} onChange={e => setGuestName(e.target.value)} className={inp} />
             </Field>
@@ -583,6 +593,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [error,       setError]       = useState<string | null>(null)
   const [rooms,       setRooms]       = useState<Room[]>([])
 
+  const [salutation,    setSalutation]    = useState('')
   const [guestName,     setGuestName]     = useState('')
   const [guestEmail,    setGuestEmail]    = useState('')
   const [guestAddress,  setGuestAddress]  = useState('')
@@ -747,6 +758,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     const payload: Record<string, unknown> = {
       invoice_number:             numData as number,
       reservation_id:             reservationId,
+      salutation:                 salutation || null,
       guest_name:                 guestName,
       guest_email:                guestEmail || null,
       guest_address:              guestAddress || null,
@@ -895,7 +907,14 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
           <div className="p-6 space-y-4">
             {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
+              <Field label="Anrede">
+                <select value={salutation} onChange={e => setSalutation(e.target.value)} className={inp}>
+                  <option value="">—</option>
+                  <option value="Herr">Herr</option>
+                  <option value="Frau">Frau</option>
+                </select>
+              </Field>
               <Field label="Gastname">
                 <input value={guestName} onChange={e => setGuestName(e.target.value)} className={inp} />
               </Field>

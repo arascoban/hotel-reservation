@@ -6,6 +6,7 @@ import { Mail, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 interface Props {
   invoiceRef:   string        // e.g. "R26_001"
   guestEmail:   string | null
+  salutation:   string | null // 'Herr' | 'Frau' | null
   guestSurname: string
   checkinStr:   string        // e.g. "15.05.2026"
   checkoutStr:  string
@@ -16,6 +17,7 @@ type Status = 'idle' | 'generating' | 'sending' | 'success' | 'error'
 export default function SendEmailButton({
   invoiceRef,
   guestEmail,
+  salutation,
   guestSurname,
   checkinStr,
   checkoutStr,
@@ -62,12 +64,24 @@ export default function SendEmailButton({
         allowTaint:      false,
         backgroundColor: '#ffffff',
         logging:         false,
-        onclone: (clonedDoc) => {
-          if (logoDataUrl) {
-            clonedDoc.querySelectorAll('img').forEach(img => {
-              img.src = logoDataUrl
+        imageTimeout:    0,   // don't time out waiting for images
+        onclone: async (clonedDoc) => {
+          if (!logoDataUrl) return
+          const imgs = Array.from(clonedDoc.querySelectorAll('img'))
+          await Promise.all(imgs.map(img => {
+            // Next.js <Image> uses srcset which takes priority over src —
+            // remove it so the data URL we set on src is actually used.
+            img.removeAttribute('srcset')
+            img.removeAttribute('sizes')
+            img.removeAttribute('loading')
+            img.src = logoDataUrl
+            if (img.complete && img.naturalWidth > 0) return Promise.resolve()
+            return new Promise<void>(resolve => {
+              img.addEventListener('load',  () => resolve(), { once: true })
+              img.addEventListener('error', () => resolve(), { once: true })
+              setTimeout(resolve, 5000)
             })
-          }
+          }))
         },
       })
 
@@ -92,7 +106,7 @@ export default function SendEmailButton({
       const res = await fetch('/api/invoices/send-email', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ pdfBase64, guestEmail, guestSurname, checkinStr, checkoutStr, invoiceRef }),
+        body:    JSON.stringify({ pdfBase64, guestEmail, salutation, guestSurname, checkinStr, checkoutStr, invoiceRef }),
       })
 
       if (!res.ok) {
