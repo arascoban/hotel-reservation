@@ -3,8 +3,8 @@ import { notFound }      from 'next/navigation'
 import Image             from 'next/image'
 import { format }        from 'date-fns'
 import { de }            from 'date-fns/locale'
-import { Mail }          from 'lucide-react'
 import PrintButton       from '../../reservations/[id]/print/PrintButton'
+import SendEmailButton   from './SendEmailButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -117,23 +117,11 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
     ? `${adultCount} Erw. + ${childCount} Kind${childCount !== 1 ? 'er' : ''}`
     : `${adultCount} Erw.`
 
-  // ── Email (mailto) ────────────────────────────────────────────────────────
-  const checkinStr    = format(checkin, 'dd.MM.yyyy')
-  const checkoutStr   = format(checkout, 'dd.MM.yyyy')
-  const guestSurname  = inv.guest_name.trim().split(/\s+/).slice(-1)[0] || inv.guest_name
-  const emailSubject  = encodeURIComponent(
-    `Ihre Rechnung für Ihren Aufenthalt vom ${checkinStr} bis ${checkoutStr}`
-  )
-  const emailBody = encodeURIComponent(
-    `Sehr geehrte/r ${guestSurname},\n\n` +
-    `vielen Dank für Ihren Aufenthalt in unserem Hotel.\n\n` +
-    `Anbei erhalten Sie die Rechnung für Ihren Aufenthalt vom ${checkinStr} bis ${checkoutStr}.\n\n` +
-    `Sollten Sie Fragen zur Rechnung haben oder weitere Informationen benötigen, stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\n` +
-    `Wir würden uns sehr freuen, Sie bald wieder bei uns begrüßen zu dürfen.\n\n` +
-    `Mit freundlichen Grüßen\n` +
-    `Hotel-Pension Jägerstieg`
-  )
-  const mailtoUrl = `mailto:${inv.guest_email ?? ''}?subject=${emailSubject}&body=${emailBody}`
+  // ── Email props for SendEmailButton ──────────────────────────────────────
+  const checkinStr   = format(checkin,  'dd.MM.yyyy')
+  const checkoutStr  = format(checkout, 'dd.MM.yyyy')
+  const guestSurname = inv.guest_name.trim().split(/\s+/).slice(-1)[0] || inv.guest_name
+  const invoiceRef   = fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())
 
   return (
     <>
@@ -164,12 +152,14 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
       <div className="no-print flex items-center gap-3 px-6 pt-5 pb-3 bg-white border-b border-slate-200 sticky top-0 z-10">
         <PrintButton />
         <a href="/invoices" className="text-sm text-slate-500 hover:text-slate-700">← Rechnungen</a>
-        <a href={mailtoUrl}
-          className="flex items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 transition-colors">
-          <Mail className="w-4 h-4" />
-          Per E-Mail senden
-        </a>
-        <span className="ml-auto text-xs text-slate-400">Rechnung {fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())}</span>
+        <SendEmailButton
+          invoiceRef={invoiceRef}
+          guestEmail={inv.guest_email ?? null}
+          guestSurname={guestSurname}
+          checkinStr={checkinStr}
+          checkoutStr={checkoutStr}
+        />
+        <span className="ml-auto text-xs text-slate-400">Rechnung {invoiceRef}</span>
       </div>
 
       {/* ── A4 document ─────────────────────────────────────────────────────── */}

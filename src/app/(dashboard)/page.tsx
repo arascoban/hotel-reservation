@@ -17,6 +17,7 @@ export default async function DashboardPage() {
       .from('rooms')
       .select('id, name, room_number, floor, sort_order, cleaning_status, room_types(id, category, name, sort_order)')
       .eq('is_active', true)
+      .eq('billing_only', false)
       .order('sort_order'),
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -36,11 +36,12 @@ const FAMILY_PAIR_CONFIG: Record<string, { label: string; color: string; border:
 }
 
 const CATEGORY_LABELS: Record<RoomTypeCategory, string> = {
-  single:        'Einzelzimmer',
-  double:        'Doppelzimmer',
-  double_sofa:   'Doppelzimmer mit Schlafsofa',
-  family_double: 'Familienzimmer (Doppel)',
-  family_single: 'Familienzimmer (Einzel)',
+  single:             'Einzelzimmer',
+  double:             'Doppelzimmer',
+  double_sofa:        'Doppelzimmer mit Schlafsofa',
+  family_double:      'Familienzimmer (Doppel)',
+  family_single:      'Familienzimmer (Einzel)',
+  family_connecting:  'Verbindungszimmer',   // billing_only — filtered before reaching here
 }
 
 type RoomRow = {

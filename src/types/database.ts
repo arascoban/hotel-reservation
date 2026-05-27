@@ -9,7 +9,7 @@ export type RoomCleaningStatus = 'clean' | 'dirty' | 'maintenance'
 export type PaymentMethod = 'cash' | 'ec_card' | 'credit_card' | 'online' | 'unpaid'
 export type PaymentStatus = 'paid' | 'deposit_paid' | 'unpaid' | 'refunded'
 export type ReservationStatus = 'confirmed' | 'checked_in' | 'checked_out' | 'cancelled' | 'no_show'
-export type RoomTypeCategory = 'single' | 'double' | 'double_sofa' | 'family_double' | 'family_single'
+export type RoomTypeCategory = 'single' | 'double' | 'double_sofa' | 'family_double' | 'family_single' | 'family_connecting'
 export type SyncFeedType = 'import' | 'export'
 export type SyncLogStatus = 'success' | 'error' | 'partial'
 
