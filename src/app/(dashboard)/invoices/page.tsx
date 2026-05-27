@@ -1214,7 +1214,7 @@ export default function InvoicesPage() {
                       <td className="px-4 py-3 text-slate-600">{PAY_LABELS[inv.payment_method] ?? inv.payment_method}</td>
                       <td className="px-4 py-3 text-right">
                         <span className="font-semibold text-slate-900">
-                          €{(inv.total_price + (inv.room_service_total ?? 0) + customTotal).toFixed(2)}
+                          €{(inv.total_price + (inv.room2_total_price ?? 0) + (inv.room_service_total ?? 0) + customTotal).toFixed(2)}
                         </span>
                         {inv.early_departure && inv.original_price != null && (
                           <div className="text-xs text-slate-400 line-through">€{inv.original_price.toFixed(2)}</div>

@@ -71,10 +71,16 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
     : `${room2AdultCount} Erw.`
 
   // Breakfast: extract from EACH room's gross price separately
-  const room1BreakfastGross     = hasBreakfast ? adultCount * nights * breakfastPPP : 0
-  const room2BreakfastGross     = hasRoom2 && hasBreakfast ? room2AdultCount * room2Nights * breakfastPPP : 0
-  const breakfastGross          = room1BreakfastGross + room2BreakfastGross
-  const bfstPersonNights        = adultCount * nights + (hasRoom2 ? room2AdultCount * room2Nights : 0)
+  const room1BreakfastGross = hasBreakfast ? adultCount * nights * breakfastPPP : 0
+  const room2BreakfastGross = hasRoom2 && hasBreakfast ? room2AdultCount * room2Nights * breakfastPPP : 0
+  const breakfastGross      = room1BreakfastGross + room2BreakfastGross
+  // For the Anz column: show person-nights (single room) or total persons (2 rooms)
+  const totalBfstPersons    = adultCount + (hasRoom2 ? room2AdultCount : 0)
+  const bfstAnz             = hasRoom2 ? totalBfstPersons : adultCount * nights
+  // Einzelpreis per Anz unit (ppp for single-room, total-per-person for 2-room)
+  const bfstEinzel          = hasRoom2 && totalBfstPersons > 0
+    ? breakfastGross / totalBfstPersons
+    : breakfastPPP
 
   // Accommodation = room price minus its breakfast share
   const accommodationGross      = totalPrice - room1BreakfastGross
@@ -264,13 +270,13 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                     <span className="font-medium">Frühstück</span>
                     <span className="block text-xs text-slate-400 mt-0.5">
                       {hasRoom2
-                        ? `${bfstPersonNights} Pers.-Nächte (Zimmer ${inv.room_number} + ${inv.room2_number})`
+                        ? `${totalBfstPersons} Pers. (Zi. ${inv.room_number} + Zi. ${inv.room2_number})`
                         : `${adultCount} Pers. × ${nights} Nacht${nights !== 1 ? 'e' : ''}`
                       }
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-center text-slate-600 align-top">{bfstPersonNights}</td>
-                  <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(breakfastPPP)}</td>
+                  <td className="px-3 py-2 text-center text-slate-600 align-top">{bfstAnz}</td>
+                  <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(bfstEinzel)}</td>
                   <td className="px-3 py-2 text-center text-slate-500 text-xs align-top">7 %</td>
                   <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(bfst_net)}</td>
                   <td className="px-3 py-2 text-right font-semibold text-slate-800 align-top">{eur(breakfastGross)}</td>
