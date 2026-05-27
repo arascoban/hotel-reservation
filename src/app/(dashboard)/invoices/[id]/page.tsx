@@ -93,10 +93,13 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
   const room2AccNet = hasRoom2 ? room2AccommodationGross / (1 + BREAKFAST_VAT) : 0
   const bfst_net    = breakfastGross > 0 ? breakfastGross / (1 + BREAKFAST_VAT) : 0
   const svc_net     = serviceTotal > 0   ? serviceTotal   / (1 + SERVICE_VAT)   : 0
-  const sumNetto    = acc_net + room2AccNet + bfst_net + svc_net + custom7Net + custom19Net
-  const vat7        = (accommodationGross - acc_net) + (room2AccommodationGross - room2AccNet) + (breakfastGross - bfst_net) + (custom7Gross - custom7Net)
-  const vat19       = (serviceTotal - svc_net) + (custom19Gross - custom19Net)
-  const sumBrutto   = grandTotal + room2Gross
+  const sumNetto      = acc_net + room2AccNet + bfst_net + svc_net + custom7Net + custom19Net
+  const vat7          = (accommodationGross - acc_net) + (room2AccommodationGross - room2AccNet) + (breakfastGross - bfst_net) + (custom7Gross - custom7Net)
+  const vat19         = (serviceTotal - svc_net) + (custom19Gross - custom19Net)
+  const sumBrutto     = grandTotal + room2Gross
+  const discountAmt   = (inv.discount ?? 0) as number
+  const hasDiscount   = discountAmt > 0
+  const finalTotal    = sumBrutto - discountAmt
 
   let posIdx = 0
   const POS = {
@@ -351,11 +354,23 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                       <td className="py-2 text-right font-medium text-slate-700">{eur(vat19)}</td>
                     </tr>
                   )}
+                  {hasDiscount && (
+                    <tr className="border-b border-slate-100">
+                      <td className="py-2 text-slate-500">Summe Brutto</td>
+                      <td className="py-2 text-right font-medium text-slate-700">{eur(sumBrutto)}</td>
+                    </tr>
+                  )}
+                  {hasDiscount && (
+                    <tr className="border-b border-slate-200">
+                      <td className="py-2 font-semibold text-red-600">Rabatt</td>
+                      <td className="py-2 text-right font-semibold text-red-600">− {eur(discountAmt)}</td>
+                    </tr>
+                  )}
                   <tr>
                     <td colSpan={2} className="pt-2">
                       <div className="flex justify-between items-center bg-slate-800 text-white px-4 py-3 rounded-lg">
-                        <span className="font-bold text-sm">Summe Brutto</span>
-                        <span className="font-black text-xl">{eur(sumBrutto)}</span>
+                        <span className="font-bold text-sm">{hasDiscount ? 'Neue Summe' : 'Summe Brutto'}</span>
+                        <span className="font-black text-xl">{eur(hasDiscount ? finalTotal : sumBrutto)}</span>
                       </div>
                     </td>
                   </tr>

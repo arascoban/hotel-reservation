@@ -52,6 +52,7 @@ interface Invoice {
   room2_checkout_at: string | null
   room2_nights: number | null
   room2_guest_count: number | null
+  discount: number
   room2_child_count: number | null
   created_at: string
   created_by: string | null
@@ -278,6 +279,7 @@ function EditModal({
   const [childCount,   setChildCount]   = useState(String(inv.child_count ?? 0))
   const [bfstPrice,    setBfstPrice]    = useState(String(inv.breakfast_price_per_person ?? 10))
   const [svcTotal,     setSvcTotal]     = useState(String(inv.room_service_total ?? 0))
+  const [discount,     setDiscount]     = useState(String(inv.discount ?? 0))
   const [notes,        setNotes]        = useState(inv.notes ?? '')
   const [invoiceNum,   setInvoiceNum]   = useState(String(inv.invoice_number))
   const [lineItems,       setLineItems]       = useState<LineItem[]>(
@@ -342,6 +344,7 @@ function EditModal({
       child_count:                parseInt(childCount) || 0,
       breakfast_price_per_person: parseFloat(bfstPrice) || 10,
       room_service_total:         parseFloat(svcTotal) || 0,
+      discount:                   parseFloat(discount) || 0,
       notes:                      notes || null,
       line_items:                 lineItems,
       room2_number:               hasRoom2 && room2Number      ? room2Number                           : null,
@@ -531,9 +534,15 @@ function EditModal({
             </Field>
           </div>
 
-          <Field label="Zimmerservice Gesamt (€)">
-            <input type="number" step="0.01" value={svcTotal} onChange={e => setSvcTotal(e.target.value)} className={inp} />
-          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Zimmerservice Gesamt (€)">
+              <input type="number" step="0.01" value={svcTotal} onChange={e => setSvcTotal(e.target.value)} className={inp} />
+            </Field>
+            <Field label="Rabatt (€)">
+              <input type="number" step="0.01" min={0} value={discount} onChange={e => setDiscount(e.target.value)}
+                className={inp} placeholder="0.00" />
+            </Field>
+          </div>
 
           <div className="pt-2 border-t border-slate-100">
             <LineItemsEditor items={lineItems} onChange={setLineItems} />
@@ -589,6 +598,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [childCount,    setChildCount]    = useState('0')
   const [bfstPrice,     setBfstPrice]     = useState('10')
   const [svcTotal,      setSvcTotal]      = useState('0')
+  const [discount,      setDiscount]      = useState('0')
   const [notes,         setNotes]         = useState('')
   const [lineItems,     setLineItems]     = useState<LineItem[]>([])
   const [reservationId, setReservationId] = useState<string | null>(null)
@@ -752,6 +762,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       child_count:                parseInt(childCount) || 0,
       breakfast_price_per_person: parseFloat(bfstPrice) || 10,
       room_service_total:         parseFloat(svcTotal) || 0,
+      discount:                   parseFloat(discount) || 0,
       notes:                      notes || null,
       line_items:                 lineItems,
       room2_number:               hasRoom2 && room2Number      ? room2Number                           : null,
@@ -1028,9 +1039,15 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               </Field>
             </div>
 
-            <Field label="Zimmerservice Gesamt (€)">
-              <input type="number" step="0.01" value={svcTotal} onChange={e => setSvcTotal(e.target.value)} className={inp} />
-            </Field>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Zimmerservice Gesamt (€)">
+                <input type="number" step="0.01" value={svcTotal} onChange={e => setSvcTotal(e.target.value)} className={inp} />
+              </Field>
+              <Field label="Rabatt (€)">
+                <input type="number" step="0.01" min={0} value={discount} onChange={e => setDiscount(e.target.value)}
+                  className={inp} placeholder="0.00" />
+              </Field>
+            </div>
 
             <div className="pt-2 border-t border-slate-100">
               <LineItemsEditor items={lineItems} onChange={setLineItems} />
@@ -1229,7 +1246,7 @@ export default function InvoicesPage() {
                       <td className="px-4 py-3 text-slate-600">{PAY_LABELS[inv.payment_method] ?? inv.payment_method}</td>
                       <td className="px-4 py-3 text-right">
                         <span className="font-semibold text-slate-900">
-                          €{(inv.total_price + (inv.room2_total_price ?? 0) + (inv.room_service_total ?? 0) + customTotal).toFixed(2)}
+                          €{(inv.total_price + (inv.room2_total_price ?? 0) + (inv.room_service_total ?? 0) + customTotal - (inv.discount ?? 0)).toFixed(2)}
                         </span>
                         {inv.early_departure && inv.original_price != null && (
                           <div className="text-xs text-slate-400 line-through">€{inv.original_price.toFixed(2)}</div>
