@@ -364,29 +364,21 @@ function EditModal({
               className={cn(inp, 'resize-none')} placeholder="Straße 1&#10;12345 Stadt&#10;Deutschland" />
           </Field>
 
-          {/* Room dropdown */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-2">
-              <Field label="Zimmer auswählen">
-                <select
-                  value={roomNumber}
-                  onChange={e => handleRoomSelect(e.target.value)}
-                  className={inp}
-                >
-                  <option value="">— Zimmer wählen —</option>
-                  {rooms.map(r => (
-                    <option key={r.room_number} value={r.room_number}>
-                      Zimmer {r.room_number} – {r.room_types?.name ?? r.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            </div>
-            <Field label="Zimmertyp">
-              <input value={roomName} onChange={e => setRoomName(e.target.value)} className={inp}
-                placeholder="Wird automatisch gefüllt" />
-            </Field>
-          </div>
+          {/* Room dropdown — full width, no separate type input needed */}
+          <Field label="Zimmer auswählen">
+            <select
+              value={roomNumber}
+              onChange={e => handleRoomSelect(e.target.value)}
+              className={inp}
+            >
+              <option value="">— Zimmer wählen —</option>
+              {rooms.map(r => (
+                <option key={r.room_number} value={r.room_number}>
+                  Zimmer {r.room_number} – {r.room_types?.name ?? r.name}
+                </option>
+              ))}
+            </select>
+          </Field>
 
           {/* Dates with time */}
           <div className="grid grid-cols-3 gap-4">
@@ -772,29 +764,21 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                 className={cn(inp, 'resize-none')} placeholder="Straße 1&#10;12345 Stadt&#10;Deutschland" />
             </Field>
 
-            {/* Room dropdown */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="col-span-2">
-                <Field label="Zimmer auswählen">
-                  <select
-                    value={roomNumber}
-                    onChange={e => handleRoomSelect(e.target.value)}
-                    className={inp}
-                  >
-                    <option value="">— Zimmer wählen —</option>
-                    {rooms.map(r => (
-                      <option key={r.room_number} value={r.room_number}>
-                        Zimmer {r.room_number} – {r.room_types?.name ?? r.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              </div>
-              <Field label="Zimmertyp">
-                <input value={roomName} onChange={e => setRoomName(e.target.value)} className={inp}
-                  placeholder="Wird automatisch gefüllt" />
-              </Field>
-            </div>
+            {/* Room dropdown — full width, no separate type input needed */}
+            <Field label="Zimmer auswählen">
+              <select
+                value={roomNumber}
+                onChange={e => handleRoomSelect(e.target.value)}
+                className={inp}
+              >
+                <option value="">— Zimmer wählen —</option>
+                {rooms.map(r => (
+                  <option key={r.room_number} value={r.room_number}>
+                    Zimmer {r.room_number} – {r.room_types?.name ?? r.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
 
             {/* Dates with time */}
             <div className="grid grid-cols-3 gap-4">
