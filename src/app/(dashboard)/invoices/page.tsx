@@ -48,6 +48,10 @@ interface Invoice {
   room2_number: string | null
   room2_name: string | null
   room2_total_price: number | null
+  room2_checkin_at: string | null
+  room2_checkout_at: string | null
+  room2_guest_count: number | null
+  room2_child_count: number | null
   created_at: string
   created_by: string | null
 }
@@ -278,10 +282,14 @@ function EditModal({
   const [lineItems,       setLineItems]       = useState<LineItem[]>(
     Array.isArray(inv.line_items) ? inv.line_items : []
   )
-  const [hasRoom2,        setHasRoom2]        = useState(!!(inv.room2_number))
-  const [room2Number,     setRoom2Number]     = useState(inv.room2_number ?? '')
-  const [room2Name,       setRoom2Name]       = useState(inv.room2_name ?? '')
-  const [room2TotalPrice, setRoom2TotalPrice] = useState(String(inv.room2_total_price ?? ''))
+  const [hasRoom2,         setHasRoom2]         = useState(!!(inv.room2_number))
+  const [room2Number,      setRoom2Number]      = useState(inv.room2_number ?? '')
+  const [room2Name,        setRoom2Name]        = useState(inv.room2_name ?? '')
+  const [room2TotalPrice,  setRoom2TotalPrice]  = useState(String(inv.room2_total_price ?? ''))
+  const [room2CheckinAt,   setRoom2CheckinAt]   = useState(inv.room2_checkin_at  ? toLocalDatetime(inv.room2_checkin_at)  : '')
+  const [room2CheckoutAt,  setRoom2CheckoutAt]  = useState(inv.room2_checkout_at ? toLocalDatetime(inv.room2_checkout_at) : '')
+  const [room2GuestCount,  setRoom2GuestCount]  = useState(String(inv.room2_guest_count ?? 1))
+  const [room2ChildCount2, setRoom2ChildCount2] = useState(String(inv.room2_child_count ?? 0))
 
   // Load rooms for dropdown
   useEffect(() => {
@@ -334,9 +342,13 @@ function EditModal({
       room_service_total:         parseFloat(svcTotal) || 0,
       notes:                      notes || null,
       line_items:                 lineItems,
-      room2_number:               hasRoom2 && room2Number     ? room2Number                           : null,
-      room2_name:                 hasRoom2 && room2Name       ? room2Name                             : null,
-      room2_total_price:          hasRoom2 && room2TotalPrice ? parseFloat(room2TotalPrice) || null   : null,
+      room2_number:               hasRoom2 && room2Number      ? room2Number                           : null,
+      room2_name:                 hasRoom2 && room2Name        ? room2Name                             : null,
+      room2_total_price:          hasRoom2 && room2TotalPrice  ? parseFloat(room2TotalPrice) || null   : null,
+      room2_checkin_at:           hasRoom2 && room2CheckinAt   ? new Date(room2CheckinAt).toISOString()  : null,
+      room2_checkout_at:          hasRoom2 && room2CheckoutAt  ? new Date(room2CheckoutAt).toISOString() : null,
+      room2_guest_count:          hasRoom2                     ? parseInt(room2GuestCount)  || 1         : null,
+      room2_child_count:          hasRoom2                     ? parseInt(room2ChildCount2) || 0         : null,
     }
     if (isAdmin) payload.invoice_number = parseInt(invoiceNum) || inv.invoice_number
 
@@ -405,29 +417,62 @@ function EditModal({
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
             <div className="flex items-center gap-2">
               <input type="checkbox" id="edit-room2" checked={hasRoom2}
-                onChange={e => { setHasRoom2(e.target.checked); if (!e.target.checked) { setRoom2Number(''); setRoom2Name(''); setRoom2TotalPrice('') } }}
+                onChange={e => {
+                  const checked = e.target.checked
+                  setHasRoom2(checked)
+                  if (checked) {
+                    if (!room2CheckinAt)  setRoom2CheckinAt(checkinAt)
+                    if (!room2CheckoutAt) setRoom2CheckoutAt(checkoutAt)
+                  } else {
+                    setRoom2Number(''); setRoom2Name(''); setRoom2TotalPrice('')
+                    setRoom2CheckinAt(''); setRoom2CheckoutAt('')
+                    setRoom2GuestCount('1'); setRoom2ChildCount2('0')
+                  }
+                }}
                 className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
               <label htmlFor="edit-room2" className="text-sm font-medium text-slate-700 cursor-pointer">
                 Zweites Zimmer hinzufügen
               </label>
             </div>
             {hasRoom2 && (
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Zweites Zimmer">
-                  <select value={room2Number} onChange={e => handleRoom2Select(e.target.value)} className={inp}>
-                    <option value="">— Zimmer wählen —</option>
-                    {rooms.map(r => (
-                      <option key={r.room_number} value={r.room_number}>
-                        Zimmer {r.room_number} – {r.room_types?.name ?? r.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Preis Zweites Zimmer gesamt (€)">
-                  <input type="number" step="0.01" min={0} value={room2TotalPrice}
-                    onChange={e => setRoom2TotalPrice(e.target.value)} className={inp}
-                    placeholder="z.B. 90.00" />
-                </Field>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Zweites Zimmer">
+                    <select value={room2Number} onChange={e => handleRoom2Select(e.target.value)} className={inp}>
+                      <option value="">— Zimmer wählen —</option>
+                      {rooms.map(r => (
+                        <option key={r.room_number} value={r.room_number}>
+                          Zimmer {r.room_number} – {r.room_types?.name ?? r.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Preis Zweites Zimmer gesamt (€)">
+                    <input type="number" step="0.01" min={0} value={room2TotalPrice}
+                      onChange={e => setRoom2TotalPrice(e.target.value)} className={inp}
+                      placeholder="z.B. 90.00" />
+                  </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Anreise (Zimmer 2)">
+                    <input type="datetime-local" value={room2CheckinAt}
+                      onChange={e => setRoom2CheckinAt(e.target.value)} className={inp} />
+                  </Field>
+                  <Field label="Abreise (Zimmer 2)">
+                    <input type="datetime-local" value={room2CheckoutAt}
+                      onChange={e => setRoom2CheckoutAt(e.target.value)} className={inp} />
+                  </Field>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Erwachsene (Zimmer 2)">
+                    <input type="number" min={1} value={room2GuestCount}
+                      onChange={e => setRoom2GuestCount(e.target.value)} className={inp} />
+                  </Field>
+                  <Field label="Kinder (Zimmer 2)">
+                    <input type="number" min={0} value={room2ChildCount2}
+                      onChange={e => setRoom2ChildCount2(e.target.value)} className={inp} />
+                  </Field>
+                </div>
               </div>
             )}
           </div>
@@ -539,10 +584,14 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [notes,         setNotes]         = useState('')
   const [lineItems,     setLineItems]     = useState<LineItem[]>([])
   const [reservationId, setReservationId] = useState<string | null>(null)
-  const [hasRoom2,        setHasRoom2]        = useState(false)
-  const [room2Number,     setRoom2Number]     = useState('')
-  const [room2Name,       setRoom2Name]       = useState('')
-  const [room2TotalPrice, setRoom2TotalPrice] = useState('')
+  const [hasRoom2,         setHasRoom2]         = useState(false)
+  const [room2Number,      setRoom2Number]      = useState('')
+  const [room2Name,        setRoom2Name]        = useState('')
+  const [room2TotalPrice,  setRoom2TotalPrice]  = useState('')
+  const [room2CheckinAt,   setRoom2CheckinAt]   = useState('')
+  const [room2CheckoutAt,  setRoom2CheckoutAt]  = useState('')
+  const [room2GuestCount,  setRoom2GuestCount]  = useState('1')
+  const [room2ChildCount2, setRoom2ChildCount2] = useState('0')
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -696,9 +745,13 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       room_service_total:         parseFloat(svcTotal) || 0,
       notes:                      notes || null,
       line_items:                 lineItems,
-      room2_number:               hasRoom2 && room2Number     ? room2Number                           : null,
-      room2_name:                 hasRoom2 && room2Name       ? room2Name                             : null,
-      room2_total_price:          hasRoom2 && room2TotalPrice ? parseFloat(room2TotalPrice) || null   : null,
+      room2_number:               hasRoom2 && room2Number      ? room2Number                           : null,
+      room2_name:                 hasRoom2 && room2Name        ? room2Name                             : null,
+      room2_total_price:          hasRoom2 && room2TotalPrice  ? parseFloat(room2TotalPrice) || null   : null,
+      room2_checkin_at:           hasRoom2 && room2CheckinAt   ? new Date(room2CheckinAt).toISOString()  : null,
+      room2_checkout_at:          hasRoom2 && room2CheckoutAt  ? new Date(room2CheckoutAt).toISOString() : null,
+      room2_guest_count:          hasRoom2                     ? parseInt(room2GuestCount)  || 1         : null,
+      room2_child_count:          hasRoom2                     ? parseInt(room2ChildCount2) || 0         : null,
       created_by:                 user.user?.email ?? null,
       created_at:                 new Date().toISOString(),
     }
@@ -854,29 +907,62 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <input type="checkbox" id="create-room2" checked={hasRoom2}
-                  onChange={e => { setHasRoom2(e.target.checked); if (!e.target.checked) { setRoom2Number(''); setRoom2Name(''); setRoom2TotalPrice('') } }}
+                  onChange={e => {
+                    const checked = e.target.checked
+                    setHasRoom2(checked)
+                    if (checked) {
+                      if (!room2CheckinAt)  setRoom2CheckinAt(checkinAt)
+                      if (!room2CheckoutAt) setRoom2CheckoutAt(checkoutAt)
+                    } else {
+                      setRoom2Number(''); setRoom2Name(''); setRoom2TotalPrice('')
+                      setRoom2CheckinAt(''); setRoom2CheckoutAt('')
+                      setRoom2GuestCount('1'); setRoom2ChildCount2('0')
+                    }
+                  }}
                   className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                 <label htmlFor="create-room2" className="text-sm font-medium text-slate-700 cursor-pointer">
                   Zweites Zimmer hinzufügen
                 </label>
               </div>
               {hasRoom2 && (
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label="Zweites Zimmer">
-                    <select value={room2Number} onChange={e => handleRoom2Select(e.target.value)} className={inp}>
-                      <option value="">— Zimmer wählen —</option>
-                      {rooms.map(r => (
-                        <option key={r.room_number} value={r.room_number}>
-                          Zimmer {r.room_number} – {r.room_types?.name ?? r.name}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Preis Zweites Zimmer gesamt (€)">
-                    <input type="number" step="0.01" min={0} value={room2TotalPrice}
-                      onChange={e => setRoom2TotalPrice(e.target.value)} className={inp}
-                      placeholder="z.B. 90.00" />
-                  </Field>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label="Zweites Zimmer">
+                      <select value={room2Number} onChange={e => handleRoom2Select(e.target.value)} className={inp}>
+                        <option value="">— Zimmer wählen —</option>
+                        {rooms.map(r => (
+                          <option key={r.room_number} value={r.room_number}>
+                            Zimmer {r.room_number} – {r.room_types?.name ?? r.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Preis Zweites Zimmer gesamt (€)">
+                      <input type="number" step="0.01" min={0} value={room2TotalPrice}
+                        onChange={e => setRoom2TotalPrice(e.target.value)} className={inp}
+                        placeholder="z.B. 90.00" />
+                    </Field>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label="Anreise (Zimmer 2)">
+                      <input type="datetime-local" value={room2CheckinAt}
+                        onChange={e => setRoom2CheckinAt(e.target.value)} className={inp} />
+                    </Field>
+                    <Field label="Abreise (Zimmer 2)">
+                      <input type="datetime-local" value={room2CheckoutAt}
+                        onChange={e => setRoom2CheckoutAt(e.target.value)} className={inp} />
+                    </Field>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label="Erwachsene (Zimmer 2)">
+                      <input type="number" min={1} value={room2GuestCount}
+                        onChange={e => setRoom2GuestCount(e.target.value)} className={inp} />
+                    </Field>
+                    <Field label="Kinder (Zimmer 2)">
+                      <input type="number" min={0} value={room2ChildCount2}
+                        onChange={e => setRoom2ChildCount2(e.target.value)} className={inp} />
+                    </Field>
+                  </div>
                 </div>
               )}
             </div>

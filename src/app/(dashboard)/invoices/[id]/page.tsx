@@ -61,17 +61,34 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
   const grandTotal         = totalPrice + serviceTotal + customTotal
   const pricePerNight      = nights > 0 ? accommodationGross / nights : accommodationGross
 
+  // Second room (optional)
+  const room2Gross        = (inv.room2_total_price ?? 0) as number
+  const hasRoom2          = room2Gross > 0 && !!inv.room2_number
+  const room2CheckinDate  = inv.room2_checkin_at  ? new Date(inv.room2_checkin_at)  : checkin
+  const room2CheckoutDate = inv.room2_checkout_at ? new Date(inv.room2_checkout_at) : checkout
+  const room2Nights       = inv.room2_checkin_at && inv.room2_checkout_at
+    ? Math.max(1, Math.round((room2CheckoutDate.getTime() - room2CheckinDate.getTime()) / 86400000))
+    : nights
+  const room2PricePerNight = hasRoom2 && room2Nights > 0 ? room2Gross / room2Nights : room2Gross
+  const room2_net          = hasRoom2 ? room2Gross / (1 + BREAKFAST_VAT) : 0
+  const room2AdultCount    = (inv.room2_guest_count ?? adultCount) as number
+  const room2ChildCountNum = (inv.room2_child_count ?? 0) as number
+  const room2GuestLabel    = room2ChildCountNum > 0
+    ? `${room2AdultCount} Erw. + ${room2ChildCountNum} Kind${room2ChildCountNum !== 1 ? 'er' : ''}`
+    : `${room2AdultCount} Erw.`
+
   const acc_net   = accommodationGross / (1 + BREAKFAST_VAT)
   const bfst_net  = breakfastGross     / (1 + BREAKFAST_VAT)
   const svc_net   = serviceTotal > 0   ? serviceTotal / (1 + SERVICE_VAT) : 0
-  const sumNetto  = acc_net + bfst_net + svc_net + custom7Net + custom19Net
-  const vat7      = (accommodationGross - acc_net) + (breakfastGross - bfst_net) + (custom7Gross - custom7Net)
+  const sumNetto  = acc_net + room2_net + bfst_net + svc_net + custom7Net + custom19Net
+  const vat7      = (accommodationGross - acc_net) + (room2Gross - room2_net) + (breakfastGross - bfst_net) + (custom7Gross - custom7Net)
   const vat19     = (serviceTotal - svc_net) + (custom19Gross - custom19Net)
-  const sumBrutto = grandTotal
+  const sumBrutto = grandTotal + room2Gross
 
   let posIdx = 0
   const POS = {
     accommodation: ++posIdx,
+    room2:         hasRoom2         ? ++posIdx : null,
     breakfast:     hasBreakfast     ? ++posIdx : null,
     service:       serviceTotal > 0 ? ++posIdx : null,
     customStart:   posIdx + 1,
@@ -212,6 +229,24 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                 <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(acc_net)}</td>
                 <td className="px-3 py-2 text-right font-semibold text-slate-800 align-top">{eur(accommodationGross)}</td>
               </tr>
+
+              {/* Pos 2: Second room (if booked) */}
+              {hasRoom2 && (
+                <tr className="border-b border-slate-100">
+                  <td className="px-3 py-2 text-slate-400 text-xs align-top">{POS.room2}</td>
+                  <td className="px-3 py-2 text-slate-800 align-top">
+                    <span className="font-medium">{inv.room2_name || 'Zweites Zimmer'}</span>
+                    <span className="block text-xs text-slate-400 mt-0.5">
+                      Zimmer Nr. {inv.room2_number} · {format(room2CheckinDate, 'dd.MM.yyyy')} {format(room2CheckinDate, 'HH:mm')} Uhr – {format(room2CheckoutDate, 'dd.MM.yyyy')} {format(room2CheckoutDate, 'HH:mm')} Uhr · {room2GuestLabel}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-center text-slate-600 align-top">{room2Nights}</td>
+                  <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(room2PricePerNight)}</td>
+                  <td className="px-3 py-2 text-center text-slate-500 text-xs align-top">7 %</td>
+                  <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(room2_net)}</td>
+                  <td className="px-3 py-2 text-right font-semibold text-slate-800 align-top">{eur(room2Gross)}</td>
+                </tr>
+              )}
 
               {/* Frühstück */}
               {hasBreakfast && (
