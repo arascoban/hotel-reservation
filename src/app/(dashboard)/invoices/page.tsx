@@ -41,6 +41,7 @@ interface Invoice {
   original_nights: number | null
   original_price: number | null
   guest_count: number
+  child_count: number
   breakfast_price_per_person: number
   room_service_total: number
   line_items: LineItem[]
@@ -65,7 +66,7 @@ interface Reservation {
   guest_city: string | null
   guest_country: string | null
   notes: string | null
-  rooms: { name: string; room_number: string }
+  rooms: { name: string; room_number: string; room_types?: { name: string } }
 }
 
 interface Customer {
@@ -94,6 +95,30 @@ const PAY_OPTIONS = [
 function fmtNum(n: number, year?: number) {
   const y = (year ?? new Date().getFullYear()).toString().slice(-2)
   return `R${y}_${String(n).padStart(3, '0')}`
+}
+
+// ── Datetime helpers ──────────────────────────────────────────────────────────
+
+/** Convert an ISO string (UTC) to a local datetime-local string */
+function toLocalDatetime(isoStr: string): string {
+  const d = new Date(isoStr)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/** Today at a given hour, formatted for datetime-local input */
+function todayAt(hour: number): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(hour)}:00`
+}
+
+/** Tomorrow at a given hour, formatted for datetime-local input */
+function tomorrowAt(hour: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(hour)}:00`
 }
 
 // ── Address helpers ───────────────────────────────────────────────────────────
@@ -228,13 +253,14 @@ function EditModal({
   const [guestAddress, setGuestAddress] = useState(inv.guest_address ?? '')
   const [roomName,     setRoomName]     = useState(inv.room_name)
   const [roomNumber,   setRoomNumber]   = useState(inv.room_number)
-  const [checkinAt,    setCheckinAt]    = useState(inv.checkin_at.slice(0, 10))
-  const [checkoutAt,   setCheckoutAt]   = useState(inv.checkout_at.slice(0, 10))
+  const [checkinAt,    setCheckinAt]    = useState(toLocalDatetime(inv.checkin_at))
+  const [checkoutAt,   setCheckoutAt]   = useState(toLocalDatetime(inv.checkout_at))
   const [nights,       setNights]       = useState(String(inv.nights))
   const [totalPrice,   setTotalPrice]   = useState(String(inv.total_price))
   const [payMethod,    setPayMethod]    = useState(inv.payment_method)
   const [breakfast,    setBreakfast]    = useState(inv.breakfast_included)
   const [guestCount,   setGuestCount]   = useState(String(inv.guest_count ?? 1))
+  const [childCount,   setChildCount]   = useState(String(inv.child_count ?? 0))
   const [bfstPrice,    setBfstPrice]    = useState(String(inv.breakfast_price_per_person ?? 10))
   const [svcTotal,     setSvcTotal]     = useState(String(inv.room_service_total ?? 0))
   const [notes,        setNotes]        = useState(inv.notes ?? '')
@@ -242,6 +268,25 @@ function EditModal({
   const [lineItems,    setLineItems]    = useState<LineItem[]>(
     Array.isArray(inv.line_items) ? inv.line_items : []
   )
+
+  const roomLookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function handleRoomNumberChange(value: string) {
+    setRoomNumber(value)
+    if (roomLookupTimer.current) clearTimeout(roomLookupTimer.current)
+    if (!value.trim()) return
+    roomLookupTimer.current = setTimeout(async () => {
+      const { data } = await (supabase as any)
+        .from('rooms')
+        .select('name, room_types(name)')
+        .eq('room_number', value.trim())
+        .maybeSingle()
+      if (data) {
+        const typeName = (data as any).room_types?.name
+        if (typeName) setRoomName(typeName)
+      }
+    }, 400)
+  }
 
   async function handleSave() {
     setSaving(true); setError(null)
@@ -258,6 +303,7 @@ function EditModal({
       payment_method:             payMethod,
       breakfast_included:         breakfast,
       guest_count:                parseInt(guestCount) || 1,
+      child_count:                parseInt(childCount) || 0,
       breakfast_price_per_person: parseFloat(bfstPrice) || 10,
       room_service_total:         parseFloat(svcTotal) || 0,
       notes:                      notes || null,
@@ -310,25 +356,40 @@ function EditModal({
               className={cn(inp, 'resize-none')} placeholder="Straße 1&#10;12345 Stadt&#10;Deutschland" />
           </Field>
 
+          {/* Room: type name (auto-filled) + number */}
           <div className="grid grid-cols-3 gap-4">
             <div className="col-span-2">
-              <Field label="Zimmername">
-                <input value={roomName} onChange={e => setRoomName(e.target.value)} className={inp} />
+              <Field label="Zimmertyp">
+                <input value={roomName} onChange={e => setRoomName(e.target.value)} className={inp}
+                  placeholder="Wird automatisch erkannt…" />
               </Field>
             </div>
-            <Field label="Zimmernr.">
-              <input value={roomNumber} onChange={e => setRoomNumber(e.target.value)} className={inp} />
+            <Field label="Zimmer-Nr.">
+              <input value={roomNumber} onChange={e => handleRoomNumberChange(e.target.value)}
+                className={inp} placeholder="z.B. 12" />
             </Field>
           </div>
+
+          {/* Dates with time */}
           <div className="grid grid-cols-3 gap-4">
             <Field label="Anreise">
-              <input type="date" value={checkinAt} onChange={e => setCheckinAt(e.target.value)} className={inp} />
+              <input type="datetime-local" value={checkinAt} onChange={e => setCheckinAt(e.target.value)} className={inp} />
             </Field>
             <Field label="Abreise">
-              <input type="date" value={checkoutAt} onChange={e => setCheckoutAt(e.target.value)} className={inp} />
+              <input type="datetime-local" value={checkoutAt} onChange={e => setCheckoutAt(e.target.value)} className={inp} />
             </Field>
             <Field label="Nächte">
               <input type="number" min={1} value={nights} onChange={e => setNights(e.target.value)} className={inp} />
+            </Field>
+          </div>
+
+          {/* Guest counts — always editable */}
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Erwachsene">
+              <input type="number" min={1} value={guestCount} onChange={e => setGuestCount(e.target.value)} className={inp} />
+            </Field>
+            <Field label="Kinder">
+              <input type="number" min={0} value={childCount} onChange={e => setChildCount(e.target.value)} className={inp} />
             </Field>
           </div>
 
@@ -343,15 +404,13 @@ function EditModal({
             </Field>
           </div>
 
-          <div className="grid grid-cols-3 gap-4 items-end">
+          {/* Breakfast */}
+          <div className="grid grid-cols-2 gap-4 items-end">
             <div className="flex items-center gap-2 mt-5">
               <input type="checkbox" id="edit-bfst" checked={breakfast} onChange={e => setBreakfast(e.target.checked)}
                 className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-              <label htmlFor="edit-bfst" className="text-sm font-medium text-slate-700 cursor-pointer">Frühstück</label>
+              <label htmlFor="edit-bfst" className="text-sm font-medium text-slate-700 cursor-pointer">Frühstück inkl.</label>
             </div>
-            <Field label="Personen">
-              <input type="number" min={1} value={guestCount} onChange={e => setGuestCount(e.target.value)} className={inp} disabled={!breakfast} />
-            </Field>
             <Field label="Frühstück / Person (€)">
               <input type="number" step="0.01" value={bfstPrice} onChange={e => setBfstPrice(e.target.value)} className={inp} disabled={!breakfast} />
             </Field>
@@ -404,30 +463,32 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [guestAddress,  setGuestAddress]  = useState('')
   const [roomName,      setRoomName]      = useState('')
   const [roomNumber,    setRoomNumber]    = useState('')
-  const [checkinAt,     setCheckinAt]     = useState(new Date().toISOString().slice(0, 10))
-  const [checkoutAt,    setCheckoutAt]    = useState(new Date().toISOString().slice(0, 10))
+  const [checkinAt,     setCheckinAt]     = useState(todayAt(14))
+  const [checkoutAt,    setCheckoutAt]    = useState(tomorrowAt(11))
   const [nights,        setNights]        = useState('1')
   const [totalPrice,    setTotalPrice]    = useState('')
   const [payMethod,     setPayMethod]     = useState('cash')
   const [breakfast,     setBreakfast]     = useState(false)
   const [guestCount,    setGuestCount]    = useState('1')
+  const [childCount,    setChildCount]    = useState('0')
   const [bfstPrice,     setBfstPrice]     = useState('10')
   const [svcTotal,      setSvcTotal]      = useState('0')
   const [notes,         setNotes]         = useState('')
   const [lineItems,     setLineItems]     = useState<LineItem[]>([])
   const [reservationId, setReservationId] = useState<string | null>(null)
 
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchTimer    = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const roomLookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function doSearch(v: string, tab: 'reservation' | 'customer') {
-    if (timer.current) clearTimeout(timer.current)
+    if (searchTimer.current) clearTimeout(searchTimer.current)
     if (!v.trim()) { setResults([]); setCustResults([]); return }
-    timer.current = setTimeout(async () => {
+    searchTimer.current = setTimeout(async () => {
       setSearching(true)
       if (tab === 'reservation') {
         const { data } = await supabase
           .from('reservations')
-          .select('id, guest_name, guest_email, guest_count, room_id, checkin_at, checkout_at, total_price, payment_method, breakfast_included, billing_address, guest_street, guest_postcode, guest_city, guest_country, notes, rooms(name, room_number)')
+          .select('id, guest_name, guest_email, guest_count, room_id, checkin_at, checkout_at, total_price, payment_method, breakfast_included, billing_address, guest_street, guest_postcode, guest_city, guest_country, notes, rooms(name, room_number, room_types(name))')
           .ilike('guest_name', `%${v}%`)
           .is('deleted_at', null)
           .order('checkin_at', { ascending: false })
@@ -457,6 +518,23 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     setCustResults([])
   }
 
+  function handleRoomNumberChange(value: string) {
+    setRoomNumber(value)
+    if (roomLookupTimer.current) clearTimeout(roomLookupTimer.current)
+    if (!value.trim()) return
+    roomLookupTimer.current = setTimeout(async () => {
+      const { data } = await (supabase as any)
+        .from('rooms')
+        .select('name, room_types(name)')
+        .eq('room_number', value.trim())
+        .maybeSingle()
+      if (data) {
+        const typeName = (data as any).room_types?.name
+        if (typeName) setRoomName(typeName)
+      }
+    }, 400)
+  }
+
   // ── Prefill from reservation ──────────────────────────────────────────────
 
   async function prefill(r: Reservation) {
@@ -480,14 +558,17 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       }
     }
 
+    // Room type name (e.g. "Doppelzimmer"), fallback to room name
+    const roomTypeName = (r.rooms as any).room_types?.name ?? (r.rooms as any).name
+
     setReservationId(r.id)
     setGuestName(r.guest_name)
     setGuestEmail(email)
     setGuestAddress(address)
-    setRoomName((r.rooms as any).name)
+    setRoomName(roomTypeName)
     setRoomNumber((r.rooms as any).room_number)
-    setCheckinAt(r.checkin_at.slice(0, 10))
-    setCheckoutAt(r.checkout_at.slice(0, 10))
+    setCheckinAt(toLocalDatetime(r.checkin_at))
+    setCheckoutAt(toLocalDatetime(r.checkout_at))
     setNights(String(n))
     setTotalPrice(String(r.total_price ?? ''))
     setPayMethod(r.payment_method)
@@ -530,6 +611,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       payment_method:             payMethod,
       breakfast_included:         breakfast,
       guest_count:                parseInt(guestCount) || 1,
+      child_count:                parseInt(childCount) || 0,
       breakfast_price_per_person: parseFloat(bfstPrice) || 10,
       room_service_total:         parseFloat(svcTotal) || 0,
       notes:                      notes || null,
@@ -614,8 +696,9 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                     <div>
                       <p className="font-medium text-slate-900 text-sm">{r.guest_name}</p>
                       <p className="text-xs text-slate-400">
-                        Zi. {(r.rooms as any).room_number} · {(r.rooms as any).name} ·{' '}
-                        {format(new Date(r.checkin_at), 'dd.MM.')}–{format(new Date(r.checkout_at), 'dd.MM.yyyy')}
+                        Zi. {(r.rooms as any).room_number}
+                        {(r.rooms as any).room_types?.name ? ` · ${(r.rooms as any).room_types.name}` : ` · ${(r.rooms as any).name}`}
+                        {' · '}{format(new Date(r.checkin_at), 'dd.MM.')}–{format(new Date(r.checkout_at), 'dd.MM.yyyy')}
                       </p>
                     </div>
                     <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
@@ -667,27 +750,44 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               <textarea rows={3} value={guestAddress} onChange={e => setGuestAddress(e.target.value)}
                 className={cn(inp, 'resize-none')} placeholder="Straße 1&#10;12345 Stadt&#10;Deutschland" />
             </Field>
+
+            {/* Room: type name (auto-filled from number) + number */}
             <div className="grid grid-cols-3 gap-4">
               <div className="col-span-2">
-                <Field label="Zimmername">
-                  <input value={roomName} onChange={e => setRoomName(e.target.value)} className={inp} />
+                <Field label="Zimmertyp">
+                  <input value={roomName} onChange={e => setRoomName(e.target.value)} className={inp}
+                    placeholder="Wird automatisch erkannt…" />
                 </Field>
               </div>
               <Field label="Zimmer-Nr.">
-                <input value={roomNumber} onChange={e => setRoomNumber(e.target.value)} className={inp} />
+                <input value={roomNumber} onChange={e => handleRoomNumberChange(e.target.value)}
+                  className={inp} placeholder="z.B. 12" />
               </Field>
             </div>
+
+            {/* Dates with time */}
             <div className="grid grid-cols-3 gap-4">
               <Field label="Anreise">
-                <input type="date" value={checkinAt} onChange={e => setCheckinAt(e.target.value)} className={inp} />
+                <input type="datetime-local" value={checkinAt} onChange={e => setCheckinAt(e.target.value)} className={inp} />
               </Field>
               <Field label="Abreise">
-                <input type="date" value={checkoutAt} onChange={e => setCheckoutAt(e.target.value)} className={inp} />
+                <input type="datetime-local" value={checkoutAt} onChange={e => setCheckoutAt(e.target.value)} className={inp} />
               </Field>
               <Field label="Nächte">
                 <input type="number" min={1} value={nights} onChange={e => setNights(e.target.value)} className={inp} />
               </Field>
             </div>
+
+            {/* Guest counts — always editable */}
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Erwachsene">
+                <input type="number" min={1} value={guestCount} onChange={e => setGuestCount(e.target.value)} className={inp} />
+              </Field>
+              <Field label="Kinder">
+                <input type="number" min={0} value={childCount} onChange={e => setChildCount(e.target.value)} className={inp} />
+              </Field>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <Field label="Preis Übernachtung (€)">
                 <input type="number" step="0.01" value={totalPrice} onChange={e => setTotalPrice(e.target.value)} className={inp} />
@@ -698,19 +798,19 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                 </select>
               </Field>
             </div>
-            <div className="grid grid-cols-3 gap-4 items-end">
+
+            {/* Breakfast */}
+            <div className="grid grid-cols-2 gap-4 items-end">
               <div className="flex items-center gap-2 mt-5">
                 <input type="checkbox" id="create-bfst" checked={breakfast} onChange={e => setBreakfast(e.target.checked)}
                   className="rounded border-slate-300 text-blue-600" />
-                <label htmlFor="create-bfst" className="text-sm font-medium text-slate-700 cursor-pointer">Frühstück</label>
+                <label htmlFor="create-bfst" className="text-sm font-medium text-slate-700 cursor-pointer">Frühstück inkl.</label>
               </div>
-              <Field label="Personen">
-                <input type="number" min={1} value={guestCount} onChange={e => setGuestCount(e.target.value)} className={inp} disabled={!breakfast} />
-              </Field>
               <Field label="€ / Person">
                 <input type="number" step="0.01" value={bfstPrice} onChange={e => setBfstPrice(e.target.value)} className={inp} disabled={!breakfast} />
               </Field>
             </div>
+
             <Field label="Zimmerservice Gesamt (€)">
               <input type="number" step="0.01" value={svcTotal} onChange={e => setSvcTotal(e.target.value)} className={inp} />
             </Field>
