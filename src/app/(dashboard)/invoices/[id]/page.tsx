@@ -19,7 +19,11 @@ const BREAKFAST_VAT = 0.07
 const SERVICE_VAT   = 0.19
 
 const PAY_LABELS: Record<string, string> = {
-  cash: 'Bar', ec_card: 'EC-Karte', credit_card: 'Kreditkarte', online: 'Online', unpaid: 'Ausstehend',
+  cash:        'Bar erhalten',
+  ec_card:     'EC-Karte erhalten',
+  credit_card: 'Kreditkarte erhalten',
+  online:      'Online erhalten',
+  unpaid:      'Ausstehend',
 }
 
 interface ServiceItem    { name: string; qty: number; unit_price: number; total: number }
@@ -46,7 +50,6 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
   const totalPrice                   = (inv.total_price ?? 0) as number
   const customItems: CustomLineItem[] = Array.isArray(inv.line_items) ? (inv.line_items as CustomLineItem[]) : []
 
-  // Custom item totals (unit_price is gross, inclusive of VAT)
   const custom7Gross  = customItems.filter(i => i.vat_rate === 7) .reduce((s, i) => s + i.qty * i.unit_price, 0)
   const custom19Gross = customItems.filter(i => i.vat_rate === 19).reduce((s, i) => s + i.qty * i.unit_price, 0)
   const custom7Net    = custom7Gross  > 0 ? custom7Gross  / 1.07 : 0
@@ -66,21 +69,19 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
   const vat19     = (serviceTotal - svc_net) + (custom19Gross - custom19Net)
   const sumBrutto = grandTotal
 
-  // Position numbers
   let posIdx = 0
   const POS = {
     accommodation: ++posIdx,
-    breakfast:     hasBreakfast    ? ++posIdx : null,
+    breakfast:     hasBreakfast     ? ++posIdx : null,
     service:       serviceTotal > 0 ? ++posIdx : null,
     customStart:   posIdx + 1,
   }
 
   const addressLines = (inv.guest_address ?? '').split('\n').filter(Boolean) as string[]
 
-  // Guest label for stay bar
   const guestLabel = childCount > 0
     ? `${adultCount} Erw. + ${childCount} Kind${childCount !== 1 ? 'er' : ''}`
-    : `${adultCount} Erwachsene`
+    : `${adultCount} Erw.`
 
   return (
     <>
@@ -97,7 +98,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
             width: 210mm !important;
             min-height: 0 !important;
             height: auto !important;
-            padding: 9mm !important;
+            padding: 14mm !important;
             box-shadow: none !important;
             border: none !important;
             margin: 0 !important;
@@ -117,27 +118,27 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
       {/* ── A4 document ─────────────────────────────────────────────────────── */}
       <div className="print-outer py-8 px-4">
         <div className="page bg-white shadow-2xl mx-auto flex flex-col"
-             style={{ width: '794px', minHeight: '1123px', padding: '36px' }}>
+             style={{ width: '794px', minHeight: '1123px', padding: '52px' }}>
 
-          {/* ══ HEADER: Logo left · RECHNUNG + company info right ════════════ */}
-          <div className="flex items-start justify-between mb-3">
+          {/* ══ HEADER ════════════════════════════════════════════════════════ */}
+          <div className="flex items-start justify-between mb-6">
             <div className="flex-shrink-0">
-              <div className="bg-slate-800 rounded-xl px-4 py-3 inline-block">
+              <div className="bg-slate-800 rounded-xl px-5 py-4 inline-block">
                 <Image src="/logo.png" alt="Jägerstieg Hotel & Pension"
-                  width={140} height={70} className="object-contain" />
+                  width={160} height={80} className="object-contain" />
               </div>
             </div>
 
             <div className="text-right">
-              <p className="text-4xl font-black text-slate-900 tracking-tight leading-none mb-1">RECHNUNG</p>
-              <p className="text-sm text-slate-500">
+              <p className="text-5xl font-black text-slate-900 tracking-tight leading-none mb-1">RECHNUNG</p>
+              <p className="text-base text-slate-500 mt-1">
                 Nr.&nbsp;<strong className="text-slate-800 font-mono tracking-wide">{fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())}</strong>
               </p>
-              <p className="text-sm text-slate-500 mt-0.5">
+              <p className="text-base text-slate-500 mt-0.5">
                 Datum:&nbsp;<strong className="text-slate-700">{format(invoiceDate, 'dd.MM.yyyy')}</strong>
               </p>
-              <div className="mt-3 text-xs leading-relaxed border-t border-slate-100 pt-2.5">
-                <p className="font-bold text-slate-900 text-sm">Hotel-Pension Jägerstieg</p>
+              <div className="mt-4 text-sm leading-relaxed border-t border-slate-100 pt-3">
+                <p className="font-bold text-slate-900">Hotel-Pension Jägerstieg</p>
                 <p className="text-slate-600">Verwaltung und Vertrieb G. Cetin Holding GmbH</p>
                 <p className="text-slate-500">Von Eichendorf-Str. 16, 37539 Bad Grund</p>
                 <p className="mt-1 text-slate-500">Tel: +49 5327 2828 · info@jaegerstieg.de</p>
@@ -146,57 +147,24 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
             </div>
           </div>
 
-          {/* Full-width divider */}
-          <div className="border-t-2 border-slate-800 mb-3" />
+          {/* Divider */}
+          <div className="border-t-2 border-slate-800 mb-6" />
 
           {/* ══ GUEST ADDRESS ════════════════════════════════════════════════ */}
-          <div className="mb-3">
-            <p className="text-xs text-slate-400 mb-1">
+          <div className="mb-8">
+            <p className="text-xs text-slate-400 mb-2">
               Hotel-Pension Jägerstieg · Von Eichendorf-Str. 16 · 37539 Bad Grund
             </p>
-            <p className="font-semibold text-slate-900 text-sm">{inv.guest_name}</p>
+            <p className="font-semibold text-slate-900">{inv.guest_name}</p>
             {inv.guest_email && <p className="text-sm text-slate-500">{inv.guest_email}</p>}
             {addressLines.map((line: string, i: number) => (
               <p key={i} className="text-sm text-slate-600">{line}</p>
             ))}
           </div>
 
-          {/* ══ STAY INFO BAR ═════════════════════════════════════════════════ */}
-          <div className="rounded-xl bg-slate-800 text-white px-4 py-3 mb-3 grid grid-cols-5 gap-3 text-center text-sm">
-            <div>
-              <p className="text-xs text-slate-400 uppercase tracking-wide mb-0.5">Zimmer</p>
-              <p className="font-bold text-sm">{inv.room_name}</p>
-              <p className="text-xs text-slate-400">Nr. {inv.room_number}</p>
-            </div>
-            <div className="border-x border-slate-700 px-2">
-              <p className="text-xs text-slate-400 uppercase tracking-wide mb-0.5">Anreise</p>
-              <p className="font-bold text-sm">{format(checkin, 'dd.MM.yyyy')}</p>
-              <p className="text-xs text-slate-400">{format(checkin, 'HH:mm')} Uhr</p>
-            </div>
-            <div className="border-r border-slate-700 pr-2">
-              <p className="text-xs text-slate-400 uppercase tracking-wide mb-0.5">Abreise</p>
-              <p className="font-bold text-sm">{format(checkout, 'dd.MM.yyyy')}</p>
-              <p className="text-xs text-slate-400">{format(checkout, 'HH:mm')} Uhr</p>
-            </div>
-            <div className="border-r border-slate-700 pr-2">
-              <p className="text-xs text-slate-400 uppercase tracking-wide mb-0.5">Nächte</p>
-              <p className="font-black text-2xl leading-none">{nights}</p>
-              {inv.early_departure && inv.original_nights && (
-                <p className="text-xs text-amber-400 mt-0.5">von {inv.original_nights}</p>
-              )}
-            </div>
-            <div>
-              <p className="text-xs text-slate-400 uppercase tracking-wide mb-0.5">Gäste</p>
-              <p className="font-bold text-sm">{adultCount} Erw.</p>
-              {childCount > 0 && (
-                <p className="text-xs text-slate-400">{childCount} Kind{childCount !== 1 ? 'er' : ''}</p>
-              )}
-            </div>
-          </div>
-
           {/* Early departure warning */}
           {inv.early_departure && (
-            <div className="rounded-xl bg-amber-50 border border-amber-300 px-4 py-2 mb-3 flex items-center gap-3">
+            <div className="rounded-xl bg-amber-50 border border-amber-300 px-4 py-3 mb-5 flex items-center gap-3">
               <span>⚠️</span>
               <div>
                 <p className="text-sm font-bold text-amber-800">Vorzeitige Abreise</p>
@@ -210,28 +178,27 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           )}
 
           {/* ══ LINE ITEMS TABLE ═══════════════════════════════════════════════ */}
-          <table className="w-full text-sm mb-4 border-collapse">
+          <table className="w-full text-sm mb-6 border-collapse">
             <thead>
               <tr className="bg-slate-800 text-white text-xs uppercase tracking-wide">
-                <th className="px-3 py-2 text-left font-semibold rounded-tl-lg w-8">Pos.</th>
-                <th className="px-3 py-2 text-left font-semibold">Beschreibung</th>
-                <th className="px-3 py-2 text-center font-semibold w-12">Anz.</th>
-                <th className="px-3 py-2 text-right font-semibold w-28">Einzelpreis</th>
-                <th className="px-3 py-2 text-center font-semibold w-14">MwSt.</th>
-                <th className="px-3 py-2 text-right font-semibold w-28">Gesamt Netto</th>
-                <th className="px-3 py-2 text-right font-semibold rounded-tr-lg w-28">Gesamt Brutto</th>
+                <th className="px-3 py-3 text-left font-semibold rounded-tl-lg w-8">Pos.</th>
+                <th className="px-3 py-3 text-left font-semibold">Beschreibung</th>
+                <th className="px-3 py-3 text-center font-semibold w-12">Anz.</th>
+                <th className="px-3 py-3 text-right font-semibold w-28">Einzelpreis</th>
+                <th className="px-3 py-3 text-center font-semibold w-14">MwSt.</th>
+                <th className="px-3 py-3 text-right font-semibold w-28">Gesamt Netto</th>
+                <th className="px-3 py-3 text-right font-semibold rounded-tr-lg w-28">Gesamt Brutto</th>
               </tr>
             </thead>
             <tbody>
 
               {/* Pos 1: Übernachtung */}
               <tr className="border-b border-slate-100">
-                <td className="px-3 py-2 text-slate-400 text-xs align-top">{POS.accommodation}</td>
-                <td className="px-3 py-2 text-slate-800 align-top">
+                <td className="px-3 py-3 text-slate-400 text-xs align-top">{POS.accommodation}</td>
+                <td className="px-3 py-3 text-slate-800 align-top">
                   <span className="font-medium">Übernachtung</span>
                   <span className="block text-xs text-slate-400 mt-0.5">
-                    {inv.room_name} · Nr. {inv.room_number} · {format(checkin, 'dd.MM.')}–{format(checkout, 'dd.MM.yyyy')}
-                    {' · '}{guestLabel}
+                    {inv.room_name} · Zimmer Nr. {inv.room_number} · {format(checkin, 'dd.MM.yyyy')} {format(checkin, 'HH:mm')} Uhr – {format(checkout, 'dd.MM.yyyy')} {format(checkout, 'HH:mm')} Uhr · {guestLabel}
                   </span>
                   {inv.early_departure && (
                     <span className="inline-block mt-1 text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">
@@ -239,36 +206,36 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                     </span>
                   )}
                 </td>
-                <td className="px-3 py-2 text-center text-slate-600 align-top">{nights}</td>
-                <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(pricePerNight)}</td>
-                <td className="px-3 py-2 text-center text-slate-500 text-xs align-top">7 %</td>
-                <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(acc_net)}</td>
-                <td className="px-3 py-2 text-right font-semibold text-slate-800 align-top">{eur(accommodationGross)}</td>
+                <td className="px-3 py-3 text-center text-slate-600 align-top">{nights}</td>
+                <td className="px-3 py-3 text-right text-slate-600 align-top">{eur(pricePerNight)}</td>
+                <td className="px-3 py-3 text-center text-slate-500 text-xs align-top">7 %</td>
+                <td className="px-3 py-3 text-right text-slate-600 align-top">{eur(acc_net)}</td>
+                <td className="px-3 py-3 text-right font-semibold text-slate-800 align-top">{eur(accommodationGross)}</td>
               </tr>
 
-              {/* Pos 2: Frühstück */}
+              {/* Frühstück */}
               {hasBreakfast && (
                 <tr className="border-b border-slate-100">
-                  <td className="px-3 py-2 text-slate-400 text-xs align-top">{POS.breakfast}</td>
-                  <td className="px-3 py-2 text-slate-800 align-top">
+                  <td className="px-3 py-3 text-slate-400 text-xs align-top">{POS.breakfast}</td>
+                  <td className="px-3 py-3 text-slate-800 align-top">
                     <span className="font-medium">Frühstück</span>
                     <span className="block text-xs text-slate-400 mt-0.5">
                       {adultCount} Pers. × {nights} Nacht{nights !== 1 ? 'e' : ''}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-center text-slate-600 align-top">{adultCount * nights}</td>
-                  <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(breakfastPPP)}</td>
-                  <td className="px-3 py-2 text-center text-slate-500 text-xs align-top">7 %</td>
-                  <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(bfst_net)}</td>
-                  <td className="px-3 py-2 text-right font-semibold text-slate-800 align-top">{eur(breakfastGross)}</td>
+                  <td className="px-3 py-3 text-center text-slate-600 align-top">{adultCount * nights}</td>
+                  <td className="px-3 py-3 text-right text-slate-600 align-top">{eur(breakfastPPP)}</td>
+                  <td className="px-3 py-3 text-center text-slate-500 text-xs align-top">7 %</td>
+                  <td className="px-3 py-3 text-right text-slate-600 align-top">{eur(bfst_net)}</td>
+                  <td className="px-3 py-3 text-right font-semibold text-slate-800 align-top">{eur(breakfastGross)}</td>
                 </tr>
               )}
 
               {/* Zimmerservice */}
               {serviceTotal > 0 && (
                 <tr className="border-b border-slate-100">
-                  <td className="px-3 py-2 text-slate-400 text-xs align-top">{POS.service}</td>
-                  <td className="px-3 py-2 text-slate-800 align-top">
+                  <td className="px-3 py-3 text-slate-400 text-xs align-top">{POS.service}</td>
+                  <td className="px-3 py-3 text-slate-800 align-top">
                     <span className="font-medium">Zimmerservice</span>
                     {serviceItems.length > 0 && (
                       <ul className="mt-1 space-y-0.5">
@@ -280,29 +247,29 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                       </ul>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-center text-slate-400 text-xs align-top">—</td>
-                  <td className="px-3 py-2 text-right text-slate-400 text-xs align-top">—</td>
-                  <td className="px-3 py-2 text-center text-slate-500 text-xs align-top">19 %</td>
-                  <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(svc_net)}</td>
-                  <td className="px-3 py-2 text-right font-semibold text-slate-800 align-top">{eur(serviceTotal)}</td>
+                  <td className="px-3 py-3 text-center text-slate-400 text-xs align-top">—</td>
+                  <td className="px-3 py-3 text-right text-slate-400 text-xs align-top">—</td>
+                  <td className="px-3 py-3 text-center text-slate-500 text-xs align-top">19 %</td>
+                  <td className="px-3 py-3 text-right text-slate-600 align-top">{eur(svc_net)}</td>
+                  <td className="px-3 py-3 text-right font-semibold text-slate-800 align-top">{eur(serviceTotal)}</td>
                 </tr>
               )}
 
-              {/* Custom extra line items */}
+              {/* Custom line items */}
               {customItems.map((item, idx) => {
                 const gross = item.qty * item.unit_price
                 const net   = gross / (1 + item.vat_rate / 100)
                 return (
                   <tr key={item.id} className="border-b border-slate-100">
-                    <td className="px-3 py-2 text-slate-400 text-xs align-top">{POS.customStart + idx}</td>
-                    <td className="px-3 py-2 text-slate-800 align-top">
+                    <td className="px-3 py-3 text-slate-400 text-xs align-top">{POS.customStart + idx}</td>
+                    <td className="px-3 py-3 text-slate-800 align-top">
                       <span className="font-medium">{item.description || 'Sonstiges'}</span>
                     </td>
-                    <td className="px-3 py-2 text-center text-slate-600 align-top">{item.qty}</td>
-                    <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(item.unit_price)}</td>
-                    <td className="px-3 py-2 text-center text-slate-500 text-xs align-top">{item.vat_rate} %</td>
-                    <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(net)}</td>
-                    <td className="px-3 py-2 text-right font-semibold text-slate-800 align-top">{eur(gross)}</td>
+                    <td className="px-3 py-3 text-center text-slate-600 align-top">{item.qty}</td>
+                    <td className="px-3 py-3 text-right text-slate-600 align-top">{eur(item.unit_price)}</td>
+                    <td className="px-3 py-3 text-center text-slate-500 text-xs align-top">{item.vat_rate} %</td>
+                    <td className="px-3 py-3 text-right text-slate-600 align-top">{eur(net)}</td>
+                    <td className="px-3 py-3 text-right font-semibold text-slate-800 align-top">{eur(gross)}</td>
                   </tr>
                 )
               })}
@@ -311,41 +278,43 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           </table>
 
           {/* ══ TOTALS ════════════════════════════════════════════════════════ */}
-          <div className="flex items-start justify-between mb-4 gap-6">
-            <div className="text-xs text-slate-400 flex-1 pt-1 space-y-1">
+          <div className="flex items-start justify-between mb-6 gap-6">
+            <div className="text-xs text-slate-400 flex-1 pt-1">
               {inv.notes && <p className="text-slate-600 text-sm">{inv.notes}</p>}
             </div>
 
-            <div className="flex-shrink-0" style={{ width: '260px' }}>
+            <div className="flex-shrink-0" style={{ width: '270px' }}>
               <table className="w-full text-sm">
                 <tbody>
                   <tr className="border-b border-slate-100">
-                    <td className="py-1.5 text-slate-500">Summe Netto</td>
-                    <td className="py-1.5 text-right font-medium text-slate-700">{eur(sumNetto)}</td>
+                    <td className="py-2 text-slate-500">Summe Netto</td>
+                    <td className="py-2 text-right font-medium text-slate-700">{eur(sumNetto)}</td>
                   </tr>
                   <tr className="border-b border-slate-100">
-                    <td className="py-1.5 text-slate-500">MwSt. 7 %</td>
-                    <td className="py-1.5 text-right font-medium text-slate-700">{eur(vat7)}</td>
+                    <td className="py-2 text-slate-500">MwSt. 7 %</td>
+                    <td className="py-2 text-right font-medium text-slate-700">{eur(vat7)}</td>
                   </tr>
                   {(serviceTotal > 0 || custom19Gross > 0) && (
                     <tr className="border-b border-slate-100">
-                      <td className="py-1.5 text-slate-500">MwSt. 19 %</td>
-                      <td className="py-1.5 text-right font-medium text-slate-700">{eur(vat19)}</td>
+                      <td className="py-2 text-slate-500">MwSt. 19 %</td>
+                      <td className="py-2 text-right font-medium text-slate-700">{eur(vat19)}</td>
                     </tr>
                   )}
                   <tr>
                     <td colSpan={2} className="pt-2">
-                      <div className="flex justify-between items-center bg-slate-800 text-white px-4 py-2.5 rounded-lg">
+                      <div className="flex justify-between items-center bg-slate-800 text-white px-4 py-3 rounded-lg">
                         <span className="font-bold text-sm">Summe Brutto</span>
-                        <span className="font-black text-lg">{eur(sumBrutto)}</span>
+                        <span className="font-black text-xl">{eur(sumBrutto)}</span>
                       </div>
                     </td>
                   </tr>
                 </tbody>
               </table>
-              <div className="mt-2 flex justify-between items-center px-4 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm">
-                <span className="text-slate-500">Zahlungsart</span>
-                <span className="font-semibold text-slate-800">{PAY_LABELS[inv.payment_method] ?? inv.payment_method}</span>
+              {/* Zahlungsart: Bar erhalten style */}
+              <div className="mt-2.5 px-4 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm text-center">
+                <span className="font-semibold text-slate-800">
+                  Zahlungsart: {PAY_LABELS[inv.payment_method] ?? inv.payment_method}
+                </span>
               </div>
             </div>
           </div>
@@ -354,8 +323,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           <div className="flex-1" />
 
           {/* ══ FOOTER ════════════════════════════════════════════════════════ */}
-          <div className="border-t border-slate-200 pt-4 mt-3">
-            <p className="text-sm text-slate-700 mb-4">Zahlung nach Rechnungserhalt.</p>
+          <div className="border-t border-slate-200 pt-6 mt-4">
             <div className="flex items-end justify-between">
               <div>
                 <p className="text-xl text-slate-700" style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>
@@ -369,7 +337,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                 <p className="mt-1">Jägerstieg Hotel &amp; Pension · info@jaegerstieg.de</p>
               </div>
             </div>
-            <p className="text-center text-xs text-slate-300 mt-3 border-t border-slate-100 pt-2.5">
+            <p className="text-center text-xs text-slate-300 mt-4 border-t border-slate-100 pt-3">
               Vielen Dank für Ihren Aufenthalt! · Alle Preise inkl. MwSt.
             </p>
           </div>

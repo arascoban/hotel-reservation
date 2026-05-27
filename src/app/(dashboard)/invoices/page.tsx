@@ -80,6 +80,12 @@ interface Customer {
   country: string | null
 }
 
+interface Room {
+  room_number: string
+  name: string
+  room_types: { name: string } | null
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const PAY_LABELS: Record<string, string> = {
@@ -247,6 +253,7 @@ function EditModal({
   const supabase = createClient()
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState<string | null>(null)
+  const [rooms,  setRooms]  = useState<Room[]>([])
 
   const [guestName,    setGuestName]    = useState(inv.guest_name)
   const [guestEmail,   setGuestEmail]   = useState(inv.guest_email ?? '')
@@ -269,23 +276,24 @@ function EditModal({
     Array.isArray(inv.line_items) ? inv.line_items : []
   )
 
-  const roomLookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Load rooms for dropdown
+  useEffect(() => {
+    ;(supabase as any)
+      .from('rooms')
+      .select('room_number, name, room_types(name)')
+      .eq('is_active', true)
+      .order('sort_order')
+      .then(({ data }: { data: Room[] | null }) => { if (data) setRooms(data) })
+  }, [])
 
-  function handleRoomNumberChange(value: string) {
-    setRoomNumber(value)
-    if (roomLookupTimer.current) clearTimeout(roomLookupTimer.current)
-    if (!value.trim()) return
-    roomLookupTimer.current = setTimeout(async () => {
-      const { data } = await (supabase as any)
-        .from('rooms')
-        .select('name, room_types(name)')
-        .eq('room_number', value.trim())
-        .maybeSingle()
-      if (data) {
-        const typeName = (data as any).room_types?.name
-        if (typeName) setRoomName(typeName)
-      }
-    }, 400)
+  function handleRoomSelect(selectedNumber: string) {
+    const room = rooms.find(r => r.room_number === selectedNumber)
+    if (room) {
+      setRoomNumber(room.room_number)
+      setRoomName(room.room_types?.name ?? room.name)
+    } else {
+      setRoomNumber(selectedNumber)
+    }
   }
 
   async function handleSave() {
@@ -356,17 +364,27 @@ function EditModal({
               className={cn(inp, 'resize-none')} placeholder="Straße 1&#10;12345 Stadt&#10;Deutschland" />
           </Field>
 
-          {/* Room: type name (auto-filled) + number */}
+          {/* Room dropdown */}
           <div className="grid grid-cols-3 gap-4">
             <div className="col-span-2">
-              <Field label="Zimmertyp">
-                <input value={roomName} onChange={e => setRoomName(e.target.value)} className={inp}
-                  placeholder="Wird automatisch erkannt…" />
+              <Field label="Zimmer auswählen">
+                <select
+                  value={roomNumber}
+                  onChange={e => handleRoomSelect(e.target.value)}
+                  className={inp}
+                >
+                  <option value="">— Zimmer wählen —</option>
+                  {rooms.map(r => (
+                    <option key={r.room_number} value={r.room_number}>
+                      Zimmer {r.room_number} – {r.room_types?.name ?? r.name}
+                    </option>
+                  ))}
+                </select>
               </Field>
             </div>
-            <Field label="Zimmer-Nr.">
-              <input value={roomNumber} onChange={e => handleRoomNumberChange(e.target.value)}
-                className={inp} placeholder="z.B. 12" />
+            <Field label="Zimmertyp">
+              <input value={roomName} onChange={e => setRoomName(e.target.value)} className={inp}
+                placeholder="Wird automatisch gefüllt" />
             </Field>
           </div>
 
@@ -457,6 +475,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [searching,   setSearching]   = useState(false)
   const [saving,      setSaving]      = useState(false)
   const [error,       setError]       = useState<string | null>(null)
+  const [rooms,       setRooms]       = useState<Room[]>([])
 
   const [guestName,     setGuestName]     = useState('')
   const [guestEmail,    setGuestEmail]    = useState('')
@@ -477,8 +496,17 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [lineItems,     setLineItems]     = useState<LineItem[]>([])
   const [reservationId, setReservationId] = useState<string | null>(null)
 
-  const searchTimer    = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const roomLookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Load rooms for dropdown
+  useEffect(() => {
+    ;(supabase as any)
+      .from('rooms')
+      .select('room_number, name, room_types(name)')
+      .eq('is_active', true)
+      .order('sort_order')
+      .then(({ data }: { data: Room[] | null }) => { if (data) setRooms(data) })
+  }, [])
 
   function doSearch(v: string, tab: 'reservation' | 'customer') {
     if (searchTimer.current) clearTimeout(searchTimer.current)
@@ -518,21 +546,14 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     setCustResults([])
   }
 
-  function handleRoomNumberChange(value: string) {
-    setRoomNumber(value)
-    if (roomLookupTimer.current) clearTimeout(roomLookupTimer.current)
-    if (!value.trim()) return
-    roomLookupTimer.current = setTimeout(async () => {
-      const { data } = await (supabase as any)
-        .from('rooms')
-        .select('name, room_types(name)')
-        .eq('room_number', value.trim())
-        .maybeSingle()
-      if (data) {
-        const typeName = (data as any).room_types?.name
-        if (typeName) setRoomName(typeName)
-      }
-    }, 400)
+  function handleRoomSelect(selectedNumber: string) {
+    const room = rooms.find(r => r.room_number === selectedNumber)
+    if (room) {
+      setRoomNumber(room.room_number)
+      setRoomName(room.room_types?.name ?? room.name)
+    } else {
+      setRoomNumber(selectedNumber)
+    }
   }
 
   // ── Prefill from reservation ──────────────────────────────────────────────
@@ -751,17 +772,27 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                 className={cn(inp, 'resize-none')} placeholder="Straße 1&#10;12345 Stadt&#10;Deutschland" />
             </Field>
 
-            {/* Room: type name (auto-filled from number) + number */}
+            {/* Room dropdown */}
             <div className="grid grid-cols-3 gap-4">
               <div className="col-span-2">
-                <Field label="Zimmertyp">
-                  <input value={roomName} onChange={e => setRoomName(e.target.value)} className={inp}
-                    placeholder="Wird automatisch erkannt…" />
+                <Field label="Zimmer auswählen">
+                  <select
+                    value={roomNumber}
+                    onChange={e => handleRoomSelect(e.target.value)}
+                    className={inp}
+                  >
+                    <option value="">— Zimmer wählen —</option>
+                    {rooms.map(r => (
+                      <option key={r.room_number} value={r.room_number}>
+                        Zimmer {r.room_number} – {r.room_types?.name ?? r.name}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
               </div>
-              <Field label="Zimmer-Nr.">
-                <input value={roomNumber} onChange={e => handleRoomNumberChange(e.target.value)}
-                  className={inp} placeholder="z.B. 12" />
+              <Field label="Zimmertyp">
+                <input value={roomName} onChange={e => setRoomName(e.target.value)} className={inp}
+                  placeholder="Wird automatisch gefüllt" />
               </Field>
             </div>
 
