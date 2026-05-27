@@ -41,35 +41,48 @@ export default function SendEmailButton({
       const pageEl = document.querySelector('.page') as HTMLElement | null
       if (!pageEl) throw new Error('Invoice page element not found')
 
+      // ── Pre-fetch the logo as a data URL so html2canvas can embed it ──
+      // Next.js <Image> renders an optimised /_next/image?... URL which
+      // html2canvas cannot always load. We fetch /logo.png directly and
+      // replace every <img> src in the cloned document before capture.
+      let logoDataUrl = ''
+      try {
+        const blob      = await fetch('/logo.png').then(r => r.blob())
+        logoDataUrl     = await new Promise<string>((res, rej) => {
+          const reader        = new FileReader()
+          reader.onload       = e  => res(e.target!.result as string)
+          reader.onerror      = () => rej(new Error('Logo lesen fehlgeschlagen'))
+          reader.readAsDataURL(blob)
+        })
+      } catch { /* logo will just be missing — non-fatal */ }
+
       const canvas = await html2canvas(pageEl, {
         scale:           2,
         useCORS:         true,
         allowTaint:      false,
         backgroundColor: '#ffffff',
         logging:         false,
+        onclone: (clonedDoc) => {
+          if (logoDataUrl) {
+            clonedDoc.querySelectorAll('img').forEach(img => {
+              img.src = logoDataUrl
+            })
+          }
+        },
       })
 
-      // ── 2. Build the PDF (JPEG avoids PNG signature issues) ─────────
-      // Use JPEG — jsPDF reliably handles JPEG; PNG can trigger
-      // "wrong png signature" errors with some canvas content.
+      // ── 2. Build the PDF — single A4 page ──────────────────────────
+      // The invoice is designed to be exactly one A4 page; avoid multi-page
+      // logic which produced a blank second page.
       const imgData = canvas.toDataURL('image/jpeg', 0.92)
-
       const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-      const pdfW    = pdf.internal.pageSize.getWidth()    // 210 mm
-      const pdfH    = pdf.internal.pageSize.getHeight()   // 297 mm
+      const pdfW    = pdf.internal.pageSize.getWidth()   // 210 mm
+      const pdfH    = pdf.internal.pageSize.getHeight()  // 297 mm
       const imgH    = (canvas.height / canvas.width) * pdfW
-
-      // Standard multi-page pattern: place full image at negative y offset
-      // on each new page so the correct strip is visible (jsPDF clips to page).
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, imgH)
-      let heightLeft = imgH - pdfH
-      let position   = -pdfH
-      while (heightLeft > 0) {
-        pdf.addPage()
-        pdf.addImage(imgData, 'JPEG', 0, position, pdfW, imgH)
-        heightLeft -= pdfH
-        position   -= pdfH
-      }
+      // Scale down only if invoice somehow overflows one page, otherwise keep 1:1
+      const finalH  = Math.min(imgH, pdfH)
+      const finalW  = pdfW * (finalH / imgH)
+      pdf.addImage(imgData, 'JPEG', 0, 0, finalW, finalH)
 
       const pdfBase64 = pdf.output('datauristring').split(',')[1]
 
