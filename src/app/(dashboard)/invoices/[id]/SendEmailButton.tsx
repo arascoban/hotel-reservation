@@ -42,42 +42,33 @@ export default function SendEmailButton({
       if (!pageEl) throw new Error('Invoice page element not found')
 
       const canvas = await html2canvas(pageEl, {
-        scale:       2,
-        useCORS:     true,
-        allowTaint:  true,
+        scale:           2,
+        useCORS:         true,
+        allowTaint:      false,
         backgroundColor: '#ffffff',
-        logging:     false,
+        logging:         false,
       })
 
-      // ── 2. Build the PDF ────────────────────────────────────────────
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-      const pageWidth  = pdf.internal.pageSize.getWidth()   // 210 mm
-      const pageHeight = pdf.internal.pageSize.getHeight()  // 297 mm
+      // ── 2. Build the PDF (JPEG avoids PNG signature issues) ─────────
+      // Use JPEG — jsPDF reliably handles JPEG; PNG can trigger
+      // "wrong png signature" errors with some canvas content.
+      const imgData = canvas.toDataURL('image/jpeg', 0.92)
 
-      // Fit canvas to A4 — if taller than one page, scale to width and add pages
-      const canvasAspect   = canvas.height / canvas.width
-      const imgHeightMm    = pageWidth * canvasAspect
-      const dataUrl        = canvas.toDataURL('image/png')
+      const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const pdfW    = pdf.internal.pageSize.getWidth()    // 210 mm
+      const pdfH    = pdf.internal.pageSize.getHeight()   // 297 mm
+      const imgH    = (canvas.height / canvas.width) * pdfW
 
-      let yRemaining  = imgHeightMm
-      let yOffsetPx   = 0
-
-      while (yRemaining > 0) {
-        const sliceHeightMm = Math.min(yRemaining, pageHeight)
-        const sliceHeightPx = Math.round((sliceHeightMm / imgHeightMm) * canvas.height)
-
-        // Draw slice
-        const sliceCanvas           = document.createElement('canvas')
-        sliceCanvas.width           = canvas.width
-        sliceCanvas.height          = sliceHeightPx
-        const ctx                   = sliceCanvas.getContext('2d')!
-        ctx.drawImage(canvas, 0, -yOffsetPx)
-
-        pdf.addImage(sliceCanvas.toDataURL('image/png'), 'PNG', 0, 0, pageWidth, sliceHeightMm)
-
-        yOffsetPx   += sliceHeightPx
-        yRemaining  -= sliceHeightMm
-        if (yRemaining > 0) pdf.addPage()
+      // Standard multi-page pattern: place full image at negative y offset
+      // on each new page so the correct strip is visible (jsPDF clips to page).
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, imgH)
+      let heightLeft = imgH - pdfH
+      let position   = -pdfH
+      while (heightLeft > 0) {
+        pdf.addPage()
+        pdf.addImage(imgData, 'JPEG', 0, position, pdfW, imgH)
+        heightLeft -= pdfH
+        position   -= pdfH
       }
 
       const pdfBase64 = pdf.output('datauristring').split(',')[1]
