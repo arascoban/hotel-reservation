@@ -98,7 +98,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
             width: 210mm !important;
             min-height: 0 !important;
             height: auto !important;
-            padding: 14mm !important;
+            padding: 11mm !important;
             box-shadow: none !important;
             border: none !important;
             margin: 0 !important;
@@ -118,7 +118,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
       {/* ── A4 document ─────────────────────────────────────────────────────── */}
       <div className="print-outer py-8 px-4">
         <div className="page bg-white shadow-2xl mx-auto flex flex-col"
-             style={{ width: '794px', minHeight: '1123px', padding: '52px' }}>
+             style={{ width: '794px', minHeight: '1123px', padding: '42px' }}>
 
           {/* ══ HEADER ════════════════════════════════════════════════════════ */}
           <div className="flex items-start justify-between mb-6">
@@ -151,7 +151,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           <div className="border-t-2 border-slate-800 mb-6" />
 
           {/* ══ GUEST ADDRESS ════════════════════════════════════════════════ */}
-          <div className="mb-8">
+          <div className="mb-5">
             <p className="text-xs text-slate-400 mb-2">
               Hotel-Pension Jägerstieg · Von Eichendorf-Str. 16 · 37539 Bad Grund
             </p>
@@ -178,7 +178,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           )}
 
           {/* ══ LINE ITEMS TABLE ═══════════════════════════════════════════════ */}
-          <table className="w-full text-sm mb-6 border-collapse">
+          <table className="w-full text-sm mb-4 border-collapse">
             <thead>
               <tr className="bg-slate-800 text-white text-xs uppercase tracking-wide">
                 <th className="px-3 py-3 text-left font-semibold rounded-tl-lg w-8">Pos.</th>
@@ -192,13 +192,13 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
             </thead>
             <tbody>
 
-              {/* Pos 1: Übernachtung */}
+              {/* Pos 1: Room type as main description */}
               <tr className="border-b border-slate-100">
                 <td className="px-3 py-3 text-slate-400 text-xs align-top">{POS.accommodation}</td>
                 <td className="px-3 py-3 text-slate-800 align-top">
-                  <span className="font-medium">Übernachtung</span>
+                  <span className="font-medium">{inv.room_name || 'Übernachtung'}</span>
                   <span className="block text-xs text-slate-400 mt-0.5">
-                    {inv.room_name} · Zimmer Nr. {inv.room_number} · {format(checkin, 'dd.MM.yyyy')} {format(checkin, 'HH:mm')} Uhr – {format(checkout, 'dd.MM.yyyy')} {format(checkout, 'HH:mm')} Uhr · {guestLabel}
+                    Zimmer Nr. {inv.room_number} · {format(checkin, 'dd.MM.yyyy')} {format(checkin, 'HH:mm')} Uhr – {format(checkout, 'dd.MM.yyyy')} {format(checkout, 'HH:mm')} Uhr · {guestLabel}
                   </span>
                   {inv.early_departure && (
                     <span className="inline-block mt-1 text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">
@@ -278,7 +278,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           </table>
 
           {/* ══ TOTALS ════════════════════════════════════════════════════════ */}
-          <div className="flex items-start justify-between mb-6 gap-6">
+          <div className="flex items-start justify-between mb-4 gap-6">
             <div className="text-xs text-slate-400 flex-1 pt-1">
               {inv.notes && <p className="text-slate-600 text-sm">{inv.notes}</p>}
             </div>
@@ -323,8 +323,10 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           <div className="flex-1" />
 
           {/* ══ FOOTER ════════════════════════════════════════════════════════ */}
-          <div className="border-t border-slate-200 pt-6 mt-4">
-            <div className="flex items-end justify-between">
+          <div className="border-t border-slate-200 pt-4 mt-2">
+
+            {/* Signature row */}
+            <div className="flex items-end justify-between mb-4">
               <div>
                 <p className="text-xl text-slate-700" style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>
                   A. Eddie Çetin
@@ -337,7 +339,24 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                 <p className="mt-1">Jägerstieg Hotel &amp; Pension · info@jaegerstieg.de</p>
               </div>
             </div>
-            <p className="text-center text-xs text-slate-300 mt-4 border-t border-slate-100 pt-3">
+
+            {/* Bank details + legal */}
+            <div className="border-t border-slate-100 pt-3 grid grid-cols-2 gap-x-8 text-xs text-slate-500">
+              <div className="space-y-0.5">
+                <p className="font-semibold text-slate-700 mb-1">Bankverbindung</p>
+                <p>HASPA HAMBURG</p>
+                <p>Konto Inhaber: Aaron Eddie Cetin</p>
+                <p>IBAN: DE33 2005 0550 1501 0613 43</p>
+                <p>BIC: HASPDEHHXXX</p>
+              </div>
+              <div className="space-y-0.5">
+                <p className="font-semibold text-slate-700 mb-1">Rechtliche Angaben</p>
+                <p>Amtsgericht Oldenburg HRB 200157</p>
+                <p>St.Nr.: 35 / 202 / 02346</p>
+              </div>
+            </div>
+
+            <p className="text-center text-xs text-slate-300 mt-3 border-t border-slate-100 pt-2.5">
               Vielen Dank für Ihren Aufenthalt! · Alle Preise inkl. MwSt.
             </p>
           </div>
