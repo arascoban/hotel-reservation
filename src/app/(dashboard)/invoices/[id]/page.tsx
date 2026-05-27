@@ -61,9 +61,11 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
   const hasRoom2          = room2Gross > 0 && !!inv.room2_number
   const room2CheckinDate  = inv.room2_checkin_at  ? new Date(inv.room2_checkin_at)  : checkin
   const room2CheckoutDate = inv.room2_checkout_at ? new Date(inv.room2_checkout_at) : checkout
-  const room2Nights       = inv.room2_checkin_at && inv.room2_checkout_at
+  const room2NightsCalc    = inv.room2_checkin_at && inv.room2_checkout_at
     ? Math.max(1, Math.round((room2CheckoutDate.getTime() - room2CheckinDate.getTime()) / 86400000))
     : nights
+  // Prefer the explicitly stored night count; fall back to date calculation
+  const room2DisplayNights = ((inv.room2_nights ?? room2NightsCalc) || 1) as number
   const room2AdultCount    = (inv.room2_guest_count ?? adultCount) as number
   const room2ChildCountNum = (inv.room2_child_count ?? 0) as number
   const room2GuestLabel    = room2ChildCountNum > 0
@@ -72,12 +74,11 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
 
   // Breakfast: extract from EACH room's gross price separately
   const room1BreakfastGross = hasBreakfast ? adultCount * nights * breakfastPPP : 0
-  const room2BreakfastGross = hasRoom2 && hasBreakfast ? room2AdultCount * room2Nights * breakfastPPP : 0
+  const room2BreakfastGross = hasRoom2 && hasBreakfast ? room2AdultCount * room2DisplayNights * breakfastPPP : 0
   const breakfastGross      = room1BreakfastGross + room2BreakfastGross
-  // For the Anz column: show person-nights (single room) or total persons (2 rooms)
+  // Breakfast Anz: person-nights (single room) or total persons (2 rooms)
   const totalBfstPersons    = adultCount + (hasRoom2 ? room2AdultCount : 0)
   const bfstAnz             = hasRoom2 ? totalBfstPersons : adultCount * nights
-  // Einzelpreis per Anz unit (ppp for single-room, total-per-person for 2-room)
   const bfstEinzel          = hasRoom2 && totalBfstPersons > 0
     ? breakfastGross / totalBfstPersons
     : breakfastPPP
@@ -86,8 +87,9 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
   const accommodationGross      = totalPrice - room1BreakfastGross
   const room2AccommodationGross = hasRoom2 ? room2Gross - room2BreakfastGross : 0
 
-  const grandTotal   = totalPrice + serviceTotal + customTotal
-  const pricePerNight = nights > 0 ? accommodationGross / nights : accommodationGross
+  const grandTotal         = totalPrice + serviceTotal + customTotal
+  const pricePerNight      = nights > 0 ? accommodationGross / nights : accommodationGross
+  const room2PricePerNight = room2DisplayNights > 0 ? room2AccommodationGross / room2DisplayNights : room2AccommodationGross
 
   // Net amounts at applicable VAT rates
   const acc_net     = accommodationGross / (1 + BREAKFAST_VAT)
@@ -237,8 +239,8 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                     </span>
                   )}
                 </td>
-                <td className="px-3 py-2 text-center text-slate-600 align-top">{hasRoom2 ? 1 : nights}</td>
-                <td className="px-3 py-2 text-right text-slate-600 align-top">{hasRoom2 ? eur(accommodationGross) : eur(pricePerNight)}</td>
+                <td className="px-3 py-2 text-center text-slate-600 align-top">{nights}</td>
+                <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(pricePerNight)}</td>
                 <td className="px-3 py-2 text-center text-slate-500 text-xs align-top">7 %</td>
                 <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(acc_net)}</td>
                 <td className="px-3 py-2 text-right font-semibold text-slate-800 align-top">{eur(accommodationGross)}</td>
@@ -254,8 +256,8 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                       Zimmer Nr. {inv.room2_number} · {format(room2CheckinDate, 'dd.MM.yyyy')} {format(room2CheckinDate, 'HH:mm')} Uhr – {format(room2CheckoutDate, 'dd.MM.yyyy')} {format(room2CheckoutDate, 'HH:mm')} Uhr · {room2GuestLabel}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-center text-slate-600 align-top">1</td>
-                  <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(room2AccommodationGross)}</td>
+                  <td className="px-3 py-2 text-center text-slate-600 align-top">{room2DisplayNights}</td>
+                  <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(room2PricePerNight)}</td>
                   <td className="px-3 py-2 text-center text-slate-500 text-xs align-top">7 %</td>
                   <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(room2AccNet)}</td>
                   <td className="px-3 py-2 text-right font-semibold text-slate-800 align-top">{eur(room2AccommodationGross)}</td>

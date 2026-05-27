@@ -50,6 +50,7 @@ interface Invoice {
   room2_total_price: number | null
   room2_checkin_at: string | null
   room2_checkout_at: string | null
+  room2_nights: number | null
   room2_guest_count: number | null
   room2_child_count: number | null
   created_at: string
@@ -288,6 +289,7 @@ function EditModal({
   const [room2TotalPrice,  setRoom2TotalPrice]  = useState(String(inv.room2_total_price ?? ''))
   const [room2CheckinAt,   setRoom2CheckinAt]   = useState(inv.room2_checkin_at  ? toLocalDatetime(inv.room2_checkin_at)  : '')
   const [room2CheckoutAt,  setRoom2CheckoutAt]  = useState(inv.room2_checkout_at ? toLocalDatetime(inv.room2_checkout_at) : '')
+  const [room2Nights,      setRoom2Nights]      = useState(String(inv.room2_nights ?? ''))
   const [room2GuestCount,  setRoom2GuestCount]  = useState(String(inv.room2_guest_count ?? 1))
   const [room2ChildCount2, setRoom2ChildCount2] = useState(String(inv.room2_child_count ?? 0))
 
@@ -347,6 +349,7 @@ function EditModal({
       room2_total_price:          hasRoom2 && room2TotalPrice  ? parseFloat(room2TotalPrice) || null   : null,
       room2_checkin_at:           hasRoom2 && room2CheckinAt   ? new Date(room2CheckinAt).toISOString()  : null,
       room2_checkout_at:          hasRoom2 && room2CheckoutAt  ? new Date(room2CheckoutAt).toISOString() : null,
+      room2_nights:               hasRoom2 && room2Nights      ? parseInt(room2Nights) || null           : null,
       room2_guest_count:          hasRoom2                     ? parseInt(room2GuestCount)  || 1         : null,
       room2_child_count:          hasRoom2                     ? parseInt(room2ChildCount2) || 0         : null,
     }
@@ -423,9 +426,10 @@ function EditModal({
                   if (checked) {
                     if (!room2CheckinAt)  setRoom2CheckinAt(checkinAt)
                     if (!room2CheckoutAt) setRoom2CheckoutAt(checkoutAt)
+                    if (!room2Nights)     setRoom2Nights(nights)
                   } else {
                     setRoom2Number(''); setRoom2Name(''); setRoom2TotalPrice('')
-                    setRoom2CheckinAt(''); setRoom2CheckoutAt('')
+                    setRoom2CheckinAt(''); setRoom2CheckoutAt(''); setRoom2Nights('')
                     setRoom2GuestCount('1'); setRoom2ChildCount2('0')
                   }
                 }}
@@ -453,7 +457,7 @@ function EditModal({
                       placeholder="z.B. 90.00" />
                   </Field>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <Field label="Anreise (Zimmer 2)">
                     <input type="datetime-local" value={room2CheckinAt}
                       onChange={e => setRoom2CheckinAt(e.target.value)} className={inp} />
@@ -461,6 +465,10 @@ function EditModal({
                   <Field label="Abreise (Zimmer 2)">
                     <input type="datetime-local" value={room2CheckoutAt}
                       onChange={e => setRoom2CheckoutAt(e.target.value)} className={inp} />
+                  </Field>
+                  <Field label="Nächte (Zimmer 2)">
+                    <input type="number" min={1} value={room2Nights}
+                      onChange={e => setRoom2Nights(e.target.value)} className={inp} />
                   </Field>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -590,6 +598,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [room2TotalPrice,  setRoom2TotalPrice]  = useState('')
   const [room2CheckinAt,   setRoom2CheckinAt]   = useState('')
   const [room2CheckoutAt,  setRoom2CheckoutAt]  = useState('')
+  const [room2Nights,      setRoom2Nights]      = useState('')
   const [room2GuestCount,  setRoom2GuestCount]  = useState('1')
   const [room2ChildCount2, setRoom2ChildCount2] = useState('0')
 
@@ -750,6 +759,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       room2_total_price:          hasRoom2 && room2TotalPrice  ? parseFloat(room2TotalPrice) || null   : null,
       room2_checkin_at:           hasRoom2 && room2CheckinAt   ? new Date(room2CheckinAt).toISOString()  : null,
       room2_checkout_at:          hasRoom2 && room2CheckoutAt  ? new Date(room2CheckoutAt).toISOString() : null,
+      room2_nights:               hasRoom2 && room2Nights      ? parseInt(room2Nights) || null           : null,
       room2_guest_count:          hasRoom2                     ? parseInt(room2GuestCount)  || 1         : null,
       room2_child_count:          hasRoom2                     ? parseInt(room2ChildCount2) || 0         : null,
       created_by:                 user.user?.email ?? null,
@@ -913,9 +923,10 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                     if (checked) {
                       if (!room2CheckinAt)  setRoom2CheckinAt(checkinAt)
                       if (!room2CheckoutAt) setRoom2CheckoutAt(checkoutAt)
+                      if (!room2Nights)     setRoom2Nights(nights)
                     } else {
                       setRoom2Number(''); setRoom2Name(''); setRoom2TotalPrice('')
-                      setRoom2CheckinAt(''); setRoom2CheckoutAt('')
+                      setRoom2CheckinAt(''); setRoom2CheckoutAt(''); setRoom2Nights('')
                       setRoom2GuestCount('1'); setRoom2ChildCount2('0')
                     }
                   }}
@@ -943,7 +954,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                         placeholder="z.B. 90.00" />
                     </Field>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <Field label="Anreise (Zimmer 2)">
                       <input type="datetime-local" value={room2CheckinAt}
                         onChange={e => setRoom2CheckinAt(e.target.value)} className={inp} />
@@ -951,6 +962,10 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                     <Field label="Abreise (Zimmer 2)">
                       <input type="datetime-local" value={room2CheckoutAt}
                         onChange={e => setRoom2CheckoutAt(e.target.value)} className={inp} />
+                    </Field>
+                    <Field label="Nächte (Zimmer 2)">
+                      <input type="number" min={1} value={room2Nights}
+                        onChange={e => setRoom2Nights(e.target.value)} className={inp} />
                     </Field>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
