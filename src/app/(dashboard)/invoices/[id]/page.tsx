@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound }      from 'next/navigation'
-import Image             from 'next/image'
 import { format }        from 'date-fns'
 import { de }            from 'date-fns/locale'
 import PrintButton       from '../../reservations/[id]/print/PrintButton'
@@ -172,8 +171,10 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           <div className="flex items-start justify-between mb-4">
             <div className="flex-shrink-0">
               <div className="bg-slate-800 rounded-xl px-4 py-3 inline-block">
-                <Image src="/logo.png" alt="Jägerstieg Hotel & Pension"
-                  width={150} height={72} className="object-contain" />
+                {/* Plain <img> so html2canvas can load it directly — Next.js <Image> uses /_next/image?... which html2canvas cannot capture */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/logo.png" alt="Jägerstieg Hotel & Pension"
+                  width={150} height={72} className="object-contain" crossOrigin="anonymous" />
               </div>
             </div>
 

@@ -43,46 +43,15 @@ export default function SendEmailButton({
       const pageEl = document.querySelector('.page') as HTMLElement | null
       if (!pageEl) throw new Error('Invoice page element not found')
 
-      // ── Pre-fetch the logo as a data URL so html2canvas can embed it ──
-      // Next.js <Image> renders an optimised /_next/image?... URL which
-      // html2canvas cannot always load. We fetch /logo.png directly and
-      // replace every <img> src in the cloned document before capture.
-      let logoDataUrl = ''
-      try {
-        const blob      = await fetch('/logo.png').then(r => r.blob())
-        logoDataUrl     = await new Promise<string>((res, rej) => {
-          const reader        = new FileReader()
-          reader.onload       = e  => res(e.target!.result as string)
-          reader.onerror      = () => rej(new Error('Logo lesen fehlgeschlagen'))
-          reader.readAsDataURL(blob)
-        })
-      } catch { /* logo will just be missing — non-fatal */ }
-
+      // The invoice page uses a plain <img src="/logo.png"> (not Next.js <Image>)
+      // so html2canvas can load it directly via same-origin fetch with CORS.
       const canvas = await html2canvas(pageEl, {
         scale:           2,
         useCORS:         true,
         allowTaint:      false,
         backgroundColor: '#ffffff',
         logging:         false,
-        imageTimeout:    0,   // don't time out waiting for images
-        onclone: async (clonedDoc) => {
-          if (!logoDataUrl) return
-          const imgs = Array.from(clonedDoc.querySelectorAll('img'))
-          await Promise.all(imgs.map(img => {
-            // Next.js <Image> uses srcset which takes priority over src —
-            // remove it so the data URL we set on src is actually used.
-            img.removeAttribute('srcset')
-            img.removeAttribute('sizes')
-            img.removeAttribute('loading')
-            img.src = logoDataUrl
-            if (img.complete && img.naturalWidth > 0) return Promise.resolve()
-            return new Promise<void>(resolve => {
-              img.addEventListener('load',  () => resolve(), { once: true })
-              img.addEventListener('error', () => resolve(), { once: true })
-              setTimeout(resolve, 5000)
-            })
-          }))
-        },
+        imageTimeout:    0,
       })
 
       // ── 2. Build the PDF — single A4 page ──────────────────────────
