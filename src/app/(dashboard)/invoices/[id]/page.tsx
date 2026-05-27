@@ -174,7 +174,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                 {/* Plain <img> so html2canvas can load it directly — Next.js <Image> uses /_next/image?... which html2canvas cannot capture */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/logo.png" alt="Jägerstieg Hotel & Pension"
-                  width={150} height={72} className="object-contain" crossOrigin="anonymous" />
+                  width={150} height={72} className="object-contain" />
               </div>
             </div>
 
