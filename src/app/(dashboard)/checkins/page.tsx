@@ -4,8 +4,17 @@ import { de } from 'date-fns/locale'
 import ReservationTable from '@/components/Reservations/ReservationTable'
 import type { ReservationWithRoom } from '@/types/database'
 import { isAdminUser, deduplicateReservations } from '@/lib/admin'
-import { formatDateTime } from '@/lib/reservations'
 import CheckinsControls from './CheckinsControls'
+
+// Reads date+time directly from the stored ISO string so no timezone
+// conversion happens on the server (timestamps are stored as +02:00).
+// "2025-06-01T13:00:00+02:00" → "01.06.2025 13:00"
+function printDateTime(iso: string): string {
+  const [datePart, rest] = iso.split('T')
+  const [y, m, d] = datePart.split('-')
+  const time = rest.slice(0, 5)
+  return `${d}.${m}.${y} ${time}`
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -131,6 +140,8 @@ export default async function CheckInsPage({
                 <tr>
                   <th>Gast</th>
                   <th>Zimmer</th>
+                  <th>Zimmertyp</th>
+                  <th>Personen</th>
                   <th>Anreise</th>
                   <th>Abreise</th>
                   <th>Bezahlt</th>
@@ -142,14 +153,14 @@ export default async function CheckInsPage({
               <tbody>
                 {reservations.map(r => {
                   const payClass =
-                    r.payment_status === 'paid'         ? 'pay-yes'
+                    r.payment_status === 'paid'           ? 'pay-yes'
                     : r.payment_status === 'deposit_paid' ? 'pay-deposit'
                     : 'pay-no'
 
                   const payLabel =
-                    r.payment_status === 'paid'         ? 'Ja'
+                    r.payment_status === 'paid'           ? 'Ja'
                     : r.payment_status === 'deposit_paid' ? 'Anzahlung'
-                    : r.payment_status === 'refunded'   ? 'Erstattet'
+                    : r.payment_status === 'refunded'     ? 'Erstattet'
                     : 'Nein'
 
                   return (
@@ -158,8 +169,10 @@ export default async function CheckInsPage({
                       <td style={{ whiteSpace: 'nowrap' }}>
                         {r.rooms.name}&nbsp;#{r.rooms.room_number}
                       </td>
-                      <td style={{ whiteSpace: 'nowrap' }}>{formatDateTime(r.checkin_at)}</td>
-                      <td style={{ whiteSpace: 'nowrap' }}>{formatDateTime(r.checkout_at)}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{r.rooms.room_types.name}</td>
+                      <td style={{ textAlign: 'center' }}>{r.guest_count}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{printDateTime(r.checkin_at)}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{printDateTime(r.checkout_at)}</td>
                       <td className={payClass}>{payLabel}</td>
                       <td>{PAY_METHOD_LABELS[r.payment_method] ?? r.payment_method}</td>
                       <td style={{ whiteSpace: 'nowrap' }}>
