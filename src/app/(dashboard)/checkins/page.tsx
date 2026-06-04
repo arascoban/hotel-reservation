@@ -6,14 +6,15 @@ import type { ReservationWithRoom } from '@/types/database'
 import { isAdminUser, deduplicateReservations } from '@/lib/admin'
 import CheckinsControls from './CheckinsControls'
 
-// Reads date+time directly from the stored ISO string so no timezone
-// conversion happens on the server (timestamps are stored as +02:00).
-// "2025-06-01T13:00:00+02:00" → "01.06.2025 13:00"
-function printDateTime(iso: string): string {
-  const [datePart, rest] = iso.split('T')
+// Parse directly from ISO string — no timezone conversion on the server.
+// "2025-06-01T13:00:00+02:00" → { date: "01.06.2025", time: "13:00" }
+function printDate(iso: string): string {
+  const [datePart] = iso.split('T')
   const [y, m, d] = datePart.split('-')
-  const time = rest.slice(0, 5)
-  return `${d}.${m}.${y} ${time}`
+  return `${d}.${m}.${y}`
+}
+function printTime(iso: string): string {
+  return iso.split('T')[1].slice(0, 5)
 }
 
 export const dynamic = 'force-dynamic'
@@ -70,26 +71,131 @@ export default async function CheckInsPage({
       {/* ── Print-only styles ────────────────────────────────────────────── */}
       <style>{`
         @media print {
+          @page { margin: 14mm 12mm; size: A4 landscape; }
+
           aside, .no-print { display: none !important; }
           .lg\\:ml-64 { margin-left: 0 !important; }
           .print-only { display: block !important; }
-          body { font-family: Arial, sans-serif; font-size: 11px; color: #000; }
 
-          .print-header { margin-bottom: 12px; }
-          .print-header h2 { font-size: 17px; margin: 0 0 2px; }
-          .print-header p  { font-size: 11px; margin: 0; color: #555; }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            font-size: 10px;
+            color: #1e293b;
+            background: white;
+          }
 
-          .print-table { width: 100%; border-collapse: collapse; margin-top: 0; }
-          .print-table th,
-          .print-table td { border: 1px solid #bbb; padding: 5px 7px; text-align: left; vertical-align: top; word-break: break-word; }
-          .print-table th { background: #e8e8e8; font-weight: bold; font-size: 10px; white-space: nowrap; }
-          .print-table tr:nth-child(even) td { background: #f7f7f7; }
+          /* ── Page header ── */
+          .ph {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #1e293b;
+          }
+          .ph-title  { font-size: 19px; font-weight: 800; margin: 0 0 3px; color: #1e293b; }
+          .ph-sub    { font-size: 11px; color: #64748b; margin: 0; }
+          .ph-right  { text-align: right; font-size: 9px; color: #94a3b8; line-height: 1.6; }
+          .ph-hotel  { font-size: 11px; font-weight: 700; color: #475569; }
 
-          .pay-yes     { color: #166534; font-weight: 600; }
-          .pay-deposit { color: #854d0e; font-weight: 600; }
-          .pay-no      { color: #991b1b; font-weight: 600; }
+          /* ── Stats strip ── */
+          .ps { display: flex; gap: 10px; margin-bottom: 14px; }
+          .ps-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 7px 14px;
+            min-width: 90px;
+          }
+          .ps-val { font-size: 20px; font-weight: 800; color: #1e293b; line-height: 1; }
+          .ps-lbl { font-size: 9px; color: #94a3b8; margin-top: 2px; }
 
-          .notes-cell { max-width: 180px; font-size: 10px; color: #444; }
+          /* ── Table wrapper (rounded corners) ── */
+          .pt-wrap {
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+          }
+
+          /* ── Table ── */
+          .pt { width: 100%; border-collapse: collapse; }
+
+          .pt thead tr { background: #1e293b; }
+          .pt th {
+            background: #1e293b;
+            color: #cbd5e1;
+            font-size: 8.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            padding: 9px 10px;
+            text-align: left;
+            white-space: nowrap;
+            border: none;
+          }
+          .pt th.center { text-align: center; }
+          .pt th.right  { text-align: right; }
+
+          .pt td {
+            padding: 9px 10px;
+            vertical-align: top;
+            border-bottom: 1px solid #f1f5f9;
+            color: #1e293b;
+          }
+          .pt tbody tr:last-child td { border-bottom: none; }
+          .pt tbody tr:nth-child(even) td { background: #f8fafc; }
+          .pt tbody tr:nth-child(odd)  td { background: #ffffff; }
+
+          /* Column widths */
+          .cw-guest  { width: 15%; }
+          .cw-room   { width: 14%; }
+          .cw-pax    { width: 5%;  text-align: center; }
+          .cw-date   { width: 11%; }
+          .cw-paid   { width: 10%; }
+          .cw-method { width: 9%;  }
+          .cw-price  { width: 8%;  text-align: right; }
+          .cw-notes  { width: 18%; }
+
+          /* Guest cell */
+          .g-name  { font-weight: 700; font-size: 11px; }
+
+          /* Room cell — name + type stacked */
+          .r-name  { font-weight: 700; font-size: 11px; }
+          .r-type  { font-size: 9px; color: #64748b; margin-top: 2px; }
+
+          /* Date cells — date + time stacked */
+          .d-date  { font-weight: 600; font-size: 10px; }
+          .d-time  { font-size: 10px; color: #64748b; }
+
+          /* Payment badges */
+          .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 9px;
+            font-weight: 700;
+            white-space: nowrap;
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
+          }
+          .b-paid     { background: #dcfce7; color: #166534; }
+          .b-deposit  { background: #fef9c3; color: #854d0e; }
+          .b-unpaid   { background: #fee2e2; color: #991b1b; }
+          .b-refunded { background: #f1f5f9; color: #475569; }
+
+          .pax-center { text-align: center; font-weight: 600; }
+          .price-right { text-align: right; font-weight: 600; }
+          .notes-cell { font-size: 9px; color: #475569; line-height: 1.5; }
+
+          /* ── Footer ── */
+          .pf {
+            margin-top: 12px;
+            padding-top: 8px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 9px;
+            color: #94a3b8;
+          }
         }
 
         /* Hidden on screen */
@@ -125,66 +231,134 @@ export default async function CheckInsPage({
           <ReservationTable reservations={reservations} />
         </div>
 
-        {/* ── Print-only table ──────────────────────────────────────────── */}
+        {/* ── Print-only layout ─────────────────────────────────────────── */}
         <div className="print-only">
-          <div className="print-header">
-            <h2>{title}</h2>
-            <p>{subtitle}</p>
+
+          {/* Header */}
+          <div className="ph">
+            <div>
+              <p className="ph-title">{title}</p>
+              <p className="ph-sub">{subtitle}</p>
+            </div>
+            <div className="ph-right">
+              <p className="ph-hotel">Jägerstieg Hotel &amp; Pension</p>
+              <p>Gedruckt: {format(now, 'dd.MM.yyyy HH:mm')}</p>
+            </div>
+          </div>
+
+          {/* Stats strip */}
+          <div className="ps">
+            <div className="ps-card">
+              <div className="ps-val">{reservations.length}</div>
+              <div className="ps-lbl">Erwartet</div>
+            </div>
+            <div className="ps-card">
+              <div className="ps-val">{arriving.length}</div>
+              <div className="ps-lbl">Ausstehend</div>
+            </div>
+            <div className="ps-card">
+              <div className="ps-val">{checkedIn.length}</div>
+              <div className="ps-lbl">Eingecheckt</div>
+            </div>
           </div>
 
           {reservations.length === 0 ? (
             <p>Keine Ankünfte gefunden.</p>
           ) : (
-            <table className="print-table">
-              <thead>
-                <tr>
-                  <th>Gast</th>
-                  <th>Zimmer</th>
-                  <th>Zimmertyp</th>
-                  <th>Personen</th>
-                  <th>Anreise</th>
-                  <th>Abreise</th>
-                  <th>Bezahlt</th>
-                  <th>Zahlungsart</th>
-                  <th>Gesamtpreis</th>
-                  <th>Interne Notizen</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reservations.map(r => {
-                  const payClass =
-                    r.payment_status === 'paid'           ? 'pay-yes'
-                    : r.payment_status === 'deposit_paid' ? 'pay-deposit'
-                    : 'pay-no'
+            <div className="pt-wrap">
+              <table className="pt">
+                <colgroup>
+                  <col className="cw-guest" />
+                  <col className="cw-room" />
+                  <col className="cw-pax" />
+                  <col className="cw-date" />
+                  <col className="cw-date" />
+                  <col className="cw-paid" />
+                  <col className="cw-method" />
+                  <col className="cw-price" />
+                  <col className="cw-notes" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Gast</th>
+                    <th>Zimmer &amp; Typ</th>
+                    <th className="center">Pers.</th>
+                    <th>Anreise</th>
+                    <th>Abreise</th>
+                    <th>Bezahlt</th>
+                    <th>Zahlungsart</th>
+                    <th className="right">Gesamt</th>
+                    <th>Interne Notizen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reservations.map(r => {
+                    const badgeClass =
+                      r.payment_status === 'paid'           ? 'badge b-paid'
+                      : r.payment_status === 'deposit_paid' ? 'badge b-deposit'
+                      : r.payment_status === 'refunded'     ? 'badge b-refunded'
+                      : 'badge b-unpaid'
 
-                  const payLabel =
-                    r.payment_status === 'paid'           ? 'Ja'
-                    : r.payment_status === 'deposit_paid' ? 'Anzahlung'
-                    : r.payment_status === 'refunded'     ? 'Erstattet'
-                    : 'Nein'
+                    const payLabel =
+                      r.payment_status === 'paid'           ? 'Bezahlt'
+                      : r.payment_status === 'deposit_paid' ? 'Anzahlung'
+                      : r.payment_status === 'refunded'     ? 'Erstattet'
+                      : 'Offen'
 
-                  return (
-                    <tr key={r.id}>
-                      <td>{r.guest_name}</td>
-                      <td style={{ whiteSpace: 'nowrap' }}>
-                        {r.rooms.name}&nbsp;#{r.rooms.room_number}
-                      </td>
-                      <td style={{ whiteSpace: 'nowrap' }}>{r.rooms.room_types.name}</td>
-                      <td style={{ textAlign: 'center' }}>{r.guest_count}</td>
-                      <td style={{ whiteSpace: 'nowrap' }}>{printDateTime(r.checkin_at)}</td>
-                      <td style={{ whiteSpace: 'nowrap' }}>{printDateTime(r.checkout_at)}</td>
-                      <td className={payClass}>{payLabel}</td>
-                      <td>{PAY_METHOD_LABELS[r.payment_method] ?? r.payment_method}</td>
-                      <td style={{ whiteSpace: 'nowrap' }}>
-                        {r.total_price != null ? `€${r.total_price.toFixed(2)}` : '—'}
-                      </td>
-                      <td className="notes-cell">{r.internal_notes ?? ''}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                    return (
+                      <tr key={r.id}>
+                        {/* Guest */}
+                        <td>
+                          <div className="g-name">{r.guest_name}</div>
+                        </td>
+
+                        {/* Room + type in one cell */}
+                        <td>
+                          <div className="r-name">{r.rooms.name} #{r.rooms.room_number}</div>
+                          <div className="r-type">{r.rooms.room_types.name}</div>
+                        </td>
+
+                        {/* Person count */}
+                        <td className="pax-center">{r.guest_count}</td>
+
+                        {/* Check-in: date + time stacked */}
+                        <td>
+                          <div className="d-date">{printDate(r.checkin_at)}</div>
+                          <div className="d-time">{printTime(r.checkin_at)}</div>
+                        </td>
+
+                        {/* Check-out: date + time stacked */}
+                        <td>
+                          <div className="d-date">{printDate(r.checkout_at)}</div>
+                          <div className="d-time">{printTime(r.checkout_at)}</div>
+                        </td>
+
+                        {/* Payment badge */}
+                        <td><span className={badgeClass}>{payLabel}</span></td>
+
+                        {/* Payment method */}
+                        <td>{PAY_METHOD_LABELS[r.payment_method] ?? r.payment_method}</td>
+
+                        {/* Total price */}
+                        <td className="price-right">
+                          {r.total_price != null ? `€${r.total_price.toFixed(2)}` : '—'}
+                        </td>
+
+                        {/* Internal notes */}
+                        <td className="notes-cell">{r.internal_notes ?? ''}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
+
+          {/* Footer */}
+          <div className="pf">
+            <span>Hotel Management System · Jägerstieg Hotel &amp; Pension</span>
+            <span>{reservations.length} Ankunft{reservations.length !== 1 ? 'en' : ''} · {format(now, 'dd.MM.yyyy')}</span>
+          </div>
         </div>
       </div>
     </>
