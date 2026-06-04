@@ -307,6 +307,7 @@ export async function POST(req: NextRequest) {
     await transporter.sendMail({
       from:    `"Jägerstieg Hotel & Pension" <${process.env.STRATO_SMTP_USER}>`,
       to:      r.guest_email,
+      bcc:     process.env.STRATO_SMTP_USER, // copy to own inbox → appears in sent/inbox
       subject: `Buchungsbestätigung – ${r.rooms.name} · ${formatDate(r.checkin_at)}–${formatDate(r.checkout_at)}`,
       html,
     })
