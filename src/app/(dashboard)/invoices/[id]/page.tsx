@@ -19,11 +19,12 @@ const BREAKFAST_VAT = 0.07
 const SERVICE_VAT   = 0.19
 
 const PAY_LABELS: Record<string, string> = {
-  cash:        'Bar erhalten',
-  ec_card:     'EC-Karte erhalten',
-  credit_card: 'Kreditkarte erhalten',
-  online:      'Online erhalten',
-  unpaid:      'Ausstehend',
+  cash:          'Bar erhalten',
+  ec_card:       'EC-Karte erhalten',
+  credit_card:   'Kreditkarte erhalten',
+  card_verified: 'Karte verifiziert',
+  online:        'Online erhalten',
+  unpaid:        'Ausstehend',
 }
 
 interface ServiceItem    { name: string; qty: number; unit_price: number; total: number }

@@ -48,11 +48,12 @@ const PAY_STATUS_LABELS: Record<PaymentStatus, string> = {
 }
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  cash:         'Bargeld',
-  ec_card:      'EC-Karte',
-  credit_card:  'Kreditkarte',
-  online:       'Online',
-  unpaid:       'Noch nicht bezahlt',
+  cash:          'Bargeld',
+  ec_card:       'EC-Karte',
+  credit_card:   'Kreditkarte',
+  card_verified: 'Karte verifiziert',
+  online:        'Online',
+  unpaid:        'Noch nicht bezahlt',
 }
 
 const PAY_STATUS_STYLES: Record<PaymentStatus, string> = {
@@ -83,6 +84,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
   const [sendingEmail,         setSendingEmail]         = useState(false)
   const [emailSent,            setEmailSent]            = useState(false)
   const [emailError,           setEmailError]           = useState<string | null>(null)
+  const [includeKeys,          setIncludeKeys]          = useState(true)
 
   // Edit state
   const [editStatus,     setEditStatus]     = useState<ReservationStatus>('confirmed')
@@ -229,7 +231,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       const res = await fetch('/api/send-confirmation', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ reservationId }),
+        body:    JSON.stringify({ reservationId, includeKeys }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Fehler')
@@ -389,21 +391,39 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
 
               {/* Send email — only if guest has an email address */}
               {reservation?.guest_email && (
-                <button
-                  onClick={handleSendEmail}
-                  disabled={sendingEmail}
-                  className={cn(
-                    'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-                    emailSent
-                      ? 'bg-green-100 text-green-700 border border-green-300'
-                      : 'border border-blue-300 text-blue-700 hover:bg-blue-50',
-                    sendingEmail && 'opacity-50 cursor-wait',
-                  )}
-                  title={`Bestätigung senden an ${reservation.guest_email}`}
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  {emailSent ? '✓ Gesendet' : sendingEmail ? 'Sendet…' : 'E-Mail'}
-                </button>
+                <div className="flex items-center rounded-lg border border-blue-300 overflow-hidden">
+                  {/* Key toggle */}
+                  <button
+                    onClick={() => setIncludeKeys(k => !k)}
+                    title={includeKeys ? 'Schlüssel-Abschnitt wird mitgesendet – klicken zum Ausblenden' : 'Schlüssel-Abschnitt ausgeblendet – klicken zum Einblenden'}
+                    className={cn(
+                      'flex items-center gap-1 px-2 py-1.5 text-xs font-medium border-r border-blue-300 transition-colors select-none',
+                      includeKeys
+                        ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                        : 'bg-slate-50 text-slate-400 hover:bg-slate-100',
+                    )}
+                  >
+                    🔑
+                    <span className="hidden sm:inline">{includeKeys ? 'Schlüssel' : 'Kein Schlüssel'}</span>
+                  </button>
+
+                  {/* Send button */}
+                  <button
+                    onClick={handleSendEmail}
+                    disabled={sendingEmail}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors',
+                      emailSent
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-white text-blue-700 hover:bg-blue-50',
+                      sendingEmail && 'opacity-50 cursor-wait',
+                    )}
+                    title={`Bestätigung senden an ${reservation.guest_email}`}
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    {emailSent ? '✓ Gesendet' : sendingEmail ? 'Sendet…' : 'E-Mail'}
+                  </button>
+                </div>
               )}
             </>
           )}
@@ -558,7 +578,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
             {editing ? (
               <select value={editPayMethod} onChange={e => setEditPayMethod(e.target.value as PaymentMethod)}
                 className="mt-1 text-sm border border-slate-300 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-blue-500">
-                {(['cash','ec_card','credit_card','online','unpaid'] as PaymentMethod[]).map(m => (
+                {(['cash','ec_card','credit_card','card_verified','online','unpaid'] as PaymentMethod[]).map(m => (
                   <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m] ?? m}</option>
                 ))}
               </select>

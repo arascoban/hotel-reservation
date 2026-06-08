@@ -23,7 +23,7 @@ const SOURCE_LABELS: Record<string, string> = {
 }
 const PAY_METHOD_LABELS: Record<string, string> = {
   cash: 'Bargeld', ec_card: 'EC-Karte', credit_card: 'Kreditkarte',
-  online: 'Online', unpaid: 'Noch nicht bezahlt',
+  card_verified: 'Karte verifiziert', online: 'Online', unpaid: 'Noch nicht bezahlt',
 }
 const PAY_STATUS_LABELS: Record<string, string> = {
   paid: 'Bezahlt', deposit_paid: 'Anzahlung bezahlt',
@@ -77,17 +77,18 @@ function buildEmailHtml(opts: {
   lockerPin?: string
   reservationId: string
   nights: number
+  includeKeys: boolean
 }) {
   const {
     guestName, roomName, roomNumber, roomType,
     checkinAt, checkoutAt, guestCount, breakfastIncluded,
     source, paymentMethod, paymentStatus, totalPrice,
-    notes, lockerNumber, lockerPin, reservationId, nights,
+    notes, lockerNumber, lockerPin, reservationId, nights, includeKeys,
   } = opts
 
   const logoSrc = getLogoDataUri()
 
-  const lockerSection = lockerNumber && lockerPin ? `
+  const lockerSection = includeKeys && lockerNumber && lockerPin ? `
     <tr>
       <td style="padding:20px 0;border-bottom:1px solid #f1f5f9;">
         <table width="100%" cellpadding="0" cellspacing="0" style="background:#1e293b;border-radius:12px;padding:20px;">
@@ -260,7 +261,7 @@ function buildEmailHtml(opts: {
 // ── POST /api/send-confirmation ────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    const { reservationId } = await req.json()
+    const { reservationId, includeKeys = true } = await req.json()
     if (!reservationId) return NextResponse.json({ error: 'Missing reservationId' }, { status: 400 })
 
     // Fetch reservation
@@ -296,10 +297,11 @@ export async function POST(req: NextRequest) {
       totalPrice:        r.total_price,
       notes:             r.notes,
       externalId:        r.external_id,
-      lockerNumber:      r.rooms.room_number,   // locker = same as room number
+      lockerNumber:      r.rooms.room_number,
       lockerPin:         r.rooms.locker_pin,
       reservationId:     r.id,
       nights,
+      includeKeys,
     })
 
     const transporter = createTransporter()

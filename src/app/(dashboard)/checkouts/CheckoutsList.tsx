@@ -14,14 +14,16 @@ import { de }                from 'date-fns/locale'
 type ModalStep = 'payment' | 'details'
 
 const PAY_METHODS = [
-  { value: 'cash',        label: 'Bargeld'     },
-  { value: 'ec_card',     label: 'EC-Karte'    },
-  { value: 'credit_card', label: 'Kreditkarte' },
-  { value: 'online',      label: 'Online'      },
+  { value: 'cash',         label: 'Bargeld'          },
+  { value: 'ec_card',      label: 'EC-Karte'         },
+  { value: 'credit_card',  label: 'Kreditkarte'      },
+  { value: 'card_verified', label: 'Karte verifiziert' },
+  { value: 'online',       label: 'Online'           },
 ]
 
 const PAY_LABELS: Record<string, string> = {
-  cash: 'Bargeld', ec_card: 'EC-Karte', credit_card: 'Kreditkarte', online: 'Online',
+  cash: 'Bargeld', ec_card: 'EC-Karte', credit_card: 'Kreditkarte',
+  card_verified: 'Karte verifiziert', online: 'Online',
 }
 
 function fmtNum(n: number) { return String(n).padStart(6, '0') }

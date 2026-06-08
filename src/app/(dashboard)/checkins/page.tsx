@@ -20,11 +20,12 @@ function printTime(iso: string): string {
 export const dynamic = 'force-dynamic'
 
 const PAY_METHOD_LABELS: Record<string, string> = {
-  cash:         'Bar',
-  ec_card:      'EC-Karte',
-  credit_card:  'Kreditkarte',
-  online:       'Online',
-  unpaid:       '—',
+  cash:          'Bar',
+  ec_card:       'EC-Karte',
+  credit_card:   'Kreditkarte',
+  card_verified: 'Karte verifiz.',
+  online:        'Online',
+  unpaid:        '—',
 }
 
 export default async function CheckInsPage({

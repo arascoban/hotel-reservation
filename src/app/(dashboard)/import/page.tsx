@@ -82,11 +82,12 @@ const PAY_STATUS_OPTS = [
 ]
 
 const PAY_METHOD_OPTS = [
-  { value: 'unpaid',      label: 'Noch offen'          },
-  { value: 'online',      label: 'Booking.com (Online)' },
-  { value: 'cash',        label: 'Bar'                  },
-  { value: 'ec_card',     label: 'EC-Karte'             },
-  { value: 'credit_card', label: 'Kreditkarte'          },
+  { value: 'unpaid',       label: 'Noch offen'           },
+  { value: 'online',       label: 'Booking.com (Online)'  },
+  { value: 'cash',         label: 'Bar'                   },
+  { value: 'ec_card',      label: 'EC-Karte'              },
+  { value: 'credit_card',  label: 'Kreditkarte'           },
+  { value: 'card_verified', label: 'Karte verifiziert'    },
 ]
 
 function toEditRow(r: ImportRow): EditRow {

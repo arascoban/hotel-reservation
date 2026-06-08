@@ -6,7 +6,7 @@ export type ReservationSource =
 
 export type RoomCleaningStatus = 'clean' | 'dirty' | 'maintenance'
 
-export type PaymentMethod = 'cash' | 'ec_card' | 'credit_card' | 'online' | 'unpaid'
+export type PaymentMethod = 'cash' | 'ec_card' | 'credit_card' | 'online' | 'unpaid' | 'card_verified'
 export type PaymentStatus = 'paid' | 'deposit_paid' | 'unpaid' | 'refunded'
 export type ReservationStatus = 'confirmed' | 'checked_in' | 'checked_out' | 'cancelled' | 'no_show'
 export type RoomTypeCategory = 'single' | 'double' | 'double_sofa' | 'family_double' | 'family_single' | 'family_connecting'

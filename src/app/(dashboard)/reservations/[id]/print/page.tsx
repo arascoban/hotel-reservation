@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 
 const PAY_METHOD_LABELS: Record<string, string> = {
   cash: 'Bargeld', ec_card: 'EC-Karte', credit_card: 'Kreditkarte',
-  online: 'Online', unpaid: 'Noch nicht bezahlt',
+  card_verified: 'Karte verifiziert', online: 'Online', unpaid: 'Noch nicht bezahlt',
 }
 const PAY_STATUS_LABELS: Record<string, string> = {
   paid: 'Bezahlt', deposit_paid: 'Anzahlung bezahlt',

@@ -37,11 +37,12 @@ const SOURCES: { value: ReservationSource; label: string }[] = [
 ]
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
-  { value: 'cash',        label: 'Bargeld' },
-  { value: 'ec_card',     label: 'EC-Karte' },
-  { value: 'credit_card', label: 'Kreditkarte' },
-  { value: 'online',      label: 'Online' },
-  { value: 'unpaid',      label: 'Noch nicht bezahlt' },
+  { value: 'cash',         label: 'Bargeld' },
+  { value: 'ec_card',      label: 'EC-Karte' },
+  { value: 'credit_card',  label: 'Kreditkarte' },
+  { value: 'card_verified', label: 'Karte verifiziert' },
+  { value: 'online',       label: 'Online' },
+  { value: 'unpaid',       label: 'Noch nicht bezahlt' },
 ]
 
 const PAYMENT_STATUSES: { value: PaymentStatus; label: string }[] = [

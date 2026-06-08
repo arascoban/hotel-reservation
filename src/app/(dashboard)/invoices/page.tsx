@@ -99,13 +99,15 @@ interface Room {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const PAY_LABELS: Record<string, string> = {
-  cash: 'Bar', ec_card: 'EC-Karte', credit_card: 'Kreditkarte', online: 'Online', unpaid: 'Ausstehend',
+  cash: 'Bar', ec_card: 'EC-Karte', credit_card: 'Kreditkarte',
+  card_verified: 'Karte verifiziert', online: 'Online', unpaid: 'Ausstehend',
 }
 const PAY_OPTIONS = [
-  { value: 'cash',        label: 'Bar' },
-  { value: 'ec_card',     label: 'EC-Karte' },
-  { value: 'credit_card', label: 'Kreditkarte' },
-  { value: 'online',      label: 'Online' },
+  { value: 'cash',         label: 'Bar' },
+  { value: 'ec_card',      label: 'EC-Karte' },
+  { value: 'credit_card',  label: 'Kreditkarte' },
+  { value: 'card_verified', label: 'Karte verifiziert' },
+  { value: 'online',       label: 'Online' },
 ]
 
 function fmtNum(n: number, year?: number) {
