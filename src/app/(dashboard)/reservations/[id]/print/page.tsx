@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import type { ReservationWithRoom } from '@/types/database'
-import { formatDate, formatDateTime, getRoomFloor } from '@/lib/reservations'
+import { formatDateTime, getRoomFloor } from '@/lib/reservations'
 import PrintButton from './PrintButton'
 import { differenceInCalendarDays } from 'date-fns'
 
@@ -21,7 +21,23 @@ const SOURCE_LABELS: Record<string, string> = {
   walk_in: 'Laufkundschaft', phone: 'Telefon', website: 'Website', other: 'Sonstige',
 }
 
-export default async function PrintPage({ params }: { params: { id: string } }) {
+// Parse date+time directly from the stored ISO string so the +02:00 timezone
+// offset is respected on the server (Node.js would otherwise convert to UTC).
+// "2025-06-01T13:00:00+02:00" → "01.06.2025 13:00"
+function localDT(iso: string): string {
+  const [datePart, rest] = iso.split('T')
+  const [y, m, d] = datePart.split('-')
+  const time = rest.slice(0, 5)
+  return `${d}.${m}.${y} ${time}`
+}
+
+export default async function PrintPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string }
+  searchParams: { keys?: string }
+}) {
   const supabase = await createClient()
 
   const { data: resData } = await supabase
@@ -33,7 +49,17 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
   if (!resData) notFound()
   const r = resData as ReservationWithRoom
 
+  // ?keys=0 → hide key section
+  const showKeys = searchParams.keys !== '0'
+
   const nights = differenceInCalendarDays(new Date(r.checkout_at), new Date(r.checkin_at))
+
+  // Build guest address string (show only if any field is present)
+  const addressParts = [
+    r.guest_street,
+    [r.guest_postcode, r.guest_city].filter(Boolean).join(' '),
+    r.guest_country,
+  ].filter(Boolean)
 
   return (
     <>
@@ -44,7 +70,6 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
           aside, nav, header { display: none !important; }
           .lg\\:ml-64, [class*="ml-64"] { margin-left: 0 !important; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          /* margin:0 so the element fills the full paper — padding inside .print-doc acts as the margin */
           @page { margin: 0; size: A4 portrait; }
           body { background: white !important; margin: 0 !important; }
           .print-outer { background: white !important; padding: 0 !important; }
@@ -63,6 +88,11 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
       <div className="no-print flex items-center gap-3 px-6 pt-5 pb-3 bg-white border-b border-slate-200 sticky top-0 z-10">
         <PrintButton />
         <a href="/" className="text-sm text-slate-500 hover:text-slate-700">← Zurück</a>
+        {!showKeys && (
+          <span className="text-xs bg-amber-100 text-amber-700 border border-amber-300 rounded-full px-2.5 py-0.5 font-medium">
+            🔑 Schlüssel-Abschnitt ausgeblendet
+          </span>
+        )}
       </div>
 
       {/* ── Confirmation document ─────────────────────────────────────────────── */}
@@ -88,7 +118,7 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
           <p>info@jaegerstieg.de</p>
         </div>
 
-        {/* Guest info — single row */}
+        {/* Guest info */}
         <div className="bg-slate-50 rounded-xl p-4 mb-4 flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1.5">Gast</p>
@@ -96,6 +126,14 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
             {r.guest_email && <p className="text-xs text-slate-500 mt-0.5">{r.guest_email}</p>}
             {r.guest_phone && <p className="text-xs text-slate-500">{r.guest_phone}</p>}
             <p className="text-xs text-slate-500 mt-0.5">{r.guest_count} Person{r.guest_count !== 1 ? 'en' : ''}</p>
+            {/* Guest address */}
+            {addressParts.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-slate-200">
+                {addressParts.map((line, i) => (
+                  <p key={i} className="text-xs text-slate-500 leading-snug">{line}</p>
+                ))}
+              </div>
+            )}
           </div>
           <div className="text-right">
             <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1.5">Zimmer</p>
@@ -109,11 +147,11 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
           </div>
         </div>
 
-        {/* Dates — 3 columns */}
+        {/* Dates — 3 columns — times parsed directly from ISO string */}
         <div className="bg-blue-50 rounded-xl p-4 mb-4 flex items-center justify-between text-center gap-4">
           <div className="flex-1">
             <p className="text-xs font-bold uppercase tracking-wide text-blue-400 mb-1">Check-in</p>
-            <p className="font-bold text-slate-900 text-sm">{formatDateTime(r.checkin_at)}</p>
+            <p className="font-bold text-slate-900 text-sm">{localDT(r.checkin_at)}</p>
           </div>
           <div className="flex-1 border-x border-blue-200 px-4">
             <p className="text-xs font-bold uppercase tracking-wide text-blue-400 mb-1">Nächte</p>
@@ -121,7 +159,7 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
           </div>
           <div className="flex-1">
             <p className="text-xs font-bold uppercase tracking-wide text-blue-400 mb-1">Check-out</p>
-            <p className="font-bold text-slate-900 text-sm">{formatDateTime(r.checkout_at)}</p>
+            <p className="font-bold text-slate-900 text-sm">{localDT(r.checkout_at)}</p>
           </div>
         </div>
 
@@ -143,26 +181,28 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
           </div>
         )}
 
-        {/* Locker / Key pickup */}
-        <div className="bg-slate-900 text-white rounded-xl p-5 mb-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">🔐 Schlüsselabholung</p>
-          <p className="text-sm text-slate-300 mb-4">
-            Ihre Zimmerschlüssel befinden sich im Schließfach Nr.&nbsp;
-            <strong className="text-white">{r.rooms.room_number}</strong> an der Rezeption.
-            Bitte öffnen Sie das Schließfach mit dem folgenden PIN-Code:
-          </p>
-          <div className="flex items-center justify-between bg-slate-800 rounded-xl px-5 py-4">
-            <div>
-              <p className="text-xs text-slate-400 mb-0.5">Schließfach Nr.</p>
-              <p className="text-3xl font-bold text-white">{r.rooms.room_number}</p>
+        {/* Locker / Key pickup — controlled by showKeys */}
+        {showKeys && (
+          <div className="bg-slate-900 text-white rounded-xl p-5 mb-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">🔐 Schlüsselabholung</p>
+            <p className="text-sm text-slate-300 mb-4">
+              Ihre Zimmerschlüssel befinden sich im Schließfach Nr.&nbsp;
+              <strong className="text-white">{r.rooms.room_number}</strong> an der Rezeption.
+              Bitte öffnen Sie das Schließfach mit dem folgenden PIN-Code:
+            </p>
+            <div className="flex items-center justify-between bg-slate-800 rounded-xl px-5 py-4">
+              <div>
+                <p className="text-xs text-slate-400 mb-0.5">Schließfach Nr.</p>
+                <p className="text-3xl font-bold text-white">{r.rooms.room_number}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-slate-400 mb-0.5">Ihr PIN-Code</p>
+                <p className="text-4xl font-black font-mono tracking-[0.3em] text-white">{r.rooms.locker_pin}</p>
+              </div>
             </div>
-            <div className="text-right">
-              <p className="text-xs text-slate-400 mb-0.5">Ihr PIN-Code</p>
-              <p className="text-4xl font-black font-mono tracking-[0.3em] text-white">{r.rooms.locker_pin}</p>
-            </div>
+            <p className="text-xs text-slate-500 mt-3">Bitte bewahren Sie diesen Code vertraulich auf.</p>
           </div>
-          <p className="text-xs text-slate-500 mt-3">Bitte bewahren Sie diesen Code vertraulich auf.</p>
-        </div>
+        )}
 
         {/* External ID */}
         {r.external_id && (
@@ -177,7 +217,6 @@ export default async function PrintPage({ params }: { params: { id: string } }) 
         </div>
       </div>
       </div>
-
     </>
   )
 }

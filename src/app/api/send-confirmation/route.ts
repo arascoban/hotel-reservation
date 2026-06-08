@@ -3,7 +3,17 @@ import nodemailer from 'nodemailer'
 import fs from 'fs'
 import path from 'path'
 import { createClient } from '@/lib/supabase/server'
-import { formatDate, formatDateTime } from '@/lib/reservations'
+import { formatDate } from '@/lib/reservations'
+
+// Parse time directly from the stored ISO string to avoid UTC conversion on the server.
+// Timestamps are stored as +02:00 — new Date() would shift them by -2h in UTC Node.js.
+// "2025-06-01T13:00:00+02:00" → "01.06.2025 13:00"
+function localDT(iso: string): string {
+  const [datePart, rest] = iso.split('T')
+  const [y, m, d] = datePart.split('-')
+  const time = rest.slice(0, 5)
+  return `${d}.${m}.${y} ${time}`
+}
 import { differenceInCalendarDays } from 'date-fns'
 
 /** Read logo once and encode as base64 data URI so email clients show it without needing to "allow images" */
@@ -78,13 +88,28 @@ function buildEmailHtml(opts: {
   reservationId: string
   nights: number
   includeKeys: boolean
+  guestStreet:    string | null
+  guestPostcode:  string | null
+  guestCity:      string | null
+  guestCountry:   string | null
 }) {
   const {
     guestName, roomName, roomNumber, roomType,
     checkinAt, checkoutAt, guestCount, breakfastIncluded,
     source, paymentMethod, paymentStatus, totalPrice,
     notes, lockerNumber, lockerPin, reservationId, nights, includeKeys,
+    guestStreet, guestPostcode, guestCity, guestCountry,
   } = opts
+
+  // Build address block (only if at least one field is present)
+  const addressLines = [
+    guestStreet,
+    [guestPostcode, guestCity].filter(Boolean).join(' ') || null,
+    guestCountry,
+  ].filter(Boolean) as string[]
+  const addressBlock = addressLines.length > 0
+    ? addressLines.map(l => `<p style="margin:1px 0;font-size:12px;color:#64748b;">${l}</p>`).join('')
+    : ''
 
   const logoSrc = getLogoDataUri()
 
@@ -154,6 +179,7 @@ function buildEmailHtml(opts: {
                 <td style="padding-bottom:24px;border-bottom:1px solid #f1f5f9;">
                   <p style="margin:0;font-size:20px;font-weight:700;color:#0f172a;">Liebe/r ${guestName},</p>
                   <p style="margin:8px 0 0;font-size:15px;color:#475569;line-height:1.6;">vielen Dank für Ihre Buchung! Wir freuen uns auf Ihren Aufenthalt und bestätigen Ihre Reservierung wie folgt:</p>
+                  ${addressBlock ? `<div style="margin-top:12px;padding-top:12px;border-top:1px solid #f1f5f9;">${addressBlock}</div>` : ''}
                 </td>
               </tr>
 
@@ -176,7 +202,7 @@ function buildEmailHtml(opts: {
                     <tr>
                       <td width="40%">
                         <p style="margin:0;font-size:12px;color:#64748b;">Check-in</p>
-                        <p style="margin:3px 0 0;font-size:15px;font-weight:600;color:#0f172a;">${formatDateTime(checkinAt)}</p>
+                        <p style="margin:3px 0 0;font-size:15px;font-weight:600;color:#0f172a;">${localDT(checkinAt)}</p>
                       </td>
                       <td width="20%" style="text-align:center;vertical-align:middle;">
                         <p style="margin:0;font-size:20px;font-weight:800;color:#0f172a;">${nights}</p>
@@ -184,7 +210,7 @@ function buildEmailHtml(opts: {
                       </td>
                       <td width="40%" style="text-align:right;">
                         <p style="margin:0;font-size:12px;color:#64748b;">Check-out</p>
-                        <p style="margin:3px 0 0;font-size:15px;font-weight:600;color:#0f172a;">${formatDateTime(checkoutAt)}</p>
+                        <p style="margin:3px 0 0;font-size:15px;font-weight:600;color:#0f172a;">${localDT(checkoutAt)}</p>
                       </td>
                     </tr>
                   </table>
@@ -302,6 +328,10 @@ export async function POST(req: NextRequest) {
       reservationId:     r.id,
       nights,
       includeKeys,
+      guestStreet:   r.guest_street   ?? null,
+      guestPostcode: r.guest_postcode ?? null,
+      guestCity:     r.guest_city     ?? null,
+      guestCountry:  r.guest_country  ?? null,
     })
 
     const transporter = createTransporter()
