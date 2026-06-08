@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { format, addDays } from 'date-fns'
+import { format, addDays, endOfMonth } from 'date-fns'
 import { de } from 'date-fns/locale'
 import ReservationTable from '@/components/Reservations/ReservationTable'
 import type { ReservationWithRoom } from '@/types/database'
@@ -31,13 +31,18 @@ const PAY_METHOD_LABELS: Record<string, string> = {
 export default async function CheckInsPage({
   searchParams,
 }: {
-  searchParams: { view?: string }
+  searchParams: { view?: string; print?: string }
 }) {
   const supabase = await createClient()
-  const now      = new Date()
-  const today    = format(now, 'yyyy-MM-dd')
-  const isWeekView = searchParams.view === 'week'
-  const endDate  = format(addDays(now, 7), 'yyyy-MM-dd')
+  const now        = new Date()
+  const today      = format(now, 'yyyy-MM-dd')
+  const isWeekView  = searchParams.view === 'week'
+  const isMonthView = searchParams.view === 'month'
+
+  const weekEnd  = format(addDays(now, 7), 'yyyy-MM-dd')
+  const monthEnd = format(endOfMonth(now),  'yyyy-MM-dd')
+
+  const rangeEnd = isWeekView ? weekEnd : isMonthView ? monthEnd : today
 
   const { data: { user } } = await supabase.auth.getUser()
   const isAdmin = isAdminUser(user?.email)
@@ -46,7 +51,7 @@ export default async function CheckInsPage({
     .from('reservations')
     .select('*, rooms(*, room_types(*))')
     .gte('checkin_at', `${today}T00:00:00`)
-    .lte('checkin_at', isWeekView ? `${endDate}T23:59:59` : `${today}T23:59:59`)
+    .lte('checkin_at', `${rangeEnd}T23:59:59`)
     .in('status', ['confirmed', 'checked_in'])
     .order('checkin_at')
 
@@ -62,9 +67,18 @@ export default async function CheckInsPage({
   const arriving  = reservations.filter(r => r.status === 'confirmed')
   const checkedIn = reservations.filter(r => r.status === 'checked_in')
 
-  const title = isWeekView ? 'Bevorstehende Ankünfte – 7 Tage' : 'Heutige Ankünfte'
-  const subtitle = isWeekView
-    ? `${format(now, 'd. MMMM', { locale: de })} – ${format(addDays(now, 7), 'd. MMMM yyyy', { locale: de })} · ${reservations.length} Ankunft${reservations.length !== 1 ? 'en' : ''}`
+  const currentView = isWeekView ? 'week' : isMonthView ? 'month' : 'today'
+
+  const title =
+    isMonthView ? `Ankünfte – ${format(now, 'MMMM yyyy', { locale: de })}`
+    : isWeekView ? 'Bevorstehende Ankünfte – 7 Tage'
+    : 'Heutige Ankünfte'
+
+  const subtitle =
+    isMonthView
+      ? `${format(now, 'd. MMMM', { locale: de })} – ${format(endOfMonth(now), 'd. MMMM yyyy', { locale: de })} · ${reservations.length} Ankunft${reservations.length !== 1 ? 'en' : ''}`
+    : isWeekView
+      ? `${format(now, 'd. MMMM', { locale: de })} – ${format(addDays(now, 7), 'd. MMMM yyyy', { locale: de })} · ${reservations.length} Ankunft${reservations.length !== 1 ? 'en' : ''}`
     : `${format(now, 'EEEE, d. MMMM yyyy', { locale: de })} · ${reservations.length} Ankunft${reservations.length !== 1 ? 'en' : ''}`
 
   return (
@@ -212,7 +226,7 @@ export default async function CheckInsPage({
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900">{title}</h1>
               <p className="text-slate-500 mt-1">{subtitle}</p>
             </div>
-            <CheckinsControls isWeekView={isWeekView} />
+            <CheckinsControls view={currentView} />
           </div>
         </div>
 
