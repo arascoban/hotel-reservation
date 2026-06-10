@@ -64,6 +64,22 @@ const PAIR_DEFS: { numbers: [string, string]; maxPersons: number; label: string 
   { numbers: ['21', '22'], maxPersons: 4, label: 'Familienzimmer 21+22 (Verbindungstür)' },
 ]
 
+// Room numbers that belong to a connecting family pair. Individually they are
+// sold as regular rooms (11/12/19/20/21 = double, 22 = single), but each one is
+// also one half of a family unit. So for a normal single/double booking they
+// must be the LAST resort — we keep them free for family bookings as long as a
+// standalone room of the right category is available.
+const FAMILY_ROOM_NUMBERS = new Set<string>(FAMILY_PAIRS.flat())
+
+// Returns the connecting-room partner for a family-pair room, or null.
+function familyPartnerOf(roomNumber: string): string | null {
+  for (const [a, b] of FAMILY_PAIRS) {
+    if (a === roomNumber) return b
+    if (b === roomNumber) return a
+  }
+  return null
+}
+
 function filterAvailableRooms(
   allRooms: AvailableRoom[],
   bookedRoomIds: Set<string>,
@@ -321,12 +337,35 @@ export async function POST(req: NextRequest) {
         continue
       }
 
-      // ── Normal single room ────────────────────────────────────────
+      // ── Normal single / double / double_sofa room ─────────────────
+      // Assign standalone rooms first and only fall back to a family-pair
+      // room when no standalone room of this category is free. Among
+      // family-pair rooms, prefer ones whose connecting partner is already
+      // taken (pair already broken) so we don't sacrifice an intact family
+      // unit. This keeps 11+12 / 19+20 / 21+22 available for family bookings.
       const availableRooms = filterAvailableRooms(allRooms, bookedForEntry, entry.dbCategory, new Set())
-      const suggested = availableRooms.find(r => !usedInImport.has(r.id)) ?? availableRooms[0] ?? null
+
+      const fallbackRank = (r: AvailableRoom): number => {
+        if (!FAMILY_ROOM_NUMBERS.has(r.room_number)) return 0   // standalone — first choice
+        const partner = allRooms.find(x => x.room_number === familyPartnerOf(r.room_number))
+        const partnerFree = !!partner && !bookedForEntry.has(partner.id) && !usedInImport.has(partner.id)
+        return partnerFree ? 2 : 1   // intact pair last, already-broken pair in between
+      }
+
+      const suggested =
+        availableRooms
+          .filter(r => !usedInImport.has(r.id))
+          .sort((a, b) => fallbackRank(a) - fallbackRank(b))[0]   // stable: keeps sort_order within a rank
+        ?? availableRooms[0]
+        ?? null
       if (suggested) usedInImport.add(suggested.id)
 
-      importRows.push(buildRow(entry, randomUUID(), warnings, availableRooms, suggested?.id ?? null, alreadyImported, ''))
+      // Flag the unusual case so staff notice a family-room half was used.
+      const fallbackNote = suggested && FAMILY_ROOM_NUMBERS.has(suggested.room_number)
+        ? `Zi. ${suggested.room_number} zugewiesen — kein Standardzimmer frei, Familienzimmer-Hälfte belegt`
+        : ''
+
+      importRows.push(buildRow(entry, randomUUID(), warnings, availableRooms, suggested?.id ?? null, alreadyImported, fallbackNote))
     }
 
     return NextResponse.json({ rows: importRows })
