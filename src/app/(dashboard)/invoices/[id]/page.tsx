@@ -448,6 +448,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                 <p className="font-semibold text-slate-700">Rechtliche Angaben</p>
                 <p>Amtsgericht Oldenburg HRB 200157</p>
                 <p>St.Nr.: 35 / 202 / 02346</p>
+                <p>USt-IdNr.: DE406004895</p>
               </div>
             </div>
 
