@@ -108,6 +108,7 @@ const PAY_OPTIONS = [
   { value: 'credit_card',  label: 'Kreditkarte' },
   { value: 'card_verified', label: 'Karte verifiziert' },
   { value: 'online',       label: 'Online' },
+  { value: 'unpaid',       label: 'Ausstehend' },
 ]
 
 function fmtNum(n: number, year?: number) {

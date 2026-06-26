@@ -393,12 +393,24 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                   </tr>
                 </tbody>
               </table>
-              {/* Zahlungsart: Bar erhalten style */}
-              <div className="mt-2.5 px-4 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm text-center">
-                <span className="font-semibold text-slate-800">
-                  Zahlungsart: {PAY_LABELS[inv.payment_method] ?? inv.payment_method}
-                </span>
-              </div>
+              {/* Zahlungsart — outstanding balances get a clear "please pay" notice */}
+              {inv.payment_method === 'unpaid' ? (
+                <div className="mt-2.5 px-4 py-3 rounded-lg border border-amber-300 bg-amber-50 text-sm">
+                  <p className="font-bold text-amber-800 text-center">Zahlung ausstehend</p>
+                  <p className="text-amber-700 text-center mt-0.5">
+                    Offener Betrag: <strong>{eur(hasDiscount ? finalTotal : sumBrutto)}</strong>
+                  </p>
+                  <p className="text-xs text-amber-600 text-center mt-1">
+                    Bitte überweisen Sie den Betrag auf das unten angegebene Konto.
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-2.5 px-4 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm text-center">
+                  <span className="font-semibold text-slate-800">
+                    Zahlungsart: {PAY_LABELS[inv.payment_method] ?? inv.payment_method}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
