@@ -100,7 +100,8 @@ interface Room {
 
 const PAY_LABELS: Record<string, string> = {
   cash: 'Bar', ec_card: 'EC-Karte', credit_card: 'Kreditkarte',
-  card_verified: 'Karte verifiziert', online: 'Online', unpaid: 'Ausstehend',
+  card_verified: 'Karte verifiziert', online: 'Online',
+  bank_transfer: 'Überweisung', unpaid: 'Ausstehend',
 }
 const PAY_OPTIONS = [
   { value: 'cash',         label: 'Bar' },
@@ -108,6 +109,7 @@ const PAY_OPTIONS = [
   { value: 'credit_card',  label: 'Kreditkarte' },
   { value: 'card_verified', label: 'Karte verifiziert' },
   { value: 'online',       label: 'Online' },
+  { value: 'bank_transfer', label: 'Überweisung' },
   { value: 'unpaid',       label: 'Ausstehend' },
 ]
 

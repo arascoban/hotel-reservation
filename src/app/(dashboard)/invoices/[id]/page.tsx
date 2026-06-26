@@ -24,6 +24,7 @@ const PAY_LABELS: Record<string, string> = {
   credit_card:   'Kreditkarte erhalten',
   card_verified: 'Karte verifiziert',
   online:        'Online erhalten',
+  bank_transfer: 'Überweisung erhalten',
   unpaid:        'Ausstehend',
 }
 
