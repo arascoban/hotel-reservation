@@ -29,7 +29,7 @@ const PAY_LABELS: Record<string, string> = {
 }
 
 interface ServiceItem    { name: string; qty: number; unit_price: number; total: number }
-interface CustomLineItem { id: string; description: string; qty: number; unit_price: number; vat_rate: 7 | 19 }
+interface CustomLineItem { id: string; name?: string; description: string; qty: number; unit_price: number; vat_rate: 7 | 19 }
 
 export default async function InvoicePrintPage({ params }: { params: { id: string } }) {
   const supabase = await createClient()
@@ -37,6 +37,8 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
   if (!data) notFound()
 
   const inv = data as any
+  // Free-text invoices store no room — that's how we tell them apart from hotel stays.
+  const isFreeform = !inv.room_number
 
   const checkin     = new Date(inv.checkin_at)
   const checkout    = new Date(inv.checkout_at)
@@ -105,7 +107,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
 
   let posIdx = 0
   const POS = {
-    accommodation: ++posIdx,
+    accommodation: isFreeform ? null : ++posIdx,
     room2:         hasRoom2         ? ++posIdx : null,
     breakfast:     hasBreakfast     ? ++posIdx : null,
     service:       serviceTotal > 0 ? ++posIdx : null,
@@ -243,7 +245,8 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
             </thead>
             <tbody>
 
-              {/* Pos 1: Room type as main description */}
+              {/* Pos 1: Room type as main description (hotel invoices only) */}
+              {!isFreeform && (
               <tr className="border-b border-slate-100">
                 <td className="px-3 py-2 text-slate-400 text-xs align-top">{POS.accommodation}</td>
                 <td className="px-3 py-2 text-slate-800 align-top">
@@ -263,6 +266,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                 <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(acc_net)}</td>
                 <td className="px-3 py-2 text-right font-semibold text-slate-800 align-top">{eur(accommodationGross)}</td>
               </tr>
+              )}
 
               {/* Pos 2: Second room (if booked) */}
               {hasRoom2 && (
@@ -335,7 +339,10 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                   <tr key={item.id} className="border-b border-slate-100">
                     <td className="px-3 py-2 text-slate-400 text-xs align-top">{POS.customStart + idx}</td>
                     <td className="px-3 py-2 text-slate-800 align-top">
-                      <span className="font-medium">{item.description || 'Sonstiges'}</span>
+                      <span className="font-medium">{item.name || item.description || 'Sonstiges'}</span>
+                      {item.name && item.description && (
+                        <span className="block text-xs text-slate-400 mt-0.5">{item.description}</span>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-center text-slate-600 align-top">{item.qty}</td>
                     <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(item.unit_price)}</td>
@@ -362,10 +369,12 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                     <td className="py-2 text-slate-500">Summe Netto</td>
                     <td className="py-2 text-right font-medium text-slate-700">{eur(sumNetto)}</td>
                   </tr>
+                  {vat7 > 0 && (
                   <tr className="border-b border-slate-100">
                     <td className="py-2 text-slate-500">MwSt. 7 %</td>
                     <td className="py-2 text-right font-medium text-slate-700">{eur(vat7)}</td>
                   </tr>
+                  )}
                   {(serviceTotal > 0 || custom19Gross > 0) && (
                     <tr className="border-b border-slate-100">
                       <td className="py-2 text-slate-500">MwSt. 19 %</td>
@@ -453,7 +462,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
             </div>
 
             <p className="text-center text-xs text-slate-300 mt-2 border-t border-slate-100 pt-2">
-              Vielen Dank für Ihren Aufenthalt! · Alle Preise inkl. MwSt.
+              {isFreeform ? 'Vielen Dank für Ihren Auftrag!' : 'Vielen Dank für Ihren Aufenthalt!'} · Alle Preise inkl. MwSt.
             </p>
           </div>
 

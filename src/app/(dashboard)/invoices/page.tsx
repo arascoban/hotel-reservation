@@ -16,6 +16,7 @@ import Link              from 'next/link'
 
 interface LineItem {
   id: string
+  name?: string        // optional article name (used by free-text invoices)
   description: string
   qty: number
   unit_price: number   // gross price per unit (VAT inclusive)
@@ -176,10 +177,14 @@ const inp = 'w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:o
 
 // ── Line Items Editor ─────────────────────────────────────────────────────────
 
-function LineItemsEditor({ items, onChange }: { items: LineItem[]; onChange: (items: LineItem[]) => void }) {
+function LineItemsEditor({
+  items, onChange, showName = false, label = 'Zusätzliche Positionen',
+}: {
+  items: LineItem[]; onChange: (items: LineItem[]) => void; showName?: boolean; label?: string
+}) {
   function addItem() {
     const id = Math.random().toString(36).slice(2, 10)
-    onChange([...items, { id, description: '', qty: 1, unit_price: 0, vat_rate: 19 }])
+    onChange([...items, { id, name: '', description: '', qty: 1, unit_price: 0, vat_rate: 19 }])
   }
   function removeItem(id: string) {
     onChange(items.filter(i => i.id !== id))
@@ -193,13 +198,14 @@ function LineItemsEditor({ items, onChange }: { items: LineItem[]; onChange: (it
   return (
     <div>
       <label className="block text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">
-        Zusätzliche Positionen
+        {label}
       </label>
       {items.length > 0 && (
         <div className="rounded-xl border border-slate-200 overflow-hidden mb-2">
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-500">
+                {showName && <th className="text-left px-3 py-2 font-semibold">Name</th>}
                 <th className="text-left px-3 py-2 font-semibold">Beschreibung</th>
                 <th className="px-2 py-2 font-semibold w-16 text-center">Anz.</th>
                 <th className="px-2 py-2 font-semibold w-28 text-right">€/Einheit</th>
@@ -211,10 +217,17 @@ function LineItemsEditor({ items, onChange }: { items: LineItem[]; onChange: (it
             <tbody className="divide-y divide-slate-100">
               {items.map(item => (
                 <tr key={item.id} className="bg-white">
+                  {showName && (
+                    <td className="px-2 py-1.5">
+                      <input value={item.name ?? ''}
+                        onChange={e => updateItem(item.id, 'name', e.target.value)}
+                        className={si} placeholder="z.B. Beratung, Artikel …" />
+                    </td>
+                  )}
                   <td className="px-2 py-1.5">
                     <input value={item.description}
                       onChange={e => updateItem(item.id, 'description', e.target.value)}
-                      className={si} placeholder="z.B. Stadtsteuer, Parkgebühr …" />
+                      className={si} placeholder={showName ? 'Details (optional)' : 'z.B. Stadtsteuer, Parkgebühr …'} />
                   </td>
                   <td className="px-2 py-1.5">
                     <input type="number" min={0.01} step="0.01" value={item.qty}
@@ -252,7 +265,7 @@ function LineItemsEditor({ items, onChange }: { items: LineItem[]; onChange: (it
       <button type="button" onClick={addItem}
         className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors py-1">
         <Plus className="w-3.5 h-3.5" />
-        Position hinzufügen
+        {showName ? 'Artikel hinzufügen' : 'Position hinzufügen'}
       </button>
     </div>
   )
@@ -588,8 +601,9 @@ function EditModal({
 
 function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (inv: Invoice) => void }) {
   const supabase      = createClient()
-  const [step,        setStep]        = useState<'search' | 'form'>('search')
+  const [step,        setStep]        = useState<'search' | 'form' | 'freeform'>('search')
   const [searchTab,   setSearchTab]   = useState<'reservation' | 'customer'>('reservation')
+  const [ffCustQuery, setFfCustQuery] = useState('')
   const [query,       setQuery]       = useState('')
   const [results,     setResults]     = useState<Reservation[]>([])
   const [custResults, setCustResults] = useState<Customer[]>([])
@@ -752,6 +766,42 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     setStep('form')
   }
 
+  // ── Free-text invoice helpers ─────────────────────────────────────────────
+
+  function startFreeform() {
+    setReservationId(null)
+    setPayMethod('bank_transfer')
+    setLineItems(prev => prev.length > 0 ? prev : [{
+      id: Math.random().toString(36).slice(2, 10),
+      name: '', description: '', qty: 1, unit_price: 0, vat_rate: 19,
+    }])
+    setStep('freeform')
+  }
+
+  function doFreeformCustSearch(v: string) {
+    setFfCustQuery(v)
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    if (!v.trim()) { setCustResults([]); return }
+    searchTimer.current = setTimeout(async () => {
+      setSearching(true)
+      const { data } = await (supabase as any)
+        .from('customers')
+        .select('id, name, email, phone, street, postcode, city, country')
+        .ilike('name', `%${v}%`)
+        .limit(8)
+      setCustResults((data ?? []) as Customer[])
+      setSearching(false)
+    }, 300)
+  }
+
+  function applyCustomerToRecipient(c: Customer) {
+    setGuestName(c.name)
+    setGuestEmail(c.email ?? '')
+    setGuestAddress(buildCustomerAddress(c))
+    setFfCustQuery(c.name)
+    setCustResults([])
+  }
+
   // ── Create invoice ────────────────────────────────────────────────────────
 
   async function handleCreate() {
@@ -801,6 +851,58 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     onClose()
   }
 
+  // ── Create free-text invoice (pure line items, no hotel stay) ──────────────
+
+  async function handleCreateFreeform() {
+    setSaving(true); setError(null)
+    const { data: numData, error: numErr } = await (supabase as any).rpc('get_next_invoice_number')
+    if (numErr) { setError('Rechnungsnummer konnte nicht generiert werden.'); setSaving(false); return }
+
+    const { data: user } = await supabase.auth.getUser()
+    const nowIso = new Date().toISOString()
+    // Hotel-specific columns are NOT NULL → store neutral/empty values.
+    // An empty room_number is how the PDF/list detect a free-text invoice.
+    const payload: Record<string, unknown> = {
+      invoice_number:             numData as number,
+      reservation_id:             null,
+      salutation:                 salutation || null,
+      guest_name:                 guestName,
+      guest_email:                guestEmail || null,
+      guest_address:              guestAddress || null,
+      room_name:                  '',
+      room_number:                '',
+      checkin_at:                 nowIso,
+      checkout_at:                nowIso,
+      nights:                     0,
+      total_price:                0,
+      payment_method:             payMethod,
+      breakfast_included:         false,
+      guest_count:                1,
+      child_count:                0,
+      breakfast_price_per_person: 0,
+      room_service_total:         0,
+      discount:                   parseFloat(discount) || 0,
+      notes:                      notes || null,
+      line_items:                 lineItems,
+      room2_number:               null,
+      room2_name:                 null,
+      room2_total_price:          null,
+      room2_checkin_at:           null,
+      room2_checkout_at:          null,
+      room2_nights:               null,
+      room2_guest_count:          null,
+      room2_child_count:          null,
+      created_by:                 user.user?.email ?? null,
+      created_at:                 nowIso,
+    }
+
+    const { data: inv, error: err } = await supabase
+      .from('invoices').insert(payload).select('*').single()
+    if (err) { setError(err.message); setSaving(false); return }
+    onCreated(inv as Invoice)
+    onClose()
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -812,7 +914,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
           <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100"><X className="w-5 h-5" /></button>
         </div>
 
-        {step === 'search' ? (
+        {step === 'search' && (
           <div className="p-6">
             <p className="text-sm text-slate-500 mb-4">
               Gast oder Reservierung suchen um Felder automatisch auszufüllen — oder direkt manuell eingeben.
@@ -903,12 +1005,25 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               </div>
             )}
 
-            <button onClick={() => setStep('form')}
-              className="w-full rounded-xl border-2 border-dashed border-slate-300 py-3 text-sm text-slate-500 hover:border-blue-400 hover:text-blue-600 transition-colors">
-              Ohne Vorlage manuell eingeben →
-            </button>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Ohne Vorlage</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={startFreeform}
+                  className="rounded-xl border-2 border-dashed border-slate-300 py-3 px-2 text-sm font-medium text-slate-600 hover:border-blue-400 hover:text-blue-600 transition-colors">
+                  Freie Rechnung
+                  <span className="block text-xs font-normal text-slate-400">Artikel &amp; Text</span>
+                </button>
+                <button onClick={() => setStep('form')}
+                  className="rounded-xl border-2 border-dashed border-slate-300 py-3 px-2 text-sm font-medium text-slate-600 hover:border-blue-400 hover:text-blue-600 transition-colors">
+                  Hotelrechnung
+                  <span className="block text-xs font-normal text-slate-400">manuell eingeben</span>
+                </button>
+              </div>
+            </div>
           </div>
-        ) : (
+        )}
+
+        {step === 'form' && (
           <div className="p-6 space-y-4">
             {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
 
@@ -1083,6 +1198,89 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
           </div>
         )}
 
+        {step === 'freeform' && (
+          <div className="p-6 space-y-4">
+            {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+
+            {/* Kundensuche to prefill recipient */}
+            <Field label="Kunde suchen (optional)">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  value={ffCustQuery}
+                  onChange={e => doFreeformCustSearch(e.target.value)}
+                  placeholder="Kundenname suchen…"
+                  className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {searching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />}
+              </div>
+              {custResults.length > 0 && (
+                <div className="border border-slate-200 rounded-lg overflow-hidden mt-1">
+                  {custResults.map((c, i) => (
+                    <button key={c.id} onClick={() => applyCustomerToRecipient(c)}
+                      className={cn('w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors', i > 0 && 'border-t border-slate-100')}>
+                      <p className="font-medium text-slate-900 text-sm">{c.name}</p>
+                      <p className="text-xs text-slate-400">
+                        {[c.email, [c.postcode, c.city].filter(Boolean).join(' ')].filter(Boolean).join(' · ')}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </Field>
+
+            {/* Recipient */}
+            <div className="grid grid-cols-3 gap-4">
+              <Field label="Anrede">
+                <select value={salutation} onChange={e => setSalutation(e.target.value)} className={inp}>
+                  <option value="">—</option>
+                  <option value="Herr">Herr</option>
+                  <option value="Frau">Frau</option>
+                </select>
+              </Field>
+              <Field label="Name / Firma">
+                <input value={guestName} onChange={e => setGuestName(e.target.value)} className={inp} />
+              </Field>
+              <Field label="E-Mail">
+                <input value={guestEmail} onChange={e => setGuestEmail(e.target.value)} className={inp} />
+              </Field>
+            </div>
+            <Field label="Adresse">
+              <textarea rows={3} value={guestAddress} onChange={e => setGuestAddress(e.target.value)}
+                className={cn(inp, 'resize-none')} placeholder="Straße 1&#10;12345 Stadt&#10;Deutschland" />
+            </Field>
+
+            {/* Articles / line items */}
+            <div className="pt-2 border-t border-slate-100">
+              <LineItemsEditor items={lineItems} onChange={setLineItems} showName label="Artikel / Positionen" />
+            </div>
+
+            {/* Payment + discount */}
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Zahlungsart">
+                <select value={payMethod} onChange={e => setPayMethod(e.target.value)} className={inp}>
+                  {PAY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </Field>
+              <Field label="Rabatt (€)">
+                <input type="number" step="0.01" min={0} value={discount} onChange={e => setDiscount(e.target.value)}
+                  className={inp} placeholder="0.00" />
+              </Field>
+            </div>
+
+            {/* Brutto preview */}
+            <div className="flex justify-end text-sm text-slate-600">
+              Summe Brutto:&nbsp;<span className="font-bold text-slate-900">
+                {(lineItems.reduce((s, i) => s + i.qty * i.unit_price, 0) - (parseFloat(discount) || 0)).toFixed(2)} €
+              </span>
+            </div>
+
+            <Field label="Notizen">
+              <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} className={cn(inp, 'resize-none')} />
+            </Field>
+          </div>
+        )}
+
         {step === 'form' && (
           <div className="flex justify-between gap-3 px-6 py-4 border-t border-slate-200">
             <button onClick={() => setStep('search')}
@@ -1095,6 +1293,26 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                 Abbrechen
               </button>
               <button onClick={handleCreate} disabled={saving || !guestName}
+                className="rounded-xl bg-blue-600 text-white px-5 py-2 text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                {saving ? 'Erstelle…' : 'Rechnung erstellen'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 'freeform' && (
+          <div className="flex justify-between gap-3 px-6 py-4 border-t border-slate-200">
+            <button onClick={() => setStep('search')}
+              className="rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">
+              ← Zurück
+            </button>
+            <div className="flex gap-3">
+              <button onClick={onClose}
+                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                Abbrechen
+              </button>
+              <button onClick={handleCreateFreeform} disabled={saving || !guestName || lineItems.length === 0}
                 className="rounded-xl bg-blue-600 text-white px-5 py-2 text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                 {saving ? 'Erstelle…' : 'Rechnung erstellen'}
@@ -1261,11 +1479,17 @@ export default function InvoicesPage() {
                         {inv.guest_email && <div className="text-xs text-slate-400">{inv.guest_email}</div>}
                       </td>
                       <td className="px-4 py-3 text-slate-600">
-                        <span className="font-semibold">Zi. {inv.room_number}</span>
-                        <span className="ml-1 text-xs text-slate-400 hidden sm:inline">{inv.room_name}</span>
+                        {inv.room_number ? (
+                          <>
+                            <span className="font-semibold">Zi. {inv.room_number}</span>
+                            <span className="ml-1 text-xs text-slate-400 hidden sm:inline">{inv.room_name}</span>
+                          </>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">Freie Rechnung</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                        {format(new Date(inv.checkout_at), 'd. MMM yyyy', { locale: de })}
+                        {inv.room_number ? format(new Date(inv.checkout_at), 'd. MMM yyyy', { locale: de }) : '—'}
                       </td>
                       <td className="px-4 py-3 text-slate-600">{PAY_LABELS[inv.payment_method] ?? inv.payment_method}</td>
                       <td className="px-4 py-3 text-right">
