@@ -1489,7 +1489,77 @@ export default function InvoicesPage() {
           <p className="text-slate-500 text-sm">Noch keine Rechnungen erstellt.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <>
+        {/* ── Mobile card list (< sm) ─────────────────────────────── */}
+        <div className="sm:hidden space-y-2">
+          {invoices.map(inv => {
+            const customTotal = Array.isArray(inv.line_items)
+              ? inv.line_items.reduce((s, i) => s + i.qty * i.unit_price, 0)
+              : 0
+            const amount = inv.total_price + (inv.room2_total_price ?? 0) + (inv.room_service_total ?? 0) + customTotal - (inv.discount ?? 0)
+            return (
+              <div key={inv.id} className="rounded-xl border border-slate-200 bg-white p-3.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="font-mono font-bold text-slate-900">
+                      {fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())}
+                    </span>
+                    <div className="font-medium text-slate-900 flex items-center gap-1.5 mt-0.5">
+                      <span className="truncate">{inv.guest_name}</span>
+                      {inv.early_departure && (
+                        <span className="rounded-full bg-amber-100 text-amber-700 px-1.5 py-0.5 text-2xs font-semibold flex-shrink-0">Früh</span>
+                      )}
+                    </div>
+                    {inv.guest_email && <div className="text-xs text-slate-400 truncate">{inv.guest_email}</div>}
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="font-bold text-slate-900">€{amount.toFixed(2)}</div>
+                    {inv.early_departure && inv.original_price != null && (
+                      <div className="text-xs text-slate-400 line-through">€{inv.original_price.toFixed(2)}</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-2 flex items-center gap-x-3 gap-y-1 flex-wrap text-xs text-slate-500">
+                  <span>{inv.room_number ? `Zi. ${inv.room_number}` : 'Freie Rechnung'}</span>
+                  {inv.room_number && <span>Abreise {format(new Date(inv.checkout_at), 'd. MMM yyyy', { locale: de })}</span>}
+                  <span>{PAY_LABELS[inv.payment_method] ?? inv.payment_method}</span>
+                </div>
+
+                <div className="mt-3 flex items-center gap-1.5">
+                  <Link href={`/invoices/${inv.id}`} target="_blank"
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+                    <FileText className="w-3.5 h-3.5" /> PDF
+                  </Link>
+                  <button onClick={() => setEditInv(inv)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+                    <Edit2 className="w-3.5 h-3.5" /> Bearbeiten
+                  </button>
+                  {isAdmin && (
+                    confirmDel === inv.id ? (
+                      <div className="flex items-center gap-1 ml-auto">
+                        <button onClick={() => handleDelete(inv)} disabled={!!deleting}
+                          className="rounded-lg bg-red-600 text-white px-2.5 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:opacity-50">
+                          {deleting === inv.id ? '…' : 'Löschen'}
+                        </button>
+                        <button onClick={() => setConfirmDel(null)}
+                          className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-50">Nein</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => handleDelete(inv)} disabled={!!deleting}
+                        className="ml-auto rounded-lg border border-red-200 text-red-500 px-2.5 py-1.5 text-xs font-medium hover:bg-red-50 disabled:opacity-50">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* ── Desktop table (sm+) ─────────────────────────────────── */}
+        <div className="hidden sm:block bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[640px]">
               <thead>
@@ -1588,6 +1658,7 @@ export default function InvoicesPage() {
             </table>
           </div>
         </div>
+        </>
       )}
 
       {editInv && (

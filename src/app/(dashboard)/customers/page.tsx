@@ -118,7 +118,7 @@ function CustomerModal({ customer, onClose, onSaved }: ModalProps) {
             <label className={labelCls}>Name *</label>
             <input value={name} onChange={e => setName(e.target.value)} className={inputCls} placeholder="Vor- und Nachname" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>E-Mail</label>
               <input value={email} onChange={e => setEmail(e.target.value)} className={inputCls} type="email" placeholder="email@example.com" />
@@ -132,7 +132,7 @@ function CustomerModal({ customer, onClose, onSaved }: ModalProps) {
             <label className={labelCls}>Straße & Hausnummer</label>
             <input value={street} onChange={e => setStreet(e.target.value)} className={inputCls} placeholder="Musterstraße 1" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelCls}>PLZ</label>
               <input value={postcode} onChange={e => setPostcode(e.target.value)} className={inputCls} placeholder="12345" />
