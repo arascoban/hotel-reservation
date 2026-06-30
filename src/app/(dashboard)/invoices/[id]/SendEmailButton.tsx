@@ -10,6 +10,7 @@ interface Props {
   guestSurname: string
   checkinStr:   string        // e.g. "15.05.2026"
   checkoutStr:  string
+  isFreeform?:  boolean       // free-text invoice → email omits stay dates
 }
 
 type Status = 'idle' | 'generating' | 'sending' | 'success' | 'error'
@@ -21,6 +22,7 @@ export default function SendEmailButton({
   guestSurname,
   checkinStr,
   checkoutStr,
+  isFreeform = false,
 }: Props) {
   const [status, setStatus] = useState<Status>('idle')
   const [errorMsg, setErrorMsg] = useState('')
@@ -97,7 +99,7 @@ export default function SendEmailButton({
       const res = await fetch('/api/invoices/send-email', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ pdfBase64, guestEmail, salutation, guestSurname, checkinStr, checkoutStr, invoiceRef }),
+        body:    JSON.stringify({ pdfBase64, guestEmail, salutation, guestSurname, checkinStr, checkoutStr, invoiceRef, freeform: isFreeform }),
       })
 
       if (!res.ok) {

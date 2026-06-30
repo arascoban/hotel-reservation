@@ -279,6 +279,7 @@ function EditModal({
   inv: Invoice; isAdmin: boolean; onClose: () => void; onSaved: (updated: Invoice) => void
 }) {
   const supabase = createClient()
+  const isFreeform = !inv.room_number   // free-text invoice → no hotel/room fields
   const [saving, setSaving] = useState(false)
   const [error,  setError]  = useState<string | null>(null)
   const [rooms,  setRooms]  = useState<Room[]>([])
@@ -411,6 +412,50 @@ function EditModal({
             </div>
           )}
 
+          {isFreeform && (
+            <>
+              <div className="grid grid-cols-3 gap-4">
+                <Field label="Anrede">
+                  <select value={salutation} onChange={e => setSalutation(e.target.value)} className={inp}>
+                    <option value="">—</option>
+                    <option value="Herr">Herr</option>
+                    <option value="Frau">Frau</option>
+                  </select>
+                </Field>
+                <Field label="Name / Firma">
+                  <input value={guestName} onChange={e => setGuestName(e.target.value)} className={inp} />
+                </Field>
+                <Field label="E-Mail">
+                  <input value={guestEmail} onChange={e => setGuestEmail(e.target.value)} className={inp} />
+                </Field>
+              </div>
+              <Field label="Adresse">
+                <textarea rows={3} value={guestAddress} onChange={e => setGuestAddress(e.target.value)}
+                  className={cn(inp, 'resize-none')} placeholder="Straße 1&#10;12345 Stadt&#10;Deutschland" />
+              </Field>
+              <div className="pt-2 border-t border-slate-100">
+                <LineItemsEditor items={lineItems} onChange={setLineItems} showName label="Artikel / Positionen" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Zahlungsart">
+                  <select value={payMethod} onChange={e => setPayMethod(e.target.value)} className={inp}>
+                    {PAY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </Field>
+                <Field label="Rabatt (€)">
+                  <input type="number" step="0.01" min={0} value={discount} onChange={e => setDiscount(e.target.value)}
+                    className={inp} placeholder="0.00" />
+                </Field>
+              </div>
+              <Field label="Notizen">
+                <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)}
+                  className={cn(inp, 'resize-none')} placeholder="Interne Hinweise…" />
+              </Field>
+            </>
+          )}
+
+          {!isFreeform && (
+          <>
           <div className="grid grid-cols-3 gap-4">
             <Field label="Anrede">
               <select value={salutation} onChange={e => setSalutation(e.target.value)} className={inp}>
@@ -580,6 +625,8 @@ function EditModal({
             <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)}
               className={cn(inp, 'resize-none')} placeholder="Interne Hinweise, Buchungsnummer…" />
           </Field>
+          </>
+          )}
         </div>
 
         <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-200">

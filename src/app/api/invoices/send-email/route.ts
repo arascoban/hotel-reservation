@@ -18,7 +18,7 @@ function createTransporter() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { pdfBase64, guestEmail, salutation, guestSurname, checkinStr, checkoutStr, invoiceRef } =
+    const { pdfBase64, guestEmail, salutation, guestSurname, checkinStr, checkoutStr, invoiceRef, freeform } =
       await req.json()
 
     if (!guestEmail)  return NextResponse.json({ error: 'Kein E-Mail hinterlegt.' }, { status: 400 })
@@ -37,21 +37,30 @@ export async function POST(req: NextRequest) {
       salutation === 'Frau' ? `Sehr geehrte Frau ${guestSurname}`  :
       `Sehr geehrte/r Frau/Herr ${guestSurname}`
 
-    const subject =
-      `Ihre Rechnung für Ihren Aufenthalt vom ${checkinStr} bis ${checkoutStr}`
+    // Free-text invoices have no stay → generic, date-free wording.
+    const subject = freeform
+      ? `Ihre Rechnung${invoiceRef ? ` ${invoiceRef}` : ''}`
+      : `Ihre Rechnung für Ihren Aufenthalt vom ${checkinStr} bis ${checkoutStr}`
 
-    const text =
-      `${greeting},\n\n` +
-      `vielen Dank für Ihren Aufenthalt in unserem Hotel.\n\n` +
-      `Anbei erhalten Sie die Rechnung für Ihren Aufenthalt vom ${checkinStr} bis ${checkoutStr}.\n\n` +
-      `Sollten Sie Fragen zur Rechnung haben oder weitere Informationen benötigen, stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\n` +
-      `Wir würden uns sehr freuen, Sie bald wieder bei uns begrüßen zu dürfen.\n\n` +
-      `Mit freundlichen Grüßen,\n` +
-      `Hotel Jägerstieg`
+    const text = freeform
+      ? `${greeting},\n\n` +
+        `anbei erhalten Sie Ihre Rechnung.\n\n` +
+        `Sollten Sie Fragen zur Rechnung haben oder weitere Informationen benötigen, stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\n` +
+        `Mit freundlichen Grüßen,\n` +
+        `Hotel Jägerstieg`
+      : `${greeting},\n\n` +
+        `vielen Dank für Ihren Aufenthalt in unserem Hotel.\n\n` +
+        `Anbei erhalten Sie die Rechnung für Ihren Aufenthalt vom ${checkinStr} bis ${checkoutStr}.\n\n` +
+        `Sollten Sie Fragen zur Rechnung haben oder weitere Informationen benötigen, stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\n` +
+        `Wir würden uns sehr freuen, Sie bald wieder bei uns begrüßen zu dürfen.\n\n` +
+        `Mit freundlichen Grüßen,\n` +
+        `Hotel Jägerstieg`
 
     const filename = invoiceRef
       ? `Rechnung_${invoiceRef}.pdf`
-      : `Rechnung_${checkinStr.replace(/\./g, '-')}_${checkoutStr.replace(/\./g, '-')}.pdf`
+      : freeform
+        ? 'Rechnung.pdf'
+        : `Rechnung_${checkinStr.replace(/\./g, '-')}_${checkoutStr.replace(/\./g, '-')}.pdf`
 
     const transporter = createTransporter()
     await transporter.sendMail({

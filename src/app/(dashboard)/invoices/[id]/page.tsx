@@ -162,6 +162,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           guestSurname={guestSurname}
           checkinStr={checkinStr}
           checkoutStr={checkoutStr}
+          isFreeform={isFreeform}
         />
         <span className="ml-auto text-xs text-slate-400">Rechnung {invoiceRef}</span>
       </div>
