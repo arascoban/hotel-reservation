@@ -56,7 +56,64 @@ export default function ReservationTable({ reservations, onRefresh }: Props) {
 
   return (
     <>
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+      {/* ── Mobile card list (< sm) ─────────────────────────────── */}
+      <div className="sm:hidden space-y-2">
+        {reservations.map(r => {
+          const isDeleted = !!r.deleted_at
+          return (
+            <button
+              key={r.id}
+              onClick={() => setSelectedId(r.id)}
+              className={cn(
+                'w-full text-left rounded-xl border bg-white p-3.5 transition-colors active:bg-slate-50',
+                isDeleted && isAdmin ? 'border-red-200 bg-red-50/60 opacity-80' : 'border-slate-200',
+              )}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className={cn('font-semibold text-slate-900 truncate', isDeleted && 'line-through text-slate-400')}>
+                      {r.guest_name}
+                    </span>
+                    {isDeleted && isAdmin && (
+                      <span className="inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-2xs font-semibold text-red-700 flex-shrink-0">
+                        Gelöscht
+                      </span>
+                    )}
+                  </div>
+                  {r.guest_phone && <div className="text-xs text-slate-400 mt-0.5">{r.guest_phone}</div>}
+                </div>
+                <span className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-medium flex-shrink-0', STATUS_STYLES[r.status])}>
+                  {STATUS_LABELS[r.status]}
+                </span>
+              </div>
+
+              <div className="mt-2 text-sm text-slate-700">
+                {r.rooms.name} <span className="text-slate-400">#{r.rooms.room_number}</span>
+              </div>
+              <div className="text-xs text-slate-500 mt-0.5">
+                {formatDate(r.checkin_at)} → {formatDate(r.checkout_at)} · {r.guest_count} Pers.
+              </div>
+
+              <div className="mt-2 flex items-center gap-2 flex-wrap text-xs">
+                <span className="flex items-center gap-1 text-slate-600">
+                  <span className={cn('w-2 h-2 rounded-full', getSourceColor(r.source))} />
+                  {getSourceLabel(r.source)}
+                </span>
+                <span className={cn('inline-flex rounded-full px-2 py-0.5 font-medium', PAY_STYLES[r.payment_status])}>
+                  {PAY_LABELS[r.payment_status]}
+                </span>
+                {r.total_price != null && (
+                  <span className="ml-auto font-semibold text-slate-900">€{r.total_price.toFixed(2)}</span>
+                )}
+              </div>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* ── Desktop table (sm+) ─────────────────────────────────── */}
+      <div className="hidden sm:block rounded-xl border border-slate-200 bg-white overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

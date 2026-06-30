@@ -291,7 +291,42 @@ export default function CheckoutsList({ initialReservations, today }: Props) {
               {format(new Date(date), 'EEEE, d. MMMM', { locale: de })} · {rows.length} Abreise{rows.length !== 1 ? 'n' : ''}
             </span>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          {/* Mobile cards */}
+          <div className="sm:hidden space-y-2">
+            {rows.map(r => (
+              <div key={r.id} className="rounded-xl border border-slate-200 bg-white p-3.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-bold text-slate-900">
+                      Zi. {r.rooms.room_number}
+                      <span className="ml-1.5 text-xs font-normal text-slate-400">{r.rooms.name}</span>
+                      {r.family_booking_id && <span className="ml-1.5 text-2xs bg-purple-100 text-purple-600 rounded-full px-1.5 py-0.5 font-semibold">Familie</span>}
+                    </div>
+                    <div className="text-sm text-slate-700 mt-0.5">{r.guest_name}</div>
+                    {r.guest_phone && <div className="text-xs text-slate-400">{r.guest_phone}</div>}
+                  </div>
+                  <span className={cn(
+                    'inline-flex rounded-full px-2 py-0.5 text-xs font-medium flex-shrink-0',
+                    r.payment_status === 'paid'         ? 'bg-green-100 text-green-700'  :
+                    r.payment_status === 'deposit_paid' ? 'bg-yellow-100 text-yellow-700' :
+                                                          'bg-red-100 text-red-700',
+                  )}>
+                    {r.payment_status === 'paid' ? 'Bezahlt' : r.payment_status === 'deposit_paid' ? 'Anzahlung' : 'Offen'}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-500 mt-1.5">
+                  {r.guest_count} Pers. · {new Date(r.checkout_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr
+                </div>
+                <button onClick={() => openModal(r)}
+                  className="mt-3 w-full inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-semibold bg-slate-900 text-white hover:bg-slate-700 active:scale-[0.99] transition-colors">
+                  <LogOut className="w-4 h-4" />Auschecken
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden sm:block bg-white rounded-xl border border-slate-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[540px]">
                 <thead>
@@ -559,7 +594,48 @@ function CheckedOutTable({ rows, isAdmin, undoing, onUndo }: {
   onUndo: (r: ReservationWithRoom) => void
 }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <>
+      {/* Mobile cards */}
+      <div className="sm:hidden space-y-2">
+        {rows.map(r => (
+          <div key={r.id} className="rounded-xl border border-slate-200 bg-white p-3.5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="font-bold text-slate-700">
+                  Zi. {r.rooms.room_number}
+                  <span className="ml-1.5 text-xs font-normal text-slate-400">{r.rooms.name}</span>
+                </div>
+                <div className="text-sm text-slate-800 mt-0.5 flex items-center gap-1.5">
+                  {r.guest_name}
+                  {(r as any).early_departure && (
+                    <span className="inline-flex rounded-full bg-amber-100 text-amber-700 px-1.5 py-0.5 text-2xs font-semibold">⚡ Früh</span>
+                  )}
+                </div>
+                {r.guest_phone && <div className="text-xs text-slate-400">{r.guest_phone}</div>}
+              </div>
+              <div className="text-right flex-shrink-0">
+                <span className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
+                  r.payment_status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}>
+                  {r.payment_status === 'paid' ? 'Bezahlt' : 'Offen'}
+                </span>
+                {r.total_price != null && <div className="text-xs text-slate-400 mt-0.5">€{r.total_price.toFixed(2)}</div>}
+              </div>
+            </div>
+            <div className="text-xs text-slate-500 mt-1.5">
+              Abreise: {new Date(r.checkout_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+            </div>
+            {isAdmin && (
+              <button onClick={() => onUndo(r)} disabled={undoing === r.id}
+                className="mt-2.5 w-full inline-flex items-center justify-center gap-1 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 px-2.5 py-2 text-xs font-medium hover:bg-amber-100 disabled:opacity-50 transition-colors">
+                <Undo2 className="w-3.5 h-3.5" />{undoing === r.id ? '…' : 'Checkout rückgängig'}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden sm:block bg-white rounded-xl border border-slate-200 overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm min-w-[500px]">
           <thead>
@@ -616,6 +692,7 @@ function CheckedOutTable({ rows, isAdmin, undoing, onUndo }: {
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </>
   )
 }
