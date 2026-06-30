@@ -482,7 +482,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
         </div>
 
         {/* Dates */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <InfoField label="Anreise" icon={<Calendar className="w-3.5 h-3.5" />}>
             {editing ? (
               <div className="mt-1 flex gap-1.5">
@@ -542,7 +542,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
         </div>
 
         {/* Status & source */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <InfoField label="Status" icon={<Tag className="w-3.5 h-3.5" />}>
             {editing ? (
               <select value={editStatus} onChange={e => setEditStatus(e.target.value as ReservationStatus)}
@@ -573,7 +573,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
         </div>
 
         {/* Payment */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <InfoField label="Zahlungsmethode" icon={<CreditCard className="w-3.5 h-3.5" />}>
             {editing ? (
               <select value={editPayMethod} onChange={e => setEditPayMethod(e.target.value as PaymentMethod)}
@@ -604,7 +604,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
         </div>
 
         {/* Price & breakfast */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <InfoField label="Gesamtpreis" icon={<CreditCard className="w-3.5 h-3.5" />}>
             {editing ? (
               <input type="number" min={0} step={0.01} value={editTotalPrice}

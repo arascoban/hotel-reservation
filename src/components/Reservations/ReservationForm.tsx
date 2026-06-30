@@ -420,7 +420,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">Telefon</label>
             <input type="tel" value={guestPhone}
@@ -454,7 +454,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         </div>
 
         {/* PLZ + Stadt in one row */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">PLZ</label>
             <input type="text" value={guestPostcode}
@@ -528,7 +528,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         </div>
 
         {/* Personen: Erwachsene + Kinder */}
-        <div className="grid grid-cols-2 gap-4 max-w-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xs">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
               Erwachsene <span className="text-red-500">*</span>
@@ -710,7 +710,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
               Gesamtpreis (€)

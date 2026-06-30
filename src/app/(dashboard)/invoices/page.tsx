@@ -414,7 +414,7 @@ function EditModal({
 
           {isFreeform && (
             <>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Field label="Anrede">
                   <select value={salutation} onChange={e => setSalutation(e.target.value)} className={inp}>
                     <option value="">—</option>
@@ -436,7 +436,7 @@ function EditModal({
               <div className="pt-2 border-t border-slate-100">
                 <LineItemsEditor items={lineItems} onChange={setLineItems} showName label="Artikel / Positionen" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Zahlungsart">
                   <select value={payMethod} onChange={e => setPayMethod(e.target.value)} className={inp}>
                     {PAY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -456,7 +456,7 @@ function EditModal({
 
           {!isFreeform && (
           <>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Field label="Anrede">
               <select value={salutation} onChange={e => setSalutation(e.target.value)} className={inp}>
                 <option value="">—</option>
@@ -516,7 +516,7 @@ function EditModal({
             </div>
             {hasRoom2 && (
               <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field label="Zweites Zimmer">
                     <select value={room2Number} onChange={e => handleRoom2Select(e.target.value)} className={inp}>
                       <option value="">— Zimmer wählen —</option>
@@ -533,7 +533,7 @@ function EditModal({
                       placeholder="z.B. 90.00" />
                   </Field>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <Field label="Anreise (Zimmer 2)">
                     <input type="datetime-local" value={room2CheckinAt}
                       onChange={e => setRoom2CheckinAt(e.target.value)} className={inp} />
@@ -547,7 +547,7 @@ function EditModal({
                       onChange={e => setRoom2Nights(e.target.value)} className={inp} />
                   </Field>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Field label="Erwachsene (Zimmer 2)">
                     <input type="number" min={1} value={room2GuestCount}
                       onChange={e => setRoom2GuestCount(e.target.value)} className={inp} />
@@ -562,7 +562,7 @@ function EditModal({
           </div>
 
           {/* Dates with time */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Field label="Anreise">
               <input type="datetime-local" value={checkinAt} onChange={e => setCheckinAt(e.target.value)} className={inp} />
             </Field>
@@ -575,7 +575,7 @@ function EditModal({
           </div>
 
           {/* Guest counts — always editable */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Erwachsene">
               <input type="number" min={1} value={guestCount} onChange={e => setGuestCount(e.target.value)} className={inp} />
             </Field>
@@ -584,7 +584,7 @@ function EditModal({
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Gesamtpreis Übernachtung (€)">
               <input type="number" step="0.01" value={totalPrice} onChange={e => setTotalPrice(e.target.value)} className={inp} />
             </Field>
@@ -596,7 +596,7 @@ function EditModal({
           </div>
 
           {/* Breakfast */}
-          <div className="grid grid-cols-2 gap-4 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
             <div className="flex items-center gap-2 mt-5">
               <input type="checkbox" id="edit-bfst" checked={breakfast} onChange={e => setBreakfast(e.target.checked)}
                 className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
@@ -607,7 +607,7 @@ function EditModal({
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Zimmerservice Gesamt (€)">
               <input type="number" step="0.01" value={svcTotal} onChange={e => setSvcTotal(e.target.value)} className={inp} />
             </Field>
@@ -1054,7 +1054,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
 
             <div className="space-y-2">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Ohne Vorlage</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button onClick={startFreeform}
                   className="rounded-xl border-2 border-dashed border-slate-300 py-3 px-2 text-sm font-medium text-slate-600 hover:border-blue-400 hover:text-blue-600 transition-colors">
                   Freie Rechnung
@@ -1074,7 +1074,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
           <div className="p-6 space-y-4">
             {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Field label="Anrede">
                 <select value={salutation} onChange={e => setSalutation(e.target.value)} className={inp}>
                   <option value="">—</option>
@@ -1134,7 +1134,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               </div>
               {hasRoom2 && (
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Field label="Zweites Zimmer">
                       <select value={room2Number} onChange={e => handleRoom2Select(e.target.value)} className={inp}>
                         <option value="">— Zimmer wählen —</option>
@@ -1151,7 +1151,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                         placeholder="z.B. 90.00" />
                     </Field>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <Field label="Anreise (Zimmer 2)">
                       <input type="datetime-local" value={room2CheckinAt}
                         onChange={e => setRoom2CheckinAt(e.target.value)} className={inp} />
@@ -1165,7 +1165,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                         onChange={e => setRoom2Nights(e.target.value)} className={inp} />
                     </Field>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Field label="Erwachsene (Zimmer 2)">
                       <input type="number" min={1} value={room2GuestCount}
                         onChange={e => setRoom2GuestCount(e.target.value)} className={inp} />
@@ -1180,7 +1180,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             </div>
 
             {/* Dates with time */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Field label="Anreise">
                 <input type="datetime-local" value={checkinAt} onChange={e => setCheckinAt(e.target.value)} className={inp} />
               </Field>
@@ -1193,7 +1193,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             </div>
 
             {/* Guest counts — always editable */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Erwachsene">
                 <input type="number" min={1} value={guestCount} onChange={e => setGuestCount(e.target.value)} className={inp} />
               </Field>
@@ -1202,7 +1202,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               </Field>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Preis Übernachtung (€)">
                 <input type="number" step="0.01" value={totalPrice} onChange={e => setTotalPrice(e.target.value)} className={inp} />
               </Field>
@@ -1214,7 +1214,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             </div>
 
             {/* Breakfast */}
-            <div className="grid grid-cols-2 gap-4 items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
               <div className="flex items-center gap-2 mt-5">
                 <input type="checkbox" id="create-bfst" checked={breakfast} onChange={e => setBreakfast(e.target.checked)}
                   className="rounded border-slate-300 text-blue-600" />
@@ -1225,7 +1225,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               </Field>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Zimmerservice Gesamt (€)">
                 <input type="number" step="0.01" value={svcTotal} onChange={e => setSvcTotal(e.target.value)} className={inp} />
               </Field>
@@ -1277,7 +1277,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             </Field>
 
             {/* Recipient */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Field label="Anrede">
                 <select value={salutation} onChange={e => setSalutation(e.target.value)} className={inp}>
                   <option value="">—</option>
@@ -1303,7 +1303,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             </div>
 
             {/* Payment + discount */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Zahlungsart">
                 <select value={payMethod} onChange={e => setPayMethod(e.target.value)} className={inp}>
                   {PAY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
