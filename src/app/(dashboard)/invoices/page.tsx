@@ -1430,7 +1430,7 @@ export default function InvoicesPage() {
   }
 
   return (
-    <div className="px-4 py-5 sm:px-6 sm:py-8 max-w-6xl mx-auto">
+    <div className="px-4 py-5 sm:px-6 sm:py-8 w-full">
 
       {/* Header */}
       <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
