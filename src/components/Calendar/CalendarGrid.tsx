@@ -3,11 +3,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  addDays, addMonths, subMonths, format, isToday,
+  addDays, addMonths, subMonths, format, isToday, isSameDay,
   parseISO, startOfDay, startOfMonth, endOfMonth, getDaysInMonth,
 } from 'date-fns'
 import { de } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Trash2, Plus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { CalendarReservation, RoomTypeCategory } from '@/types/database'
 import { getRoomFloor } from '@/lib/reservations'
@@ -44,6 +44,13 @@ const CATEGORY_LABELS: Record<RoomTypeCategory, string> = {
   family_connecting:  'Verbindungszimmer',   // billing_only — filtered before reaching here
 }
 
+// Mobile compact view: booking-source dot colors + weekday headers
+const SOURCE_DOT: Record<string, string> = {
+  booking_com: 'bg-blue-500', expedia: 'bg-violet-500', airbnb: 'bg-rose-500',
+  walk_in: 'bg-emerald-500', phone: 'bg-amber-500', website: 'bg-orange-500', other: 'bg-slate-400',
+}
+const MOBILE_WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+
 type RoomRow = {
   id: string
   name: string
@@ -72,6 +79,7 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
   const [showCancelled,  setShowCancelled]  = useState(false)
   const [showDeleted,    setShowDeleted]    = useState(false)
   const [selectedId,     setSelectedId]     = useState<string | null>(null)
+  const [selectedDay,    setSelectedDay]    = useState<Date>(() => startOfDay(new Date()))  // mobile day view
   const [userEmail,      setUserEmail]      = useState<string | null>(null)
   const [confirmDelAll,  setConfirmDelAll]  = useState(false)
   const [deletingAll,    setDeletingAll]    = useState(false)
@@ -166,18 +174,21 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
   function prevMonth() {
     const m = subMonths(currentMonth, 1)
     setCurrentMonth(m)
+    setSelectedDay(startOfDay(m))
     fetchReservations(m)
   }
 
   function nextMonth() {
     const m = addMonths(currentMonth, 1)
     setCurrentMonth(m)
+    setSelectedDay(startOfDay(m))
     fetchReservations(m)
   }
 
   function goToToday() {
     const m = startOfMonth(new Date())
     setCurrentMonth(m)
+    setSelectedDay(startOfDay(new Date()))
     fetchReservations(m)
   }
 
@@ -217,6 +228,37 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
   }, {})
 
   const selectedRes = selectedId ? reservations.find(r => r.id === selectedId) ?? null : null
+
+  // ── Mobile compact view data ─────────────────────────────────
+  const totalRooms = rooms.length
+  // Active bookings only (ignore cancelled/no-show/deleted) for occupancy + day list
+  const activeRes = reservations.filter(
+    r => !r.deleted_at && r.status !== 'cancelled' && r.status !== 'no_show',
+  )
+  const dayOccupancy = (day: Date): number => {
+    const d0 = startOfDay(day)
+    return activeRes.filter(r =>
+      d0 >= startOfDay(parseISO(r.checkin_at)) && d0 < startOfDay(parseISO(r.checkout_at)),
+    ).length
+  }
+  const resForRoomOnDay = (roomId: string, day: Date): CalendarReservation | null => {
+    const d0 = startOfDay(day)
+    return activeRes.find(r =>
+      r.room_id === roomId &&
+      d0 >= startOfDay(parseISO(r.checkin_at)) && d0 < startOfDay(parseISO(r.checkout_at)),
+    ) ?? null
+  }
+  function occBg(count: number): string {
+    if (count === 0 || totalRooms === 0) return 'bg-white text-slate-400 border border-slate-200'
+    const r = count / totalRooms
+    if (r >= 1)    return 'bg-rose-500 text-white'
+    if (r >= 0.75) return 'bg-blue-600 text-white'
+    if (r >= 0.5)  return 'bg-blue-400 text-white'
+    if (r >= 0.25) return 'bg-blue-200 text-slate-700'
+    return 'bg-blue-100 text-slate-700'
+  }
+  const firstWeekdayOffset = (startOfMonth(currentMonth).getDay() + 6) % 7  // Monday-based
+  const selectedCount = dayOccupancy(selectedDay)
 
   // ── Render ───────────────────────────────────────────────────
   return (
@@ -316,8 +358,8 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
         </div>
       </div>
 
-      {/* ── Scrollable calendar ─────────────────────────────── */}
-      <div ref={scrollRef} className="flex-1 overflow-auto">
+      {/* ── Scrollable calendar (desktop/tablet timeline) ───── */}
+      <div ref={scrollRef} className="hidden lg:block flex-1 overflow-auto">
         <div style={{ minWidth: totalWidth }}>
 
           {/* ── Day header ─── */}
@@ -535,6 +577,131 @@ export default function CalendarGrid({ initialReservations, rooms }: Props) {
 
           {/* Bottom padding */}
           <div className="h-6" />
+        </div>
+      </div>
+
+      {/* ── Mobile compact view: month grid + tap-a-day room list ─ */}
+      <div className="lg:hidden flex-1 overflow-auto px-3 py-4">
+
+        {/* Month grid with occupancy */}
+        <div className="grid grid-cols-7 gap-1">
+          {MOBILE_WEEKDAYS.map(d => (
+            <div key={d} className="text-center text-2xs font-bold uppercase tracking-wide text-slate-400 pb-1">{d}</div>
+          ))}
+          {Array.from({ length: firstWeekdayOffset }).map((_, i) => <div key={`blank-${i}`} />)}
+          {days.map(day => {
+            const count = dayOccupancy(day)
+            const isSel = isSameDay(day, selectedDay)
+            return (
+              <button
+                key={day.toISOString()}
+                onClick={() => setSelectedDay(startOfDay(day))}
+                className={cn(
+                  'relative aspect-square rounded-lg flex flex-col items-center justify-center leading-none transition-all',
+                  occBg(count),
+                  isSel && 'ring-2 ring-slate-800 ring-offset-1',
+                  !isSel && isToday(day) && 'ring-2 ring-blue-500',
+                )}
+              >
+                <span className="text-sm font-bold">{format(day, 'd')}</span>
+                {count > 0 && <span className="text-2xs font-medium opacity-90 mt-0.5">{count}</span>}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Legend */}
+        <div className="flex items-center justify-center gap-4 mt-3 text-2xs text-slate-400">
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-white border border-slate-200" /> frei</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-400" /> belegt</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-rose-500" /> voll</span>
+        </div>
+
+        {/* Selected day's room list */}
+        <div className="mt-5">
+          <div className="flex items-baseline justify-between mb-2.5 px-0.5">
+            <h3 className="text-sm font-bold text-slate-900 capitalize">
+              {format(selectedDay, 'EEEE, d. MMMM', { locale: de })}
+            </h3>
+            <span className="text-xs font-medium text-slate-500">{selectedCount} / {totalRooms} belegt</span>
+          </div>
+
+          {sortedCategories.map(category => {
+            const catRooms = grouped[category].sort((a, b) => a.room_sort_order - b.room_sort_order)
+            return (
+              <div key={category} className="mb-3">
+                <p className="text-2xs font-bold uppercase tracking-widest text-slate-400 mb-1 px-0.5">
+                  {CATEGORY_LABELS[category]}
+                </p>
+                <div className="rounded-xl border border-slate-200 bg-white overflow-hidden divide-y divide-slate-100">
+                  {catRooms.map(room => {
+                    const res       = resForRoomOnDay(room.id, selectedDay)
+                    const cs        = roomStatuses.get(room.id) ?? room.cleaning_status ?? 'clean'
+                    const familyCfg = FAMILY_PAIR_CONFIG[room.room_number]
+                    const isPension = PENSION_ROOMS.includes(room.room_number)
+                    const blocked   = !res && cs === 'maintenance'
+                    return (
+                      <button
+                        key={room.id}
+                        disabled={blocked}
+                        onClick={() => res ? setSelectedId(res.id) : handleCellClick(room.id, selectedDay)}
+                        className={cn(
+                          'w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors',
+                          res ? 'hover:bg-slate-50 active:bg-slate-100'
+                              : blocked ? 'opacity-60 cursor-not-allowed'
+                                        : 'hover:bg-blue-50 active:bg-blue-100',
+                        )}
+                      >
+                        {/* status dot */}
+                        <span className={cn(
+                          'w-2.5 h-2.5 rounded-full flex-shrink-0',
+                          res ? (SOURCE_DOT[res.source] ?? SOURCE_DOT.other) : 'border-2 border-slate-300',
+                        )} />
+
+                        {/* room number + family/pension badge */}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <span className="text-sm font-bold text-slate-800">Zi.{room.room_number}</span>
+                          {familyCfg && (
+                            <span className={cn('text-2xs font-bold text-white rounded px-1 leading-tight', familyCfg.color)}>
+                              {familyCfg.label}
+                            </span>
+                          )}
+                          {isPension && (
+                            <span className="text-2xs font-semibold text-blue-600 bg-blue-50 border border-blue-200 rounded px-1 leading-tight">P</span>
+                          )}
+                        </div>
+
+                        {/* guest / status */}
+                        <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                          {res ? (
+                            <>
+                              <span className="text-sm text-slate-800 truncate">{res.guest_name}</span>
+                              {res.payment_status === 'unpaid' && (
+                                <span className="text-2xs font-semibold text-amber-700 bg-amber-100 rounded px-1 leading-tight flex-shrink-0">offen</span>
+                              )}
+                            </>
+                          ) : cs === 'maintenance' ? (
+                            <span className="text-sm text-red-600 font-medium">Wartung</span>
+                          ) : cs === 'dirty' ? (
+                            <span className="text-sm text-amber-600">frei · reinigen</span>
+                          ) : (
+                            <span className="text-sm text-slate-400">frei</span>
+                          )}
+                        </div>
+
+                        {/* right meta */}
+                        {res ? (
+                          <span className="text-2xs text-slate-400 flex-shrink-0">bis {format(parseISO(res.checkout_at), 'dd.MM.')}</span>
+                        ) : !blocked ? (
+                          <Plus className="w-4 h-4 text-slate-300 flex-shrink-0" />
+                        ) : null}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
         </div>
       </div>
 
