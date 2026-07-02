@@ -100,6 +100,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
   const [editCheckinTime,  setEditCheckinTime]  = useState('12:00')
   const [editCheckoutTime, setEditCheckoutTime] = useState('13:00')
   const [editGuestCount, setEditGuestCount] = useState(1)
+  const [editChildCount, setEditChildCount] = useState(0)
   const [editGuestName,      setEditGuestName]      = useState('')
   const [editGuestPhone,     setEditGuestPhone]     = useState('')
   const [editGuestEmail,     setEditGuestEmail]     = useState('')
@@ -144,6 +145,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       setEditCheckinTime(toHHMM(r.checkin_at))
       setEditCheckoutTime(toHHMM(r.checkout_at))
       setEditGuestCount(r.guest_count)
+      setEditChildCount(r.child_count ?? 0)
       setEditGuestName(r.guest_name)
       setEditGuestPhone(r.guest_phone ?? '')
       setEditGuestEmail(r.guest_email ?? '')
@@ -204,6 +206,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
         guest_postcode:  editGuestPostcode || null,
         guest_city:      editGuestCity     || null,
         guest_country:   editGuestCountry  || null,
+        child_count:     editChildCount,
       })
       .eq('id', reservationId)
 
@@ -510,11 +513,26 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
         <div className="space-y-2">
           <InfoField label="Personen" icon={<Users className="w-3.5 h-3.5" />}>
             {editing ? (
-              <input type="number" min={1} max={6} value={editGuestCount}
-                onChange={e => setEditGuestCount(Number(e.target.value))}
-                className="mt-1 text-sm border border-slate-300 rounded px-2 py-1 w-20 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              <div className="mt-1 flex items-center gap-3">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs text-slate-500">Erwachsene</span>
+                  <input type="number" min={1} max={8} value={editGuestCount - editChildCount}
+                    onChange={e => setEditGuestCount(Math.max(1, Number(e.target.value)) + editChildCount)}
+                    className="text-sm border border-slate-300 rounded px-2 py-1 w-16 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs text-slate-500">Kinder</span>
+                  <input type="number" min={0} max={6} value={editChildCount}
+                    onChange={e => { const c = Math.max(0, Number(e.target.value)); setEditChildCount(c); setEditGuestCount(prev => (prev - editChildCount) + c) }}
+                    className="text-sm border border-slate-300 rounded px-2 py-1 w-16 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                </div>
+              </div>
             ) : (
-              <span className="text-sm text-slate-900">{r.guest_count} Person{r.guest_count !== 1 ? 'en' : ''}</span>
+              <span className="text-sm text-slate-900">
+                {r.child_count > 0
+                  ? `${r.guest_count - r.child_count} Erw. + ${r.child_count} Kind${r.child_count !== 1 ? 'er' : ''}`
+                  : `${r.guest_count} Person${r.guest_count !== 1 ? 'en' : ''}`}
+              </span>
             )}
           </InfoField>
 

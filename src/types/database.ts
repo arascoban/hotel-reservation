@@ -89,6 +89,7 @@ export interface Reservation {
   guest_email: string | null
   guest_phone: string | null
   guest_count: number
+  child_count: number
   checkin_at: string
   checkout_at: string
   breakfast_included: boolean

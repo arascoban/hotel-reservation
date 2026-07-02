@@ -257,10 +257,9 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
           guest_postcode: guestPostcode || null,
           guest_city:     guestCity     || null,
           guest_country:  guestCountry  || null,
-          // keep billing_address in sync for backward compat
           billing_address: buildBillingAddress(guestStreet, guestPostcode, guestCity, guestCountry),
         }
-        const familyExtra = { family_booking_id: familyId, internal_notes: internalNotes || null, ...addressFields }
+        const familyExtra = { family_booking_id: familyId, internal_notes: internalNotes || null, child_count: children, ...addressFields }
         await supabase.from('reservations').update(familyExtra).eq('id', id1)
         await supabase.from('reservations').update(familyExtra).eq('id', id2)
 
@@ -328,6 +327,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         extras.guest_country  = guestCountry  || null
         extras.billing_address = buildBillingAddress(guestStreet, guestPostcode, guestCity, guestCountry)
       }
+      extras.child_count = children
       if (Object.keys(extras).length > 0) {
         await supabase.from('reservations').update(extras).eq('id', newId)
       }
