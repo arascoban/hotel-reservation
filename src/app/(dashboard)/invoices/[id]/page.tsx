@@ -4,6 +4,7 @@ import { format }        from 'date-fns'
 import { de }            from 'date-fns/locale'
 import PrintButton       from '../../reservations/[id]/print/PrintButton'
 import SendEmailButton   from './SendEmailButton'
+import StornoButton      from './StornoButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,6 +40,9 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
   const inv = data as any
   // Free-text invoices store no room — that's how we tell them apart from hotel stays.
   const isFreeform = !inv.room_number
+  // Cancellation (Stornierung) — cancelled_at set means the invoice is void.
+  const isCancelled   = !!inv.cancelled_at
+  const cancelledDate = inv.cancelled_at ? new Date(inv.cancelled_at) : null
 
   const checkin     = new Date(inv.checkin_at)
   const checkout    = new Date(inv.checkout_at)
@@ -164,13 +168,39 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           checkoutStr={checkoutStr}
           isFreeform={isFreeform}
         />
-        <span className="ml-auto text-xs text-slate-400">Rechnung {invoiceRef}</span>
+        <StornoButton invoiceId={inv.id} cancelled={isCancelled} />
+        <span className="ml-auto text-xs text-slate-400">
+          Rechnung {invoiceRef}
+          {isCancelled && <span className="ml-2 font-semibold text-red-600">· STORNIERT</span>}
+        </span>
       </div>
 
       {/* ── A4 document ─────────────────────────────────────────────────────── */}
       <div className="print-outer py-8 px-4">
-        <div className="page bg-white shadow-2xl mx-auto flex flex-col"
+        <div className="page bg-white shadow-2xl mx-auto flex flex-col relative"
              style={{ width: '794px', minHeight: '1123px', padding: '34px' }}>
+
+          {/* ══ STORNIERT WATERMARK ═══════════════════════════════════════════ */}
+          {isCancelled && (
+            <div aria-hidden
+              className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden z-0">
+              <span style={{
+                transform:     'rotate(-32deg)',
+                fontSize:      '150px',
+                lineHeight:    1,
+                fontWeight:    900,
+                letterSpacing: '0.08em',
+                color:         'rgba(220, 38, 38, 0.13)',
+                whiteSpace:    'nowrap',
+                userSelect:    'none',
+              }}>
+                STORNIERT
+              </span>
+            </div>
+          )}
+
+          {/* Content sits above the watermark */}
+          <div className="relative z-10 flex flex-col flex-1">
 
           {/* ══ HEADER ════════════════════════════════════════════════════════ */}
           <div className="flex items-start justify-between mb-4">
@@ -184,7 +214,12 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
             </div>
 
             <div className="text-right">
-              <p className="text-5xl font-black text-slate-900 tracking-tight leading-none mb-1">RECHNUNG</p>
+              <p className={`text-5xl font-black tracking-tight leading-none mb-1 ${isCancelled ? 'text-slate-400 line-through decoration-red-500 decoration-4' : 'text-slate-900'}`}>RECHNUNG</p>
+              {isCancelled && (
+                <p className="inline-block bg-red-600 text-white text-sm font-black tracking-widest px-3 py-1 rounded-md mb-1">
+                  STORNIERT
+                </p>
+              )}
               <p className="text-sm text-slate-500 mt-1">
                 Nr.&nbsp;<strong className="text-slate-800 font-mono tracking-wide">{fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())}</strong>
               </p>
@@ -203,6 +238,20 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
 
           {/* Divider */}
           <div className="border-t-2 border-slate-800 mb-3" />
+
+          {/* ══ STORNIERT BANNER ══════════════════════════════════════════════ */}
+          {isCancelled && (
+            <div className="rounded-xl border-2 border-red-500 bg-red-50 px-4 py-3 mb-4 flex items-center gap-3">
+              <span className="text-2xl">🚫</span>
+              <div>
+                <p className="text-base font-black text-red-700 tracking-wide">STORNIERT — Diese Rechnung ist ungültig</p>
+                <p className="text-xs text-red-600 mt-0.5">
+                  Storniert am {format(cancelledDate!, 'dd.MM.yyyy')}
+                  {inv.cancelled_by ? ` von ${inv.cancelled_by}` : ''}. Es besteht keine Zahlungsverpflichtung.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* ══ GUEST ADDRESS ════════════════════════════════════════════════ */}
           <div className="mb-4">
@@ -467,6 +516,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
             </p>
           </div>
 
+          </div>{/* /content wrapper */}
         </div>
       </div>
     </>

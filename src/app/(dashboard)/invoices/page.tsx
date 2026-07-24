@@ -6,7 +6,7 @@ import { format }        from 'date-fns'
 import { de }            from 'date-fns/locale'
 import {
   FileText, Settings, ChevronRight, Hash, Trash2, Edit2,
-  Plus, Search, X, Save, Loader2, Users, Calendar,
+  Plus, Search, X, Save, Loader2, Users, Calendar, Ban, RotateCcw,
 } from 'lucide-react'
 import { useAdmin }      from '@/hooks/useAdmin'
 import { cn }            from '@/lib/cn'
@@ -56,6 +56,8 @@ interface Invoice {
   discount: number
   room2_child_count: number | null
   salutation: string | null
+  cancelled_at: string | null
+  cancelled_by: string | null
   created_at: string
   created_by: string | null
 }
@@ -1386,6 +1388,8 @@ export default function InvoicesPage() {
   const [saving,       setSaving]       = useState(false)
   const [deleting,     setDeleting]     = useState<string | null>(null)
   const [confirmDel,   setConfirmDel]   = useState<string | null>(null)
+  const [cancelling,   setCancelling]   = useState<string | null>(null)
+  const [confirmStorno, setConfirmStorno] = useState<string | null>(null)
   const [editInv,      setEditInv]      = useState<Invoice | null>(null)
   const [showCreate,   setShowCreate]   = useState(false)
 
@@ -1427,6 +1431,19 @@ export default function InvoicesPage() {
     setInvoices(prev => prev.filter(i => i.id !== inv.id))
     setNextNumber(newNext)
     setDeleting(null)
+  }
+
+  // Stornierung — soft cancel that keeps the invoice & its number for records.
+  // Re-cancelling toggles back to active (undo). Cancelling needs one confirm.
+  async function handleStorno(inv: Invoice) {
+    if (!inv.cancelled_at && confirmStorno !== inv.id) { setConfirmStorno(inv.id); return }
+    setCancelling(inv.id); setConfirmStorno(null)
+    const patch = inv.cancelled_at
+      ? { cancelled_at: null, cancelled_by: null }
+      : { cancelled_at: new Date().toISOString(), cancelled_by: (await supabase.auth.getUser()).data.user?.email ?? null }
+    const { data } = await supabase.from('invoices').update(patch).eq('id', inv.id).select('*').single()
+    if (data) setInvoices(prev => prev.map(i => i.id === inv.id ? data as Invoice : i))
+    setCancelling(null)
   }
 
   return (
@@ -1497,14 +1514,18 @@ export default function InvoicesPage() {
               ? inv.line_items.reduce((s, i) => s + i.qty * i.unit_price, 0)
               : 0
             const amount = inv.total_price + (inv.room2_total_price ?? 0) + (inv.room_service_total ?? 0) + customTotal - (inv.discount ?? 0)
+            const isCancelled = !!inv.cancelled_at
             return (
-              <div key={inv.id} className="rounded-xl border border-slate-200 bg-white p-3.5">
+              <div key={inv.id} className={cn('rounded-xl border p-3.5', isCancelled ? 'border-red-200 bg-red-50/50' : 'border-slate-200 bg-white')}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <span className="font-mono font-bold text-slate-900">
+                    <span className="font-mono font-bold text-slate-900 inline-flex items-center gap-1.5">
                       {fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())}
+                      {isCancelled && (
+                        <span className="rounded-full bg-red-600 text-white px-1.5 py-0.5 text-2xs font-bold tracking-wide flex-shrink-0">STORNIERT</span>
+                      )}
                     </span>
-                    <div className="font-medium text-slate-900 flex items-center gap-1.5 mt-0.5">
+                    <div className={cn('font-medium flex items-center gap-1.5 mt-0.5', isCancelled ? 'text-slate-400 line-through' : 'text-slate-900')}>
                       <span className="truncate">{inv.guest_name}</span>
                       {inv.early_departure && (
                         <span className="rounded-full bg-amber-100 text-amber-700 px-1.5 py-0.5 text-2xs font-semibold flex-shrink-0">Früh</span>
@@ -1513,7 +1534,7 @@ export default function InvoicesPage() {
                     {inv.guest_email && <div className="text-xs text-slate-400 truncate">{inv.guest_email}</div>}
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <div className="font-bold text-slate-900">€{amount.toFixed(2)}</div>
+                    <div className={cn('font-bold', isCancelled ? 'text-slate-400 line-through' : 'text-slate-900')}>€{amount.toFixed(2)}</div>
                     {inv.early_departure && inv.original_price != null && (
                       <div className="text-xs text-slate-400 line-through">€{inv.original_price.toFixed(2)}</div>
                     )}
@@ -1535,6 +1556,27 @@ export default function InvoicesPage() {
                     className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
                     <Edit2 className="w-3.5 h-3.5" /> Bearbeiten
                   </button>
+                  {/* Stornieren / Reaktivieren */}
+                  {isCancelled ? (
+                    <button onClick={() => handleStorno(inv)} disabled={cancelling === inv.id}
+                      className="inline-flex items-center gap-1 rounded-lg border border-green-300 bg-green-50 text-green-700 px-2.5 py-1.5 text-xs font-medium hover:bg-green-100 disabled:opacity-50">
+                      {cancelling === inv.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                    </button>
+                  ) : confirmStorno === inv.id ? (
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => handleStorno(inv)} disabled={cancelling === inv.id}
+                        className="rounded-lg bg-amber-600 text-white px-2.5 py-1.5 text-xs font-semibold hover:bg-amber-700 disabled:opacity-50">
+                        {cancelling === inv.id ? '…' : 'Stornieren'}
+                      </button>
+                      <button onClick={() => setConfirmStorno(null)}
+                        className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-50">Nein</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => handleStorno(inv)} disabled={cancelling === inv.id}
+                      className="inline-flex items-center gap-1 rounded-lg border border-amber-200 text-amber-600 px-2.5 py-1.5 text-xs font-medium hover:bg-amber-50 disabled:opacity-50">
+                      <Ban className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   {isAdmin && (
                     confirmDel === inv.id ? (
                       <div className="flex items-center gap-1 ml-auto">
@@ -1579,15 +1621,21 @@ export default function InvoicesPage() {
                   const customTotal = Array.isArray(inv.line_items)
                     ? inv.line_items.reduce((s, i) => s + i.qty * i.unit_price, 0)
                     : 0
+                  const isCancelled = !!inv.cancelled_at
                   return (
-                    <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                    <tr key={inv.id} className={cn('transition-colors', isCancelled ? 'bg-red-50/50 hover:bg-red-50' : 'hover:bg-slate-50')}>
                       <td className="px-4 py-3">
-                        <span className="font-mono font-bold text-slate-900">
-                          {fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={cn('font-mono font-bold', isCancelled ? 'text-slate-400 line-through' : 'text-slate-900')}>
+                            {fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())}
+                          </span>
+                          {isCancelled && (
+                            <span className="rounded-full bg-red-600 text-white px-1.5 py-0.5 text-2xs font-bold tracking-wide whitespace-nowrap">STORNIERT</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="font-medium text-slate-900 flex items-center gap-1.5">
+                        <div className={cn('font-medium flex items-center gap-1.5', isCancelled ? 'text-slate-400 line-through' : 'text-slate-900')}>
                           {inv.guest_name}
                           {inv.early_departure && (
                             <span className="rounded-full bg-amber-100 text-amber-700 px-1.5 py-0.5 text-xs font-semibold">Früh</span>
@@ -1610,7 +1658,7 @@ export default function InvoicesPage() {
                       </td>
                       <td className="px-4 py-3 text-slate-600">{PAY_LABELS[inv.payment_method] ?? inv.payment_method}</td>
                       <td className="px-4 py-3 text-right">
-                        <span className="font-semibold text-slate-900">
+                        <span className={cn('font-semibold', isCancelled ? 'text-slate-400 line-through' : 'text-slate-900')}>
                           €{(inv.total_price + (inv.room2_total_price ?? 0) + (inv.room_service_total ?? 0) + customTotal - (inv.discount ?? 0)).toFixed(2)}
                         </span>
                         {inv.early_departure && inv.original_price != null && (
@@ -1630,6 +1678,27 @@ export default function InvoicesPage() {
                             className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
                             <Edit2 className="w-3.5 h-3.5" /> Bearbeiten
                           </button>
+                          {/* Stornieren / Reaktivieren */}
+                          {isCancelled ? (
+                            <button onClick={() => handleStorno(inv)} disabled={cancelling === inv.id}
+                              className="inline-flex items-center gap-1 rounded-lg border border-green-300 bg-green-50 text-green-700 px-2.5 py-1.5 text-xs font-medium hover:bg-green-100 disabled:opacity-50">
+                              {cancelling === inv.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />} Reaktivieren
+                            </button>
+                          ) : confirmStorno === inv.id ? (
+                            <div className="flex items-center gap-1">
+                              <button onClick={() => handleStorno(inv)} disabled={cancelling === inv.id}
+                                className="rounded-lg bg-amber-600 text-white px-2.5 py-1.5 text-xs font-semibold hover:bg-amber-700 disabled:opacity-50">
+                                {cancelling === inv.id ? '…' : 'Stornieren'}
+                              </button>
+                              <button onClick={() => setConfirmStorno(null)}
+                                className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-50">Nein</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => handleStorno(inv)} disabled={cancelling === inv.id}
+                              className="inline-flex items-center gap-1 rounded-lg border border-amber-200 text-amber-600 px-2.5 py-1.5 text-xs font-medium hover:bg-amber-50 disabled:opacity-50">
+                              <Ban className="w-3.5 h-3.5" /> Storno
+                            </button>
+                          )}
                           {isAdmin && (
                             confirmDel === inv.id ? (
                               <div className="flex items-center gap-1">
