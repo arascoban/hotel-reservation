@@ -214,7 +214,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
             </div>
 
             <div className="text-right">
-              <p className={`text-5xl font-black tracking-tight leading-none mb-1 ${isCancelled ? 'text-slate-400 line-through decoration-red-500 decoration-4' : 'text-slate-900'}`}>RECHNUNG</p>
+              <p className="text-5xl font-black tracking-tight leading-none mb-1 text-slate-900">RECHNUNG</p>
               {isCancelled && (
                 <p className="inline-block bg-red-600 text-white text-sm font-black tracking-widest px-3 py-1 rounded-md mb-1">
                   STORNIERT
@@ -244,10 +244,9 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
             <div className="rounded-xl border-2 border-red-500 bg-red-50 px-4 py-3 mb-4 flex items-center gap-3">
               <span className="text-2xl">🚫</span>
               <div>
-                <p className="text-base font-black text-red-700 tracking-wide">STORNIERT — Diese Rechnung ist ungültig</p>
+                <p className="text-base font-black text-red-700 tracking-wide">STORNIERT · Diese Rechnung ist ungültig</p>
                 <p className="text-xs text-red-600 mt-0.5">
-                  Storniert am {format(cancelledDate!, 'dd.MM.yyyy')}
-                  {inv.cancelled_by ? ` von ${inv.cancelled_by}` : ''}. Es besteht keine Zahlungsverpflichtung.
+                  Storniert am {format(cancelledDate!, 'dd.MM.yyyy')}. Es besteht keine Zahlungsverpflichtung.
                 </p>
               </div>
             </div>
@@ -453,8 +452,12 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                   </tr>
                 </tbody>
               </table>
-              {/* Zahlungsart — outstanding balances get a clear "please pay" notice */}
-              {inv.payment_method === 'unpaid' ? (
+              {/* Cancelled → clear STORNIERT box · outstanding → "please pay" notice · else payment method */}
+              {isCancelled ? (
+                <div className="mt-2.5 px-4 py-3 rounded-lg border-2 border-red-500 bg-red-50 text-sm text-center">
+                  <p className="font-black text-red-700 tracking-widest">STORNIERT</p>
+                </div>
+              ) : inv.payment_method === 'unpaid' ? (
                 <div className="mt-2.5 px-4 py-3 rounded-lg border border-amber-300 bg-amber-50 text-sm">
                   <p className="font-bold text-amber-800 text-center">Zahlung ausstehend</p>
                   <p className="text-amber-700 text-center mt-0.5">
