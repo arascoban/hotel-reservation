@@ -1421,21 +1421,28 @@ function PreviewModal({ inv, onClose }: { inv: Invoice; onClose: () => void }) {
   const [loading, setLoading] = useState(true)
   const ref = fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())
 
+  // Close on Escape and stop the page behind from scrolling
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4"
-         onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[92vh] flex flex-col overflow-hidden"
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 sm:p-4"
+         onClick={onClose} role="dialog" aria-modal="true" aria-label={`Rechnung ${ref}`}>
+      <div className="bg-white w-full sm:max-w-4xl h-[95vh] sm:h-[92vh] rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden"
            onClick={e => e.stopPropagation()}>
 
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-slate-200 flex-shrink-0">
-          <div className="min-w-0">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-4 sm:px-5 py-3 border-b border-slate-200 flex-shrink-0">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2 flex-wrap">
               <span className="font-mono">{ref}</span>
               {inv.cancelled_at && (
                 <span className="rounded-full bg-red-600 text-white px-2 py-0.5 text-2xs font-bold tracking-wide">
@@ -1445,30 +1452,39 @@ function PreviewModal({ inv, onClose }: { inv: Invoice; onClose: () => void }) {
             </h2>
             <p className="text-xs text-slate-400 truncate">{inv.guest_name}</p>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <Link href={`/invoices/${inv.id}`} target="_blank"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
-              <ExternalLink className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Öffnen / Drucken</span>
-            </Link>
-            <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          <button onClick={onClose} aria-label="Vorschau schließen"
+            className="flex-shrink-0 grid place-items-center w-10 h-10 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        <div className="relative flex-1 bg-slate-100 overflow-auto">
+        {/* The document */}
+        <div className="relative flex-1 bg-slate-200 overflow-auto overscroll-contain">
           {loading && (
-            <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-400 gap-2">
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-500 gap-2">
               <Loader2 className="w-4 h-4 animate-spin" /> Rechnung wird geladen…
             </div>
           )}
+          {/* /invoice-preview renders the sheet alone — no sidebar, no toolbar */}
           <iframe
-            src={`/invoices/${inv.id}`}
+            src={`/invoice-preview/${inv.id}`}
             title={`Rechnung ${ref}`}
             onLoad={() => setLoading(false)}
             className="w-full h-full border-0"
           />
+        </div>
+
+        {/* Actions — full-width targets on phones */}
+        <div className="flex items-center gap-2 px-4 sm:px-5 py-3 border-t border-slate-200 flex-shrink-0 bg-white">
+          <Link href={`/invoices/${inv.id}`} target="_blank"
+            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 text-white px-4 h-11 text-sm font-semibold hover:bg-slate-700 transition-colors">
+            <ExternalLink className="w-4 h-4" />
+            Öffnen &amp; Drucken
+          </Link>
+          <button onClick={onClose}
+            className="flex-1 sm:flex-none inline-flex items-center justify-center rounded-xl border border-slate-300 px-4 h-11 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+            Schließen
+          </button>
         </div>
       </div>
     </div>
@@ -1552,50 +1568,56 @@ export default function InvoicesPage() {
     <div className="px-4 py-5 sm:px-6 sm:py-8 w-full">
 
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <FileText className="w-6 h-6 text-slate-500" />
-            Rechnungen
-          </h1>
-          <p className="text-slate-500 mt-1">
-            {invoices.length} Rechnung{invoices.length !== 1 ? 'en' : ''} ·
-            Nächste Nr.: <span className="font-mono font-semibold">{fmtNum(nextNumber)}</span>
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 rounded-xl bg-blue-600 text-white px-4 py-2 text-sm font-semibold hover:bg-blue-700 transition-colors">
-            <Plus className="w-4 h-4" />
-            Neue Rechnung
-          </button>
+      <div className="mb-5 sm:mb-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2">
+              <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500 flex-shrink-0" />
+              Rechnungen
+            </h1>
+            <p className="text-sm text-slate-500 mt-1">
+              {invoices.length} Rechnung{invoices.length !== 1 ? 'en' : ''} ·
+              Nächste: <span className="font-mono font-semibold">{fmtNum(nextNumber)}</span>
+            </p>
+          </div>
           {isAdmin && (
             <button
               onClick={() => { setSettingsVal(String(nextNumber)); setShowSettings(s => !s) }}
-              className="flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+              title="Nummern-Einstellungen" aria-label="Nummern-Einstellungen"
+              className="flex-shrink-0 inline-flex items-center gap-2 rounded-xl border border-slate-300 px-3 h-11 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
               <Settings className="w-4 h-4" />
-              Nr.-Einstellungen
+              <span className="hidden sm:inline">Nr.-Einstellungen</span>
             </button>
           )}
         </div>
+
+        {/* Primary action — full width where thumbs are */}
+        <button
+          onClick={() => setShowCreate(true)}
+          className="mt-4 w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 text-white px-5 h-11 text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors">
+          <Plus className="w-4 h-4" />
+          Neue Rechnung
+        </button>
       </div>
 
       {/* Admin: change starting number */}
       {showSettings && isAdmin && (
-        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-4 flex-wrap">
+        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           <Hash className="w-5 h-5 text-amber-600 flex-shrink-0" />
           <div className="flex-1">
             <p className="text-sm font-semibold text-amber-800">Nächste Rechnungsnummer setzen</p>
             <p className="text-xs text-amber-600 mt-0.5">Bestehende Rechnungen bleiben unverändert.</p>
           </div>
-          <input type="number" min={1} value={settingsVal} onChange={e => setSettingsVal(e.target.value)}
-            className="w-28 border border-amber-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
-          <button onClick={saveSettings} disabled={saving}
-            className="rounded-lg bg-amber-600 text-white px-4 py-1.5 text-sm font-semibold hover:bg-amber-700 disabled:opacity-50">
-            {saving ? 'Speichern…' : 'Speichern'}
-          </button>
-          <button onClick={() => setShowSettings(false)} className="text-amber-500 hover:text-amber-700 text-sm">Abbrechen</button>
+          <div className="flex items-center gap-2">
+            <input type="number" min={1} value={settingsVal} onChange={e => setSettingsVal(e.target.value)}
+              className="w-24 border border-amber-300 rounded-lg px-3 h-11 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+            <button onClick={saveSettings} disabled={saving}
+              className="rounded-lg bg-amber-600 text-white px-4 h-11 text-sm font-semibold hover:bg-amber-700 disabled:opacity-50">
+              {saving ? 'Speichern…' : 'Speichern'}
+            </button>
+            <button onClick={() => setShowSettings(false)}
+              className="rounded-lg px-3 h-11 text-amber-600 hover:bg-amber-100 text-sm">Abbrechen</button>
+          </div>
         </div>
       )}
 
@@ -1609,8 +1631,8 @@ export default function InvoicesPage() {
         </div>
       ) : (
         <>
-        {/* ── Mobile card list (< sm) ─────────────────────────────── */}
-        <div className="sm:hidden space-y-2">
+        {/* ── Mobile: cards (< lg) ──────────────────────────────────── */}
+        <div className="lg:hidden space-y-2.5">
           {invoices.map(inv => {
             const customTotal = Array.isArray(inv.line_items)
               ? inv.line_items.reduce((s, i) => s + i.qty * i.unit_price, 0)
@@ -1618,85 +1640,94 @@ export default function InvoicesPage() {
             const amount = inv.total_price + (inv.room2_total_price ?? 0) + (inv.room_service_total ?? 0) + customTotal - (inv.discount ?? 0)
             const isCancelled = !!inv.cancelled_at
             return (
-              <div key={inv.id} className={cn('rounded-xl border p-3.5', isCancelled ? 'border-red-200 bg-red-50/50' : 'border-slate-200 bg-white')}>
-                <div className="flex items-start justify-between gap-2 cursor-pointer"
-                     onClick={() => setPreviewInv(inv)}>
-                  <div className="min-w-0">
-                    <span className="font-mono font-bold text-slate-900 inline-flex items-center gap-1.5">
-                      {fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())}
-                      {isCancelled && (
-                        <span className="rounded-full bg-red-600 text-white px-1.5 py-0.5 text-2xs font-bold tracking-wide flex-shrink-0">STORNIERT</span>
-                      )}
-                    </span>
-                    <div className={cn('font-medium flex items-center gap-1.5 mt-0.5', isCancelled ? 'text-slate-400 line-through' : 'text-slate-900')}>
-                      <span className="truncate">{inv.guest_name}</span>
-                      {inv.early_departure && (
-                        <span className="rounded-full bg-amber-100 text-amber-700 px-1.5 py-0.5 text-2xs font-semibold flex-shrink-0">Früh</span>
-                      )}
+              <div key={inv.id}
+                className={cn(
+                  'rounded-2xl border overflow-hidden',
+                  isCancelled ? 'border-red-200 bg-red-50/50' : 'border-slate-200 bg-white',
+                )}>
+
+                {/* Tap anywhere here to preview */}
+                <button onClick={() => setPreviewInv(inv)}
+                  className="w-full text-left px-4 py-3.5 active:bg-slate-50 transition-colors">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={cn('font-mono font-bold text-sm',
+                          isCancelled ? 'text-slate-400 line-through' : 'text-slate-900')}>
+                          {fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())}
+                        </span>
+                        {isCancelled && (
+                          <span className="rounded-full bg-red-600 text-white px-1.5 py-0.5 text-2xs font-bold tracking-wide">STORNIERT</span>
+                        )}
+                        {inv.early_departure && (
+                          <span className="rounded-full bg-amber-100 text-amber-700 px-1.5 py-0.5 text-2xs font-semibold">Früh</span>
+                        )}
+                      </div>
+                      <p className={cn('font-semibold mt-1 truncate',
+                        isCancelled ? 'text-slate-400 line-through' : 'text-slate-900')}>
+                        {inv.guest_name}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {inv.room_number ? `Zimmer ${inv.room_number}` : 'Freie Rechnung'}
+                        {' · '}{PAY_LABELS[inv.payment_method] ?? inv.payment_method}
+                      </p>
                     </div>
-                    {inv.guest_email && <div className="text-xs text-slate-400 truncate">{inv.guest_email}</div>}
+                    <div className="text-right flex-shrink-0">
+                      <div className={cn('font-bold text-lg',
+                        isCancelled ? 'text-slate-400 line-through' : 'text-slate-900')}>
+                        €{amount.toFixed(2)}
+                      </div>
+                      <div className="text-2xs text-slate-400 mt-0.5">
+                        {format(new Date(inv.created_at), 'd. MMM yyyy', { locale: de })}
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <div className={cn('font-bold', isCancelled ? 'text-slate-400 line-through' : 'text-slate-900')}>€{amount.toFixed(2)}</div>
-                    {inv.early_departure && inv.original_price != null && (
-                      <div className="text-xs text-slate-400 line-through">€{inv.original_price.toFixed(2)}</div>
-                    )}
-                  </div>
-                </div>
+                </button>
 
-                <div className="mt-2 flex items-center gap-x-3 gap-y-1 flex-wrap text-xs text-slate-500 cursor-pointer"
-                     onClick={() => setPreviewInv(inv)}>
-                  <span>{inv.room_number ? `Zi. ${inv.room_number}` : 'Freie Rechnung'}</span>
-                  {inv.room_number && <span>Abreise {format(new Date(inv.checkout_at), 'd. MMM yyyy', { locale: de })}</span>}
-                  <span>{PAY_LABELS[inv.payment_method] ?? inv.payment_method}</span>
-                </div>
-
-                <div className="mt-3 flex items-center gap-1.5">
+                {/* Actions — 44px targets, evenly split */}
+                <div className="flex items-stretch border-t border-slate-100 divide-x divide-slate-100">
                   <Link href={`/invoices/${inv.id}`} target="_blank"
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
-                    <FileText className="w-3.5 h-3.5" /> PDF
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 text-xs font-medium text-slate-600 active:bg-slate-50">
+                    <FileText className="w-4 h-4" /> PDF
                   </Link>
                   <button onClick={() => setEditInv(inv)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
-                    <Edit2 className="w-3.5 h-3.5" /> Bearbeiten
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 text-xs font-medium text-slate-600 active:bg-slate-50">
+                    <Edit2 className="w-4 h-4" /> Bearbeiten
                   </button>
-                  {/* Stornieren / Reaktivieren */}
+
                   {isCancelled ? (
                     <button onClick={() => handleStorno(inv)} disabled={cancelling === inv.id}
-                      className="inline-flex items-center gap-1 rounded-lg border border-green-300 bg-green-50 text-green-700 px-2.5 py-1.5 text-xs font-medium hover:bg-green-100 disabled:opacity-50">
-                      {cancelling === inv.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 text-xs font-medium text-green-700 active:bg-green-50 disabled:opacity-50">
+                      {cancelling === inv.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+                      Reaktiv.
                     </button>
                   ) : confirmStorno === inv.id ? (
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => handleStorno(inv)} disabled={cancelling === inv.id}
-                        className="rounded-lg bg-amber-600 text-white px-2.5 py-1.5 text-xs font-semibold hover:bg-amber-700 disabled:opacity-50">
-                        {cancelling === inv.id ? '…' : 'Stornieren'}
-                      </button>
-                      <button onClick={() => setConfirmStorno(null)}
-                        className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-50">Nein</button>
-                    </div>
+                    <button onClick={() => handleStorno(inv)} disabled={cancelling === inv.id}
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 text-xs font-semibold text-white bg-amber-600 active:bg-amber-700 disabled:opacity-50">
+                      {cancelling === inv.id ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                      Bestätigen
+                    </button>
                   ) : (
                     <button onClick={() => handleStorno(inv)} disabled={cancelling === inv.id}
-                      className="inline-flex items-center gap-1 rounded-lg border border-amber-200 text-amber-600 px-2.5 py-1.5 text-xs font-medium hover:bg-amber-50 disabled:opacity-50">
-                      <Ban className="w-3.5 h-3.5" />
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 text-xs font-medium text-amber-600 active:bg-amber-50 disabled:opacity-50">
+                      <Ban className="w-4 h-4" /> Storno
                     </button>
                   )}
+
                   {isAdmin && (
-                    confirmDel === inv.id ? (
-                      <div className="flex items-center gap-1 ml-auto">
-                        <button onClick={() => handleDelete(inv)} disabled={!!deleting}
-                          className="rounded-lg bg-red-600 text-white px-2.5 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:opacity-50">
-                          {deleting === inv.id ? '…' : 'Löschen'}
-                        </button>
-                        <button onClick={() => setConfirmDel(null)}
-                          className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-50">Nein</button>
-                      </div>
-                    ) : (
-                      <button onClick={() => handleDelete(inv)} disabled={!!deleting}
-                        className="ml-auto rounded-lg border border-red-200 text-red-500 px-2.5 py-1.5 text-xs font-medium hover:bg-red-50 disabled:opacity-50">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )
+                    <button
+                      onClick={() => handleDelete(inv)} disabled={!!deleting}
+                      aria-label={confirmDel === inv.id ? 'Löschen bestätigen' : 'Rechnung löschen'}
+                      className={cn(
+                        'w-14 inline-flex items-center justify-center h-11 text-xs font-semibold disabled:opacity-50',
+                        confirmDel === inv.id
+                          ? 'bg-red-600 text-white active:bg-red-700'
+                          : 'text-red-500 active:bg-red-50',
+                      )}>
+                      {deleting === inv.id
+                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                        : confirmDel === inv.id ? 'Sicher?' : <Trash2 className="w-4 h-4" />}
+                    </button>
                   )}
                 </div>
               </div>
@@ -1704,134 +1735,126 @@ export default function InvoicesPage() {
           })}
         </div>
 
-        {/* ── Desktop table (sm+) ─────────────────────────────────── */}
-        <div className="hidden sm:block bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[640px]">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="px-4 py-3 text-left font-semibold text-slate-600">Nr.</th>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-600">Gast</th>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-600">Zimmer</th>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-600">Abreise</th>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-600">Zahlung</th>
-                  <th className="px-4 py-3 text-right font-semibold text-slate-600">Betrag</th>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-600">Erstellt</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {invoices.map(inv => {
-                  const customTotal = Array.isArray(inv.line_items)
-                    ? inv.line_items.reduce((s, i) => s + i.qty * i.unit_price, 0)
-                    : 0
-                  const isCancelled = !!inv.cancelled_at
-                  return (
-                    <tr key={inv.id}
-                        onClick={() => setPreviewInv(inv)}
-                        className={cn('transition-colors cursor-pointer', isCancelled ? 'bg-red-50/50 hover:bg-red-50' : 'hover:bg-slate-50')}>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          <span className={cn('font-mono font-bold', isCancelled ? 'text-slate-400 line-through' : 'text-slate-900')}>
-                            {fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())}
-                          </span>
-                          {isCancelled && (
-                            <span className="rounded-full bg-red-600 text-white px-1.5 py-0.5 text-2xs font-bold tracking-wide whitespace-nowrap">STORNIERT</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className={cn('font-medium flex items-center gap-1.5', isCancelled ? 'text-slate-400 line-through' : 'text-slate-900')}>
-                          {inv.guest_name}
-                          {inv.early_departure && (
-                            <span className="rounded-full bg-amber-100 text-amber-700 px-1.5 py-0.5 text-xs font-semibold">Früh</span>
-                          )}
-                        </div>
-                        {inv.guest_email && <div className="text-xs text-slate-400">{inv.guest_email}</div>}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {inv.room_number ? (
-                          <>
-                            <span className="font-semibold">Zi. {inv.room_number}</span>
-                            <span className="ml-1 text-xs text-slate-400 hidden sm:inline">{inv.room_name}</span>
-                          </>
-                        ) : (
-                          <span className="text-xs text-slate-400 italic">Freie Rechnung</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                        {inv.room_number ? format(new Date(inv.checkout_at), 'd. MMM yyyy', { locale: de }) : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">{PAY_LABELS[inv.payment_method] ?? inv.payment_method}</td>
-                      <td className="px-4 py-3 text-right">
-                        <span className={cn('font-semibold', isCancelled ? 'text-slate-400 line-through' : 'text-slate-900')}>
-                          €{(inv.total_price + (inv.room2_total_price ?? 0) + (inv.room_service_total ?? 0) + customTotal - (inv.discount ?? 0)).toFixed(2)}
+        {/* ── Desktop: table (lg+) ──────────────────────────────────── */}
+        <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                <th className="px-4 py-3 font-semibold text-slate-600">Nr.</th>
+                <th className="px-4 py-3 font-semibold text-slate-600">Gast</th>
+                <th className="px-4 py-3 font-semibold text-slate-600">Zimmer</th>
+                <th className="px-4 py-3 font-semibold text-slate-600">Abreise</th>
+                <th className="px-4 py-3 font-semibold text-slate-600">Zahlung</th>
+                <th className="px-4 py-3 font-semibold text-slate-600 text-right">Betrag</th>
+                <th className="px-4 py-3 font-semibold text-slate-600 text-right">Aktionen</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {invoices.map(inv => {
+                const customTotal = Array.isArray(inv.line_items)
+                  ? inv.line_items.reduce((s, i) => s + i.qty * i.unit_price, 0)
+                  : 0
+                const amount = inv.total_price + (inv.room2_total_price ?? 0) + (inv.room_service_total ?? 0) + customTotal - (inv.discount ?? 0)
+                const isCancelled = !!inv.cancelled_at
+                return (
+                  <tr key={inv.id}
+                      onClick={() => setPreviewInv(inv)}
+                      className={cn('transition-colors cursor-pointer',
+                        isCancelled ? 'bg-red-50/50 hover:bg-red-50' : 'hover:bg-slate-50')}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <span className={cn('font-mono font-bold',
+                          isCancelled ? 'text-slate-400 line-through' : 'text-slate-900')}>
+                          {fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())}
                         </span>
-                        {inv.early_departure && inv.original_price != null && (
-                          <div className="text-xs text-slate-400 line-through">€{inv.original_price.toFixed(2)}</div>
+                        {isCancelled && (
+                          <span className="rounded-full bg-red-600 text-white px-1.5 py-0.5 text-2xs font-bold tracking-wide whitespace-nowrap">STORNIERT</span>
                         )}
-                      </td>
-                      <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">
+                      </div>
+                      <div className="text-2xs text-slate-400 mt-0.5">
                         {format(new Date(inv.created_at), 'd. MMM yyyy', { locale: de })}
-                      </td>
-                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Link href={`/invoices/${inv.id}`} target="_blank"
-                            className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
-                            <FileText className="w-3.5 h-3.5" /> PDF
-                          </Link>
-                          <button onClick={() => setEditInv(inv)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
-                            <Edit2 className="w-3.5 h-3.5" /> Bearbeiten
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className={cn('font-medium flex items-center gap-1.5',
+                        isCancelled ? 'text-slate-400 line-through' : 'text-slate-900')}>
+                        {inv.guest_name}
+                        {inv.early_departure && (
+                          <span className="rounded-full bg-amber-100 text-amber-700 px-1.5 py-0.5 text-2xs font-semibold">Früh</span>
+                        )}
+                      </div>
+                      {inv.guest_email && <div className="text-xs text-slate-400">{inv.guest_email}</div>}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {inv.room_number
+                        ? <><span className="font-semibold">Zi. {inv.room_number}</span>
+                            <span className="ml-1 text-xs text-slate-400">{inv.room_name}</span></>
+                        : <span className="text-xs text-slate-400 italic">Freie Rechnung</span>}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                      {inv.room_number ? format(new Date(inv.checkout_at), 'd. MMM yyyy', { locale: de }) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">{PAY_LABELS[inv.payment_method] ?? inv.payment_method}</td>
+                    <td className="px-4 py-3 text-right">
+                      <span className={cn('font-semibold',
+                        isCancelled ? 'text-slate-400 line-through' : 'text-slate-900')}>
+                        €{amount.toFixed(2)}
+                      </span>
+                      {inv.early_departure && inv.original_price != null && (
+                        <div className="text-2xs text-slate-400 line-through">€{inv.original_price.toFixed(2)}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1">
+                        <Link href={`/invoices/${inv.id}`} target="_blank" title="PDF öffnen" aria-label="PDF öffnen"
+                          className="grid place-items-center w-9 h-9 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors">
+                          <FileText className="w-4 h-4" />
+                        </Link>
+                        <button onClick={() => setEditInv(inv)} title="Bearbeiten" aria-label="Rechnung bearbeiten"
+                          className="grid place-items-center w-9 h-9 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors">
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+
+                        {isCancelled ? (
+                          <button onClick={() => handleStorno(inv)} disabled={cancelling === inv.id}
+                            title="Storno aufheben" aria-label="Storno aufheben"
+                            className="grid place-items-center w-9 h-9 rounded-lg text-green-600 hover:bg-green-50 transition-colors disabled:opacity-50">
+                            {cancelling === inv.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
                           </button>
-                          {/* Stornieren / Reaktivieren */}
-                          {isCancelled ? (
-                            <button onClick={() => handleStorno(inv)} disabled={cancelling === inv.id}
-                              className="inline-flex items-center gap-1 rounded-lg border border-green-300 bg-green-50 text-green-700 px-2.5 py-1.5 text-xs font-medium hover:bg-green-100 disabled:opacity-50">
-                              {cancelling === inv.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />} Reaktivieren
+                        ) : confirmStorno === inv.id ? (
+                          <button onClick={() => handleStorno(inv)} disabled={cancelling === inv.id}
+                            className="rounded-lg bg-amber-600 text-white px-2.5 h-9 text-xs font-semibold hover:bg-amber-700 disabled:opacity-50">
+                            {cancelling === inv.id ? '…' : 'Sicher?'}
+                          </button>
+                        ) : (
+                          <button onClick={() => handleStorno(inv)} disabled={cancelling === inv.id}
+                            title="Stornieren" aria-label="Rechnung stornieren"
+                            className="grid place-items-center w-9 h-9 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors disabled:opacity-50">
+                            <Ban className="w-4 h-4" />
+                          </button>
+                        )}
+
+                        {isAdmin && (
+                          confirmDel === inv.id ? (
+                            <button onClick={() => handleDelete(inv)} disabled={!!deleting}
+                              className="rounded-lg bg-red-600 text-white px-2.5 h-9 text-xs font-semibold hover:bg-red-700 disabled:opacity-50">
+                              {deleting === inv.id ? '…' : 'Sicher?'}
                             </button>
-                          ) : confirmStorno === inv.id ? (
-                            <div className="flex items-center gap-1">
-                              <button onClick={() => handleStorno(inv)} disabled={cancelling === inv.id}
-                                className="rounded-lg bg-amber-600 text-white px-2.5 py-1.5 text-xs font-semibold hover:bg-amber-700 disabled:opacity-50">
-                                {cancelling === inv.id ? '…' : 'Stornieren'}
-                              </button>
-                              <button onClick={() => setConfirmStorno(null)}
-                                className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-50">Nein</button>
-                            </div>
                           ) : (
-                            <button onClick={() => handleStorno(inv)} disabled={cancelling === inv.id}
-                              className="inline-flex items-center gap-1 rounded-lg border border-amber-200 text-amber-600 px-2.5 py-1.5 text-xs font-medium hover:bg-amber-50 disabled:opacity-50">
-                              <Ban className="w-3.5 h-3.5" /> Storno
+                            <button onClick={() => handleDelete(inv)} disabled={!!deleting}
+                              title="Löschen" aria-label="Rechnung löschen"
+                              className="grid place-items-center w-9 h-9 rounded-lg text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50">
+                              <Trash2 className="w-4 h-4" />
                             </button>
-                          )}
-                          {isAdmin && (
-                            confirmDel === inv.id ? (
-                              <div className="flex items-center gap-1">
-                                <button onClick={() => handleDelete(inv)} disabled={!!deleting}
-                                  className="rounded-lg bg-red-600 text-white px-2.5 py-1.5 text-xs font-semibold hover:bg-red-700 disabled:opacity-50">
-                                  {deleting === inv.id ? '…' : 'Löschen'}
-                                </button>
-                                <button onClick={() => setConfirmDel(null)}
-                                  className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-50">
-                                  Nein
-                                </button>
-                              </div>
-                            ) : (
-                              <button onClick={() => handleDelete(inv)} disabled={!!deleting}
-                                className="rounded-lg border border-red-200 text-red-500 px-2.5 py-1.5 text-xs font-medium hover:bg-red-50 disabled:opacity-50">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                          )
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
         </>
       )}
