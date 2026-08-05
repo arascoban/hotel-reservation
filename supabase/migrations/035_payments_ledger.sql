@@ -99,12 +99,12 @@ WHERE  i.deposit_paid_amount IS NOT NULL
   AND  NOT EXISTS (SELECT 1 FROM payments p WHERE p.invoice_id = i.id);
 
 
--- ── Convenience view: every payment that applies to an invoice ───────────────
+-- ── Which payments apply to an invoice ───────────────────────────────────────
 -- An invoice shows its own payments plus the ones recorded on its reservation
--- (a deposit taken at booking time, before any invoice existed).
-CREATE OR REPLACE VIEW invoice_payments AS
-SELECT i.id AS invoice_id, p.*
-FROM   invoices i
-JOIN   payments p
-       ON p.invoice_id = i.id
-       OR (p.invoice_id IS NULL AND p.reservation_id = i.reservation_id);
+-- (a deposit taken at booking time, before any invoice existed):
+--
+--   p.invoice_id = <invoice>
+--   OR (p.invoice_id IS NULL AND p.reservation_id = <invoice's reservation>)
+--
+-- The app queries that directly in the invoice page and the deposit e-mail
+-- route, so no view is needed here.
