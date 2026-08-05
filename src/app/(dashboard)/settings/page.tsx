@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAdmin } from '@/hooks/useAdmin'
 import { cn } from '@/lib/cn'
-import { SlidersHorizontal, ShieldCheck, Loader2, Eye, EyeOff } from 'lucide-react'
+import { SlidersHorizontal, ShieldCheck, Loader2, Eye, EyeOff, Wallet } from 'lucide-react'
 
 interface MenuRow {
   menu_key:          string
@@ -20,6 +20,8 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving,  setSaving]  = useState<string | null>(null)
   const [msg,     setMsg]     = useState('')
+  const [depositPct,    setDepositPct]    = useState('30')
+  const [savingDeposit, setSavingDeposit] = useState(false)
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -27,8 +29,24 @@ export default function SettingsPage() {
       .select('menu_key, label, visible_for_staff, sort_order')
       .order('sort_order')
     if (data) setRows(data as MenuRow[])
+
+    const { data: settings } = await supabase
+      .from('invoice_settings').select('default_deposit_percent').eq('id', 1).single()
+    const pct = (settings as { default_deposit_percent?: number } | null)?.default_deposit_percent
+    if (pct != null) setDepositPct(String(pct))
+
     setLoading(false)
   }, [supabase])
+
+  async function saveDepositPct() {
+    const pct = parseFloat(depositPct)
+    if (Number.isNaN(pct) || pct < 0 || pct > 100) return
+    setSavingDeposit(true)
+    const { error } = await supabase
+      .from('invoice_settings').update({ default_deposit_percent: pct }).eq('id', 1)
+    if (!error) { setMsg('✓ Gespeichert'); setTimeout(() => setMsg(''), 2000) }
+    setSavingDeposit(false)
+  }
 
   useEffect(() => { load() }, [load])
 
@@ -165,6 +183,41 @@ export default function SettingsPage() {
           ))}
         </div>
       )}
+
+      {/* ── Default deposit percentage ─────────────────────────────────── */}
+      <div className="mt-8">
+        <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-1">
+          <Wallet className="w-5 h-5 text-slate-500" />
+          Anzahlung
+        </h2>
+        <p className="text-slate-500 text-sm mb-4">
+          Vorgabe für neue Reservierungen — pro Buchung jederzeit änderbar.
+        </p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 flex items-end gap-3 flex-wrap">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">
+              Standard-Anzahlung (%)
+            </label>
+            <input
+              type="number" min={0} max={100} step="1"
+              value={depositPct}
+              onChange={e => setDepositPct(e.target.value)}
+              className="w-32 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <button
+            onClick={saveDepositPct}
+            disabled={savingDeposit}
+            className="rounded-xl bg-blue-600 text-white px-5 py-2 text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+          >
+            {savingDeposit && <Loader2 className="w-4 h-4 animate-spin" />}
+            {savingDeposit ? 'Speichern…' : 'Speichern'}
+          </button>
+          <p className="text-xs text-slate-400 flex-1 min-w-[200px]">
+            0 % bedeutet: keine Anzahlung vorschlagen.
+          </p>
+        </div>
+      </div>
 
       <p className="mt-4 text-xs text-slate-400">
         Änderungen greifen, sobald ein Mitarbeiter die Seite neu lädt.

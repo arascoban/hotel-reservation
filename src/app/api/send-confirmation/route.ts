@@ -4,6 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import { createClient } from '@/lib/supabase/server'
 import { formatDate } from '@/lib/reservations'
+import { summarizeDeposit, formatDeDate, eur as depEur } from '@/lib/deposit'
 
 // Parse time directly from the stored ISO string to avoid UTC conversion on the server.
 // Timestamps are stored as +02:00 — new Date() would shift them by -2h in UTC Node.js.
@@ -92,13 +93,14 @@ function buildEmailHtml(opts: {
   guestPostcode:  string | null
   guestCity:      string | null
   guestCountry:   string | null
+  depositBlock:   string
 }) {
   const {
     guestName, roomName, roomNumber, roomType,
     checkinAt, checkoutAt, guestCount, breakfastIncluded,
     source, paymentMethod, paymentStatus, totalPrice,
     notes, lockerNumber, lockerPin, reservationId, nights, includeKeys,
-    guestStreet, guestPostcode, guestCity, guestCountry,
+    guestStreet, guestPostcode, guestCity, guestCountry, depositBlock,
   } = opts
 
   // Build address block (only if at least one field is present)
@@ -248,6 +250,9 @@ function buildEmailHtml(opts: {
                 </td>
               </tr>
 
+              <!-- Anzahlung -->
+              ${depositBlock}
+
               ${notes ? `
               <!-- Notes -->
               <tr>
@@ -308,6 +313,61 @@ export async function POST(req: NextRequest) {
 
     const nights = differenceInCalendarDays(new Date(r.checkout_at), new Date(r.checkin_at))
 
+    // ── Anzahlung block ─────────────────────────────────────────────────────
+    // Shows what the guest still owes up front, or confirms what already
+    // arrived. Rendered inline so the confirmation always carries the number.
+    const dep = summarizeDeposit(r, r.total_price ?? 0)
+    let depositBlock = ''
+    if (dep.paid) {
+      depositBlock = `
+              <tr>
+                <td style="padding:20px 0;border-bottom:1px solid #f1f5f9;">
+                  <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">Anzahlung</p>
+                  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;">
+                    <tr><td style="padding:14px 16px;">
+                      <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="font-size:13px;color:#166534;">Erhalten am ${formatDeDate(dep.paidAt)} · ${dep.paidMethodLabel}</td>
+                          <td style="font-size:16px;font-weight:800;color:#15803d;text-align:right;">${depEur(dep.paidAmount)}</td>
+                        </tr>
+                        <tr>
+                          <td style="font-size:13px;color:#166534;padding-top:8px;border-top:1px solid #bbf7d0;">Restbetrag</td>
+                          <td style="font-size:15px;font-weight:700;color:#166534;text-align:right;padding-top:8px;border-top:1px solid #bbf7d0;">${depEur(dep.remaining)}</td>
+                        </tr>
+                      </table>
+                    </td></tr>
+                  </table>
+                </td>
+              </tr>`
+    } else if (dep.required) {
+      const due = r.deposit_due_date
+        ? ` Bitte überweisen Sie den Betrag bis zum <strong>${formatDeDate(r.deposit_due_date)}</strong>.`
+        : ''
+      depositBlock = `
+              <tr>
+                <td style="padding:20px 0;border-bottom:1px solid #f1f5f9;">
+                  <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">Anzahlung</p>
+                  <table width="100%" cellpadding="0" cellspacing="0" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;">
+                    <tr><td style="padding:14px 16px;">
+                      <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="font-size:13px;color:#1e40af;">Erforderliche Anzahlung</td>
+                          <td style="font-size:16px;font-weight:800;color:#2563eb;text-align:right;">${depEur(dep.requiredAmount)}</td>
+                        </tr>
+                      </table>
+                      <p style="margin:10px 0 0;font-size:12px;color:#1e40af;line-height:1.6;">
+                        Zur verbindlichen Bestätigung Ihrer Buchung bitten wir um eine Anzahlung.${due}
+                      </p>
+                      <p style="margin:8px 0 0;font-size:12px;color:#1e40af;line-height:1.5;">
+                        <strong>Bankverbindung:</strong> HASPA HAMBURG · Aaron Eddie Cetin<br />
+                        IBAN: DE33 2005 0550 1501 0613 43 · BIC: HASPDEHHXXX
+                      </p>
+                    </td></tr>
+                  </table>
+                </td>
+              </tr>`
+    }
+
     const html = buildEmailHtml({
       guestName:         r.guest_name,
       roomName:          r.rooms.name,
@@ -332,6 +392,7 @@ export async function POST(req: NextRequest) {
       guestPostcode: r.guest_postcode ?? null,
       guestCity:     r.guest_city     ?? null,
       guestCountry:  r.guest_country  ?? null,
+      depositBlock,
     })
 
     const transporter = createTransporter()

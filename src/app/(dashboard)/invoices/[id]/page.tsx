@@ -5,6 +5,8 @@ import { de }            from 'date-fns/locale'
 import PrintButton       from '../../reservations/[id]/print/PrintButton'
 import SendEmailButton   from './SendEmailButton'
 import StornoButton      from './StornoButton'
+import DepositEmailButton from '@/components/Deposit/DepositEmailButton'
+import { summarizeDeposit, formatDeDate } from '@/lib/deposit'
 
 export const dynamic = 'force-dynamic'
 
@@ -109,6 +111,12 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
   const hasDiscount   = discountAmt > 0
   const finalTotal    = sumBrutto - discountAmt
 
+  // Anzahlung — the amount actually received is deducted so the guest sees
+  // exactly what is still open (Restbetrag).
+  const grossTotal = hasDiscount ? finalTotal : sumBrutto
+  const deposit    = summarizeDeposit(inv, grossTotal)
+  const amountDue  = deposit.paid ? deposit.remaining : grossTotal
+
   let posIdx = 0
   const POS = {
     accommodation: isFreeform ? null : ++posIdx,
@@ -169,6 +177,13 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           isFreeform={isFreeform}
         />
         <StornoButton invoiceId={inv.id} cancelled={isCancelled} />
+        {deposit.paid && !isCancelled && (
+          <DepositEmailButton
+            invoiceId={inv.id}
+            captureInvoice
+            sentAt={inv.deposit_email_sent_at ?? null}
+          />
+        )}
         <span className="ml-auto text-xs text-slate-400">
           Rechnung {invoiceRef}
           {isCancelled && <span className="ml-2 font-semibold text-red-600">· STORNIERT</span>}
@@ -263,6 +278,20 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
               <p key={i} className="text-sm text-slate-600">{line}</p>
             ))}
           </div>
+
+          {/* Anzahlung requested but not yet received */}
+          {!isCancelled && deposit.required && !deposit.paid && (
+            <div className="rounded-xl bg-blue-50 border border-blue-300 px-4 py-3 mb-4">
+              <p className="text-sm font-bold text-blue-800">
+                Anzahlung erforderlich: {eur(deposit.requiredAmount)}
+              </p>
+              <p className="text-xs text-blue-700 mt-0.5">
+                {inv.deposit_due_date
+                  ? `Bitte überweisen Sie die Anzahlung bis zum ${formatDeDate(inv.deposit_due_date)} auf das unten angegebene Konto.`
+                  : 'Bitte überweisen Sie die Anzahlung auf das unten angegebene Konto.'}
+              </p>
+            </div>
+          )}
 
           {/* Early departure warning */}
           {inv.early_departure && (
@@ -442,11 +471,36 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                       <td className="py-2 text-right font-semibold text-red-600">− {eur(discountAmt)}</td>
                     </tr>
                   )}
+                  {/* Anzahlung received → show the gross total, then deduct it */}
+                  {deposit.paid && (
+                    <>
+                      {!hasDiscount && (
+                        <tr className="border-b border-slate-100">
+                          <td className="py-2 text-slate-500">Summe Brutto</td>
+                          <td className="py-2 text-right font-medium text-slate-700">{eur(grossTotal)}</td>
+                        </tr>
+                      )}
+                      <tr className="border-b border-slate-200">
+                        <td className="py-2 font-semibold text-green-700">
+                          Anzahlung erhalten
+                          <span className="block text-xs font-normal text-green-600">
+                            am {formatDeDate(deposit.paidAt)}
+                            {deposit.paidMethodLabel ? ` · ${deposit.paidMethodLabel}` : ''}
+                          </span>
+                        </td>
+                        <td className="py-2 text-right font-semibold text-green-700 align-top">
+                          − {eur(deposit.paidAmount)}
+                        </td>
+                      </tr>
+                    </>
+                  )}
                   <tr>
                     <td colSpan={2} className="pt-2">
                       <div className="flex justify-between items-center bg-slate-800 text-white px-4 py-3 rounded-lg">
-                        <span className="font-bold text-sm">{hasDiscount ? 'Neue Summe' : 'Summe Brutto'}</span>
-                        <span className="font-black text-xl">{eur(hasDiscount ? finalTotal : sumBrutto)}</span>
+                        <span className="font-bold text-sm">
+                          {deposit.paid ? 'Restbetrag' : hasDiscount ? 'Neue Summe' : 'Summe Brutto'}
+                        </span>
+                        <span className="font-black text-xl">{eur(amountDue)}</span>
                       </div>
                     </td>
                   </tr>
@@ -457,11 +511,20 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                 <div className="mt-2.5 px-4 py-3 rounded-lg border-2 border-red-500 bg-red-50 text-sm text-center">
                   <p className="font-black text-red-700 tracking-widest">STORNIERT</p>
                 </div>
+              ) : deposit.fullySettled ? (
+                <div className="mt-2.5 px-4 py-3 rounded-lg border border-green-300 bg-green-50 text-sm text-center">
+                  <p className="font-bold text-green-800">Vollständig bezahlt</p>
+                  <p className="text-xs text-green-700 mt-0.5">
+                    Der Gesamtbetrag ist durch die Anzahlung ausgeglichen.
+                  </p>
+                </div>
               ) : inv.payment_method === 'unpaid' ? (
                 <div className="mt-2.5 px-4 py-3 rounded-lg border border-amber-300 bg-amber-50 text-sm">
-                  <p className="font-bold text-amber-800 text-center">Zahlung ausstehend</p>
+                  <p className="font-bold text-amber-800 text-center">
+                    {deposit.paid ? 'Restbetrag ausstehend' : 'Zahlung ausstehend'}
+                  </p>
                   <p className="text-amber-700 text-center mt-0.5">
-                    Offener Betrag: <strong>{eur(hasDiscount ? finalTotal : sumBrutto)}</strong>
+                    Offener Betrag: <strong>{eur(amountDue)}</strong>
                   </p>
                   <p className="text-xs text-amber-600 text-center mt-1">
                     Bitte überweisen Sie den Betrag auf das unten angegebene Konto.

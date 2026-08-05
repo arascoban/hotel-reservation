@@ -18,6 +18,7 @@ import DateInput from '@/components/ui/DateInput'
 import TimeInput from '@/components/ui/TimeInput'
 import CountryInput from '@/components/ui/CountryInput'
 import { findOrCreateCustomer } from '@/lib/customers'
+import DepositEditor, { type DepositState, EMPTY_DEPOSIT, depositPayload } from '@/components/Deposit/DepositEditor'
 
 // ── Family room definitions ────────────────────────────────────────────────────
 // Each pair shares a connecting door; booking a family room blocks BOTH rooms.
@@ -86,6 +87,9 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
   const [notes,          setNotes]          = useState('')
   const [internalNotes,  setInternalNotes]  = useState('')
   const [extId,          setExtId]          = useState('')
+
+  // ── Anzahlung ───────────────────────────────────────────────────
+  const [deposit, setDeposit] = useState<DepositState>(EMPTY_DEPOSIT)
 
   // ── Address ─────────────────────────────────────────────────────
   const [guestStreet,   setGuestStreet]   = useState('')
@@ -169,6 +173,18 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
   useEffect(() => {
     fetchAvailableRooms()
   }, [fetchAvailableRooms])
+
+  // Pre-fill the hotel's default deposit percentage — always editable below.
+  useEffect(() => {
+    supabase.from('invoice_settings').select('default_deposit_percent').eq('id', 1).single()
+      .then(({ data }) => {
+        const pct = (data as { default_deposit_percent?: number } | null)?.default_deposit_percent
+        if (pct && pct > 0) {
+          setDeposit(d => d.mode ? d : { ...d, mode: 'percent', percent: String(pct) })
+        }
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Reset selections when switching booking type
   function switchBookingType(type: 'single' | 'family') {
@@ -270,6 +286,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
           internal_notes:    internalNotes || null,
           child_count:       children,
           customer_id:       customerId,
+          ...depositPayload(deposit, parseFloat(totalPrice) || 0),
           ...addressFields,
         }
         await supabase.from('reservations').update(familyExtra).eq('id', id1)
@@ -348,6 +365,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
       }
       extras.child_count = children
       if (customerId) extras.customer_id = customerId
+      Object.assign(extras, depositPayload(deposit, parseFloat(totalPrice) || 0))
       if (Object.keys(extras).length > 0) {
         await supabase.from('reservations').update(extras).eq('id', newId)
       }
@@ -750,6 +768,14 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
               className={fieldClass('external_id')} placeholder="z.B. BDC-123456" />
           </div>
         </div>
+
+        {/* Anzahlung — payment is recorded later from the reservation detail */}
+        <DepositEditor
+          value={deposit}
+          onChange={setDeposit}
+          total={parseFloat(totalPrice) || 0}
+          hidePayment
+        />
       </section>
 
       {/* ── Notizen ─── */}

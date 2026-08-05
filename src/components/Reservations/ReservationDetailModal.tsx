@@ -24,6 +24,9 @@ import DateInput from '@/components/ui/DateInput'
 import TimeInput from '@/components/ui/TimeInput'
 import CountryInput from '@/components/ui/CountryInput'
 import { findOrCreateCustomer, syncCustomerFromReservation } from '@/lib/customers'
+import DepositEditor, { type DepositState, EMPTY_DEPOSIT, depositPayload, depositFromRow } from '@/components/Deposit/DepositEditor'
+import DepositEmailButton from '@/components/Deposit/DepositEmailButton'
+import { summarizeDeposit, formatDeDate, eur } from '@/lib/deposit'
 
 const STATUS_STYLES: Record<ReservationStatus, string> = {
   confirmed:   'bg-blue-100 text-blue-800',
@@ -102,6 +105,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
   const [editCheckoutTime, setEditCheckoutTime] = useState('13:00')
   const [editGuestCount, setEditGuestCount] = useState(1)
   const [editChildCount, setEditChildCount] = useState(0)
+  const [editDeposit,    setEditDeposit]    = useState<DepositState>(EMPTY_DEPOSIT)
   const [editGuestName,      setEditGuestName]      = useState('')
   const [editGuestPhone,     setEditGuestPhone]     = useState('')
   const [editGuestEmail,     setEditGuestEmail]     = useState('')
@@ -147,6 +151,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       setEditCheckoutTime(toHHMM(r.checkout_at))
       setEditGuestCount(r.guest_count)
       setEditChildCount(r.child_count ?? 0)
+      setEditDeposit(depositFromRow(r))
       setEditGuestName(r.guest_name)
       setEditGuestPhone(r.guest_phone ?? '')
       setEditGuestEmail(r.guest_email ?? '')
@@ -230,6 +235,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
         guest_country:   editGuestCountry  || null,
         child_count:     editChildCount,
         ...(customerId ? { customer_id: customerId } : {}),
+        ...depositPayload(editDeposit, editTotalPrice ? parseFloat(editTotalPrice) : 0),
       })
       .eq('id', reservationId)
 
@@ -673,6 +679,68 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
             )}
           </InfoField>
         </div>
+
+        {/* ── Anzahlung ─────────────────────────────────────────────────── */}
+        {editing ? (
+          <DepositEditor
+            value={editDeposit}
+            onChange={setEditDeposit}
+            total={editTotalPrice ? parseFloat(editTotalPrice) : 0}
+          />
+        ) : (() => {
+          const dep = summarizeDeposit(r as any, r.total_price ?? 0)
+          if (!dep.required && !dep.paid) return null
+          return (
+            <div className={cn(
+              'rounded-xl border p-4 space-y-2',
+              dep.paid ? 'border-green-200 bg-green-50' : 'border-blue-200 bg-blue-50',
+            )}>
+              <p className={cn(
+                'text-xs font-semibold uppercase tracking-wide',
+                dep.paid ? 'text-green-700' : 'text-blue-700',
+              )}>
+                Anzahlung
+              </p>
+
+              {dep.paid ? (
+                <>
+                  <p className="text-sm font-bold text-green-800">
+                    {eur(dep.paidAmount)} erhalten am {formatDeDate(dep.paidAt)}
+                    {dep.paidMethodLabel ? ` · ${dep.paidMethodLabel}` : ''}
+                  </p>
+                  <p className="text-xs text-green-700">
+                    {dep.fullySettled
+                      ? 'Vollständig bezahlt — kein Restbetrag offen.'
+                      : <>Restbetrag: <strong>{eur(dep.remaining)}</strong></>}
+                  </p>
+                  {r.guest_email ? (
+                    <div className="pt-1">
+                      <DepositEmailButton
+                        reservationId={r.id}
+                        sentAt={(r as any).deposit_email_sent_at ?? null}
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-xs text-amber-700">
+                      Kein E-Mail hinterlegt — Zahlungsbestätigung kann nicht gesendet werden.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-bold text-blue-800">
+                    {eur(dep.requiredAmount)} erforderlich
+                  </p>
+                  <p className="text-xs text-blue-700">
+                    {(r as any).deposit_due_date
+                      ? `Zahlbar bis ${formatDeDate((r as any).deposit_due_date)} · noch nicht eingegangen`
+                      : 'Noch nicht eingegangen — über „Bearbeiten" erfassen.'}
+                  </p>
+                </>
+              )}
+            </div>
+          )
+        })()}
 
         {/* External ID */}
         {(r.external_id || editing) && (

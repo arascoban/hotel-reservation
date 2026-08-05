@@ -11,6 +11,7 @@ import {
 import { useAdmin }      from '@/hooks/useAdmin'
 import { cn }            from '@/lib/cn'
 import Link              from 'next/link'
+import DepositEditor, { type DepositState, EMPTY_DEPOSIT, depositPayload, depositFromRow } from '@/components/Deposit/DepositEditor'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -58,6 +59,14 @@ interface Invoice {
   salutation: string | null
   cancelled_at: string | null
   cancelled_by: string | null
+  deposit_mode: string | null
+  deposit_percent: number | null
+  deposit_amount: number | null
+  deposit_due_date: string | null
+  deposit_paid_amount: number | null
+  deposit_paid_at: string | null
+  deposit_paid_method: string | null
+  deposit_email_sent_at: string | null
   created_at: string
   created_by: string | null
 }
@@ -318,6 +327,15 @@ function EditModal({
   const [room2Nights,      setRoom2Nights]      = useState(String(inv.room2_nights ?? ''))
   const [room2GuestCount,  setRoom2GuestCount]  = useState(String(inv.room2_guest_count ?? 1))
   const [room2ChildCount2, setRoom2ChildCount2] = useState(String(inv.room2_child_count ?? 0))
+  const [deposit,          setDeposit]          = useState<DepositState>(depositFromRow(inv))
+
+  // Gross total the deposit percentage is calculated from
+  const grossTotal =
+    (parseFloat(totalPrice) || 0)
+    + (hasRoom2 ? (parseFloat(room2TotalPrice) || 0) : 0)
+    + (parseFloat(svcTotal) || 0)
+    + lineItems.reduce((sum, i) => sum + i.qty * i.unit_price, 0)
+    - (parseFloat(discount) || 0)
 
   // Load rooms for dropdown
   useEffect(() => {
@@ -380,6 +398,7 @@ function EditModal({
       room2_nights:               hasRoom2 && room2Nights      ? parseInt(room2Nights) || null           : null,
       room2_guest_count:          hasRoom2                     ? parseInt(room2GuestCount)  || 1         : null,
       room2_child_count:          hasRoom2                     ? parseInt(room2ChildCount2) || 0         : null,
+      ...depositPayload(deposit, grossTotal),
     }
     if (isAdmin) payload.invoice_number = parseInt(invoiceNum) || inv.invoice_number
 
@@ -450,6 +469,7 @@ function EditModal({
                     className={inp} placeholder="0.00" />
                 </Field>
               </div>
+              <DepositEditor value={deposit} onChange={setDeposit} total={grossTotal} />
               <Field label="Notizen">
                 <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)}
                   className={cn(inp, 'resize-none')} placeholder="Interne Hinweise…" />
@@ -624,6 +644,8 @@ function EditModal({
             <LineItemsEditor items={lineItems} onChange={setLineItems} />
           </div>
 
+          <DepositEditor value={deposit} onChange={setDeposit} total={grossTotal} />
+
           <Field label="Notizen">
             <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)}
               className={cn(inp, 'resize-none')} placeholder="Interne Hinweise, Buchungsnummer…" />
@@ -691,6 +713,18 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [room2Nights,      setRoom2Nights]      = useState('')
   const [room2GuestCount,  setRoom2GuestCount]  = useState('1')
   const [room2ChildCount2, setRoom2ChildCount2] = useState('0')
+  const [deposit,          setDeposit]          = useState<DepositState>(EMPTY_DEPOSIT)
+
+  // Gross total the deposit percentage is calculated from
+  const grossTotal =
+    (parseFloat(totalPrice) || 0)
+    + (hasRoom2 ? (parseFloat(room2TotalPrice) || 0) : 0)
+    + (parseFloat(svcTotal) || 0)
+    + lineItems.reduce((sum, i) => sum + i.qty * i.unit_price, 0)
+    - (parseFloat(discount) || 0)
+  // Free-text invoices have no room/service totals
+  const freeformTotal =
+    lineItems.reduce((sum, i) => sum + i.qty * i.unit_price, 0) - (parseFloat(discount) || 0)
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -894,6 +928,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       room2_nights:               hasRoom2 && room2Nights      ? parseInt(room2Nights) || null           : null,
       room2_guest_count:          hasRoom2                     ? parseInt(room2GuestCount)  || 1         : null,
       room2_child_count:          hasRoom2                     ? parseInt(room2ChildCount2) || 0         : null,
+      ...depositPayload(deposit, grossTotal),
       created_by:                 user.user?.email ?? null,
       created_at:                 new Date().toISOString(),
     }
@@ -946,6 +981,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       room2_nights:               null,
       room2_guest_count:          null,
       room2_child_count:          null,
+      ...depositPayload(deposit, freeformTotal),
       created_by:                 user.user?.email ?? null,
       created_at:                 nowIso,
     }
@@ -1246,6 +1282,8 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               <LineItemsEditor items={lineItems} onChange={setLineItems} />
             </div>
 
+            <DepositEditor value={deposit} onChange={setDeposit} total={grossTotal} />
+
             <Field label="Notizen">
               <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} className={cn(inp, 'resize-none')} />
             </Field>
@@ -1325,9 +1363,11 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             {/* Brutto preview */}
             <div className="flex justify-end text-sm text-slate-600">
               Summe Brutto:&nbsp;<span className="font-bold text-slate-900">
-                {(lineItems.reduce((s, i) => s + i.qty * i.unit_price, 0) - (parseFloat(discount) || 0)).toFixed(2)} €
+                {freeformTotal.toFixed(2)} €
               </span>
             </div>
+
+            <DepositEditor value={deposit} onChange={setDeposit} total={freeformTotal} />
 
             <Field label="Notizen">
               <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} className={cn(inp, 'resize-none')} />
