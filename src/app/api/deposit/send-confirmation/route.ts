@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { createClient } from '@/lib/supabase/server'
 import { summarizeLedger, formatDeDate, eur, PAYMENT_KIND_LABELS, DEPOSIT_METHOD_LABELS, REMAINING_DUE_TEXT, type PaymentRow } from '@/lib/deposit'
+import { resolveEmailLogo, originFromRequest } from '@/lib/emailLogo'
 
 export const dynamic = 'force-dynamic'
 
@@ -168,6 +169,8 @@ Tel: +49 5327 2828 · info@jaegerstieg.de`
                     </td>
                   </tr>`).join('')
 
+    const logo = await resolveEmailLogo(originFromRequest(req))
+
     const html = `<!DOCTYPE html>
 <html lang="de"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zahlungsbestätigung</title></head>
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
@@ -177,7 +180,7 @@ Tel: +49 5327 2828 · info@jaegerstieg.de`
 
         <tr>
           <td style="background:#1e293b;border-radius:16px 16px 0 0;padding:24px 32px;">
-            <img src="https://i.ibb.co/m597972B/logo.png" alt="Jägerstieg Hotel &amp; Pension" width="120" height="60" style="display:block;object-fit:contain;" />
+            <img src="${logo.src}" alt="Jägerstieg Hotel &amp; Pension" width="120" height="60" style="display:block;object-fit:contain;" />
             <p style="margin:10px 0 0;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">Zahlungsbestätigung</p>
           </td>
         </tr>
@@ -243,9 +246,12 @@ Tel: +49 5327 2828 · info@jaegerstieg.de`
     // Only the invoice is attached, and only when the invoice page captured
     // it. Sending from a booking needs no attachment — the e-mail itself
     // already carries the full payment overview.
-    const attachments = pdfBase64
-      ? [{ filename: `Rechnung_${reference}.pdf`, content: Buffer.from(pdfBase64, 'base64') }]
-      : []
+    const attachments: { filename: string; content: Buffer; cid?: string; contentType?: string }[] = [
+      ...logo.attachments,
+      ...(pdfBase64
+        ? [{ filename: `Rechnung_${reference}.pdf`, content: Buffer.from(pdfBase64, 'base64') }]
+        : []),
+    ]
 
     // ── Send ────────────────────────────────────────────────────────────────
     await createTransporter().sendMail({

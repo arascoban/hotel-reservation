@@ -4,6 +4,12 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // The mail routes embed public/logo.png as a CID attachment, so the file has
+  // to be inside the serverless bundle — static assets alone are not enough.
+  outputFileTracingIncludes: {
+    '/api/send-confirmation':         ['./public/logo.png'],
+    '/api/deposit/send-confirmation': ['./public/logo.png'],
+  },
   async headers() {
     return [
       {

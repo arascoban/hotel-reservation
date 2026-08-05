@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
-import fs from 'fs'
-import path from 'path'
 import { createClient } from '@/lib/supabase/server'
 import { formatDate } from '@/lib/reservations'
 import { summarizeLedger, formatDeDate, eur as depEur, PAYMENT_KIND_LABELS, DEPOSIT_METHOD_LABELS, type PaymentRow } from '@/lib/deposit'
+import { resolveEmailLogo, originFromRequest } from '@/lib/emailLogo'
 
 // Parse time directly from the stored ISO string to avoid UTC conversion on the server.
 // Timestamps are stored as +02:00 — new Date() would shift them by -2h in UTC Node.js.
@@ -16,17 +15,6 @@ function localDT(iso: string): string {
   return `${d}.${m}.${y} ${time}`
 }
 import { differenceInCalendarDays } from 'date-fns'
-
-/** Read logo once and encode as base64 data URI so email clients show it without needing to "allow images" */
-function getLogoDataUri(): string {
-  try {
-    const logoPath = path.join(process.cwd(), 'public', 'logo.png')
-    const data = fs.readFileSync(logoPath)
-    return `data:image/png;base64,${data.toString('base64')}`
-  } catch {
-    return ''
-  }
-}
 
 const SOURCE_LABELS: Record<string, string> = {
   booking_com: 'Booking.com', expedia: 'Expedia', airbnb: 'Airbnb',
@@ -94,13 +82,14 @@ function buildEmailHtml(opts: {
   guestCity:      string | null
   guestCountry:   string | null
   depositBlock:   string
+  logoSrc:        string
 }) {
   const {
     guestName, roomName, roomNumber, roomType,
     checkinAt, checkoutAt, guestCount, breakfastIncluded,
     source, paymentMethod, paymentStatus, totalPrice,
     notes, lockerNumber, lockerPin, reservationId, nights, includeKeys,
-    guestStreet, guestPostcode, guestCity, guestCountry, depositBlock,
+    guestStreet, guestPostcode, guestCity, guestCountry, depositBlock, logoSrc,
   } = opts
 
   // Build address block (only if at least one field is present)
@@ -113,7 +102,6 @@ function buildEmailHtml(opts: {
     ? addressLines.map(l => `<p style="margin:1px 0;font-size:12px;color:#64748b;">${l}</p>`).join('')
     : ''
 
-  const logoSrc = getLogoDataUri()
 
   const lockerSection = includeKeys && lockerNumber && lockerPin ? `
     <tr>
@@ -159,7 +147,7 @@ function buildEmailHtml(opts: {
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
                 <td style="vertical-align:middle;">
-                  <img src="https://i.ibb.co/m597972B/logo.png" alt="Jägerstieg Hotel &amp; Pension" width="120" height="60" style="display:block;object-fit:contain;" />
+                  <img src="${logoSrc}" alt="Jägerstieg Hotel &amp; Pension" width="120" height="60" style="display:block;object-fit:contain;" />
                   <p style="margin:10px 0 0;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">Buchungsbestätigung</p>
                 </td>
                 <td style="text-align:right;vertical-align:top;">
@@ -344,6 +332,8 @@ export async function POST(req: NextRequest) {
               </tr>`
     }
 
+    const logo = await resolveEmailLogo(originFromRequest(req))
+
     const html = buildEmailHtml({
       guestName:         r.guest_name,
       roomName:          r.rooms.name,
@@ -369,6 +359,7 @@ export async function POST(req: NextRequest) {
       guestCity:     r.guest_city     ?? null,
       guestCountry:  r.guest_country  ?? null,
       depositBlock,
+      logoSrc: logo.src,
     })
 
     const transporter = createTransporter()
@@ -379,6 +370,7 @@ export async function POST(req: NextRequest) {
       bcc:     process.env.STRATO_SMTP_USER, // copy to own inbox → appears in sent/inbox
       subject: `Buchungsbestätigung – ${r.rooms.name} · ${formatDate(r.checkin_at)}–${formatDate(r.checkout_at)}`,
       html,
+      attachments: logo.attachments,
     })
 
     return NextResponse.json({ ok: true })
