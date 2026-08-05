@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { randomUUID } from 'crypto'
+import { formatAddress, hasAddress } from '@/lib/address'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +21,11 @@ interface ConfirmRow {
   paymentStatus: string
   paymentMethod: string
   notes: string         // guest-visible notes (Bemerkungen)
-  adresse: string       // saved to billing_address column
+  // Structured address, edited by staff during review
+  street: string
+  postcode: string
+  city: string
+  country: string
   breakfast: boolean
   email: string
   phone: string
@@ -37,26 +42,48 @@ export async function POST(req: NextRequest) {
     const results: Array<{ bookingNumber: string; ok: boolean; error?: string }> = []
 
     // ── Upsert customers for all imported guests ──────────────────────────────
-    // We upsert by lower(name) — if a customer with the same name already exists, skip.
+    // Match on email when we have one (reliable), otherwise on name.
+    // An existing customer gets enriched — we only fill blanks, never
+    // overwrite details a staff member entered by hand.
     const uniqueGuests = new Map<string, ConfirmRow>()
     for (const row of toImport) {
-      const key = row.guestName.trim().toLowerCase()
+      const key = (row.email?.trim().toLowerCase()) || row.guestName.trim().toLowerCase()
       if (key && !uniqueGuests.has(key)) uniqueGuests.set(key, row)
     }
     for (const [, row] of uniqueGuests) {
-      // Only insert if no existing customer with same name exists
-      const { data: existing } = await supabase
-        .from('customers')
-        .select('id')
-        .ilike('name', row.guestName.trim())
-        .maybeSingle()
-      if (!existing) {
+      const name  = row.guestName.trim()
+      const email = row.email?.trim() || null
+
+      const { data: existing } = email
+        ? await supabase.from('customers').select('*').ilike('email', email).maybeSingle()
+        : await supabase.from('customers').select('*').ilike('name',  name ).maybeSingle()
+
+      const addr = {
+        street:   row.street?.trim()   || null,
+        postcode: row.postcode?.trim() || null,
+        city:     row.city?.trim()     || null,
+        country:  row.country?.trim()  || null,
+      }
+
+      if (existing) {
+        // Fill only the fields that are still empty on the existing record
+        const patch: Record<string, unknown> = {}
+        if (!existing.email    && email)          patch.email    = email
+        if (!existing.phone    && row.phone)      patch.phone    = row.phone.trim()
+        if (!existing.street   && addr.street)    patch.street   = addr.street
+        if (!existing.postcode && addr.postcode)  patch.postcode = addr.postcode
+        if (!existing.city     && addr.city)      patch.city     = addr.city
+        if (!existing.country  && addr.country)   patch.country  = addr.country
+        if (Object.keys(patch).length > 0) {
+          await supabase.from('customers').update(patch).eq('id', existing.id)
+        }
+      } else {
         await supabase.from('customers').insert({
-          name:    row.guestName.trim(),
-          email:   row.email   || null,
-          phone:   row.phone   || null,
-          street:  row.adresse || null,
-          source:  'booking.com',
+          name,
+          email,
+          phone:  row.phone?.trim() || null,
+          ...addr,
+          source: 'booking.com',
         })
       }
     }
@@ -67,6 +94,13 @@ export async function POST(req: NextRequest) {
         ? `Provision Booking.com: €${row.commission.toFixed(2)}`
         : null
 
+      const addr = {
+        street:   row.street?.trim()   || '',
+        postcode: row.postcode?.trim() || '',
+        city:     row.city?.trim()     || '',
+        country:  row.country?.trim()  || '',
+      }
+
       const baseData = {
         guest_name:         row.guestName.trim(),
         guest_email:        row.email    || null,
@@ -74,6 +108,7 @@ export async function POST(req: NextRequest) {
         checkin_at:         `${row.checkin}T${row.checkinTime}:00+00`,
         checkout_at:        `${row.checkout}T${row.checkoutTime}:00+00`,
         guest_count:        row.adults + row.children,
+        child_count:        row.children,
         breakfast_included: row.breakfast,
         total_price:        row.totalPrice,
         payment_status:     row.paymentStatus,
@@ -83,8 +118,12 @@ export async function POST(req: NextRequest) {
         external_id:        row.bookingNumber,
         notes:              row.notes    || null,
         internal_notes:     internalNote,
-        billing_address:    row.adresse  || null,
-        guest_street:       row.adresse  || null,   // structured street field
+        // Structured address fields — kept in sync with the legacy blob
+        guest_street:       addr.street   || null,
+        guest_postcode:     addr.postcode || null,
+        guest_city:         addr.city     || null,
+        guest_country:      addr.country  || null,
+        billing_address:    hasAddress(addr) ? formatAddress(addr) : null,
       }
 
       // ── Family booking: insert TWO reservations linked by a shared family_booking_id ──

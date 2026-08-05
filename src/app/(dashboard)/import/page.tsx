@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { Upload, AlertTriangle, CheckCircle2, Loader2, XCircle, ChevronDown, FileSpreadsheet, Coffee, Info } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { parseAddress } from '@/lib/address'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -64,6 +65,11 @@ interface EditRow extends ImportRow {
   editedBreakfast: boolean
   editedEmail: string
   editedPhone: string
+  // Structured address — pre-filled from the Booking.com export, fully editable
+  editedStreet: string
+  editedPostcode: string
+  editedCity: string
+  editedCountry: string
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -92,6 +98,9 @@ const PAY_METHOD_OPTS = [
 
 function toEditRow(r: ImportRow): EditRow {
   const isDuplicate = r.suggestedRoomId === '__DUPLICATE__'
+  // Booking.com sends the address as one free-text string (often only the
+  // street). Split it so staff can complete the missing parts by hand.
+  const addr = parseAddress(r.adresse)
   return {
     ...r,
     assignedRoomId:     isDuplicate ? '' : (r.isFamily ? (r.selectedRoom0Id ?? '') : (r.suggestedRoomId ?? '')),
@@ -112,6 +121,10 @@ function toEditRow(r: ImportRow): EditRow {
     editedBreakfast:    false,
     editedEmail:        '',
     editedPhone:        '',
+    editedStreet:       addr.street,
+    editedPostcode:     addr.postcode,
+    editedCity:         addr.city,
+    editedCountry:      addr.country,
   }
 }
 
@@ -202,7 +215,10 @@ export default function ImportPage() {
       paymentStatus:   r.editedPayStatus,
       paymentMethod:   r.editedPayMethod,
       notes:           r.editedNotes,
-      adresse:         r.adresse,
+      street:          r.editedStreet,
+      postcode:        r.editedPostcode,
+      city:            r.editedCity,
+      country:         r.editedCountry,
       breakfast:       r.editedBreakfast,
       email:           r.editedEmail,
       phone:           r.editedPhone,
@@ -622,31 +638,77 @@ export default function ImportPage() {
                     </div>
                   </div>
 
-                  {/* Row 5: Notes · Address */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1">
-                        Gastnotizen
-                        <span className="ml-1 font-normal text-slate-400">(aus Booking.com — bearbeitbar)</span>
+                  {/* Row 5: Notes */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">
+                      Gastnotizen
+                      <span className="ml-1 font-normal text-slate-400">(aus Booking.com — bearbeitbar)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={row.editedNotes}
+                      onChange={e => updateRow(row.tempId, { editedNotes: e.target.value })}
+                      placeholder="Sonderwünsche, Allergien…"
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  {/* Row 6: Address — always editable, always shown.
+                      Booking.com usually only sends the street, so the
+                      remaining fields have to be completable by hand. */}
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                      <label className="block text-xs font-semibold text-slate-500">
+                        Adresse <span className="font-normal text-slate-400">(für spätere Rechnung — frei bearbeitbar)</span>
                       </label>
-                      <input
-                        type="text"
-                        value={row.editedNotes}
-                        onChange={e => updateRow(row.tempId, { editedNotes: e.target.value })}
-                        placeholder="Sonderwünsche, Allergien…"
-                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                      {row.adresse && (
+                        <span className="text-xs text-slate-400">
+                          Booking.com: <span className="font-mono">{row.adresse}</span>
+                        </span>
+                      )}
                     </div>
-                    {row.adresse && (
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-500 mb-1">
-                          Adresse <span className="font-normal text-slate-400">(für spätere Rechnung)</span>
-                        </label>
-                        <div className="w-full border border-slate-100 bg-slate-50 rounded-lg px-3 py-2 text-sm text-slate-600">
-                          {row.adresse}
-                        </div>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      <div className="md:col-span-2">
+                        <label className="block text-xs text-slate-500 mb-1">Straße &amp; Hausnummer</label>
+                        <input
+                          type="text"
+                          value={row.editedStreet}
+                          onChange={e => updateRow(row.tempId, { editedStreet: e.target.value })}
+                          placeholder="Musterstraße 12"
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
                       </div>
-                    )}
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">PLZ</label>
+                        <input
+                          type="text"
+                          value={row.editedPostcode}
+                          onChange={e => updateRow(row.tempId, { editedPostcode: e.target.value })}
+                          placeholder="12345"
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">Stadt</label>
+                        <input
+                          type="text"
+                          value={row.editedCity}
+                          onChange={e => updateRow(row.tempId, { editedCity: e.target.value })}
+                          placeholder="Musterstadt"
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs text-slate-500 mb-1">Land</label>
+                        <input
+                          type="text"
+                          value={row.editedCountry}
+                          onChange={e => updateRow(row.tempId, { editedCountry: e.target.value })}
+                          placeholder="Deutschland"
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                 </div>
