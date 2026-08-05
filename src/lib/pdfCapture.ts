@@ -77,28 +77,31 @@ export async function captureInvoicePdf(): Promise<string> {
   const pdfH = pdf.internal.pageSize.getHeight()  // 297 mm
   const img  = canvas.toDataURL('image/jpeg', 0.92)
 
-  // Height the capture occupies when drawn at full page width.
-  const imgH = (canvas.height / canvas.width) * pdfW
+  // An invoice is always exactly one page — never a full page plus a sliver.
+  // Draw it as large as fits, keeping the aspect ratio, and centre whatever
+  // margin is left over so it reads as a deliberate margin rather than a
+  // lopsided gap down one edge.
+  const imgRatio  = canvas.height / canvas.width
+  const pageRatio = pdfH / pdfW
 
-  if (imgH <= pdfH + 1) {
-    // Fits on one page — draw it edge to edge, no side margin.
-    pdf.addImage(img, 'JPEG', 0, 0, pdfW, imgH)
+  let w: number, h: number
+  if (imgRatio <= pageRatio) {
+    // Shorter than A4 → fill the width, sit at the top.
+    w = pdfW
+    h = pdfW * imgRatio
   } else {
-    // Longer than A4: keep full width and spill onto further pages by
-    // shifting the same image up by one page height each time.
-    let offset = 0
-    while (offset < imgH - 1) {
-      if (offset > 0) pdf.addPage()
-      pdf.addImage(img, 'JPEG', 0, -offset, pdfW, imgH)
-      offset += pdfH
-    }
+    // Taller than A4 → fit the height so nothing spills onto a second page.
+    h = pdfH
+    w = pdfH / imgRatio
   }
+  const x = (pdfW - w) / 2
+  pdf.addImage(img, 'JPEG', x, 0, w, h)
 
-  // Re-draw the logo on the first page at its true position (scale is 1:1
-  // now that the capture fills the page width).
+  // Re-draw the logo, tracking whatever scale the fit above ended up using.
   if (logoDataUrl) {
-    pdf.setPage(1)
-    pdf.addImage(logoDataUrl, 'PNG', LOGO.x, LOGO.y, LOGO.w, LOGO.h)
+    const s = w / pdfW
+    pdf.addImage(logoDataUrl, 'PNG',
+      x + LOGO.x * s, LOGO.y * s, LOGO.w * s, LOGO.h * s)
   }
 
   return pdf.output('datauristring').split(',')[1]

@@ -6,7 +6,7 @@ import PrintButton       from '../../reservations/[id]/print/PrintButton'
 import SendEmailButton   from './SendEmailButton'
 import StornoButton      from './StornoButton'
 import DepositEmailButton from '@/components/Deposit/DepositEmailButton'
-import { summarizeDeposit, summarizeLedger, formatDeDate, REMAINING_DUE_TEXT, PAYMENT_KIND_LABELS, DEPOSIT_METHOD_LABELS, type PaymentRow } from '@/lib/deposit'
+import { summarizeLedger, formatDeDate, REMAINING_DUE_TEXT, PAYMENT_KIND_LABELS, DEPOSIT_METHOD_LABELS, type PaymentRow } from '@/lib/deposit'
 
 export const dynamic = 'force-dynamic'
 
@@ -125,7 +125,6 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
   // Payments — every Anzahlung / Zahlung is listed separately with its own
   // date, then deducted so the guest sees exactly what is still open.
   const grossTotal = hasDiscount ? finalTotal : sumBrutto
-  const deposit    = summarizeDeposit(inv, grossTotal)   // the *required* deposit
   const ledger     = summarizeLedger(payments, grossTotal)
   const hasPayments = ledger.payments.length > 0
   const amountDue  = hasPayments ? ledger.remaining : grossTotal
@@ -206,7 +205,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
       {/* ── A4 document ─────────────────────────────────────────────────────── */}
       <div className="print-outer py-8 px-4">
         <div className="page bg-white shadow-2xl mx-auto flex flex-col relative"
-             style={{ width: '794px', minHeight: '1123px', padding: '34px' }}>
+             style={{ width: '794px', minHeight: '1123px', padding: '28px' }}>
 
           {/* ══ STORNIERT WATERMARK ═══════════════════════════════════════════ */}
           {isCancelled && (
@@ -231,7 +230,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           <div className="relative z-10 flex flex-col flex-1">
 
           {/* ══ HEADER ════════════════════════════════════════════════════════ */}
-          <div className="flex items-start justify-between mb-4">
+          <div className="flex items-start justify-between mb-3">
             <div className="flex-shrink-0">
               <div className="bg-slate-800 rounded-xl px-4 py-3 inline-block">
                 {/* Plain <img> so html2canvas can load it directly — Next.js <Image> uses /_next/image?... which html2canvas cannot capture */}
@@ -293,20 +292,6 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
             ))}
           </div>
 
-          {/* Anzahlung requested but not yet received */}
-          {!isCancelled && deposit.required && !hasPayments && (
-            <div className="rounded-xl bg-blue-50 border border-blue-300 px-4 py-3 mb-4">
-              <p className="text-sm font-bold text-blue-800">
-                Anzahlung erforderlich: {eur(deposit.requiredAmount)}
-              </p>
-              <p className="text-xs text-blue-700 mt-0.5">
-                {inv.deposit_due_date
-                  ? `Bitte überweisen Sie die Anzahlung bis zum ${formatDeDate(inv.deposit_due_date)} auf das unten angegebene Konto.`
-                  : 'Bitte überweisen Sie die Anzahlung auf das unten angegebene Konto.'}
-              </p>
-            </div>
-          )}
-
           {/* Early departure warning */}
           {inv.early_departure && (
             <div className="rounded-xl bg-amber-50 border border-amber-300 px-4 py-3 mb-5 flex items-center gap-3">
@@ -323,7 +308,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           )}
 
           {/* ══ LINE ITEMS TABLE ═══════════════════════════════════════════════ */}
-          <table className="w-full text-sm mb-4 border-collapse">
+          <table className="w-full text-sm mb-3 border-collapse">
             <thead>
               <tr className="bg-slate-800 text-white text-xs uppercase tracking-wide">
                 <th className="px-3 py-2 text-left font-semibold rounded-tl-lg w-8">Pos.</th>
@@ -340,8 +325,8 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
               {/* Pos 1: Room type as main description (hotel invoices only) */}
               {!isFreeform && (
               <tr className="border-b border-slate-100">
-                <td className="px-3 py-2 text-slate-400 text-xs align-top">{POS.accommodation}</td>
-                <td className="px-3 py-2 text-slate-800 align-top">
+                <td className="px-3 py-1.5 text-slate-400 text-xs align-top">{POS.accommodation}</td>
+                <td className="px-3 py-1.5 text-slate-800 align-top">
                   <span className="font-medium">{inv.room_name || 'Übernachtung'}</span>
                   <span className="block text-xs text-slate-400 mt-0.5">
                     Zimmer Nr. {inv.room_number} · {format(checkin, 'dd.MM.yyyy')} {format(checkin, 'HH:mm')} Uhr – {format(checkout, 'dd.MM.yyyy')} {format(checkout, 'HH:mm')} Uhr · {guestLabel}
@@ -352,37 +337,37 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                     </span>
                   )}
                 </td>
-                <td className="px-3 py-2 text-center text-slate-600 align-top">{nights}</td>
-                <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(pricePerNight)}</td>
-                <td className="px-3 py-2 text-center text-slate-500 text-xs align-top">7 %</td>
-                <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(acc_net)}</td>
-                <td className="px-3 py-2 text-right font-semibold text-slate-800 align-top">{eur(accommodationGross)}</td>
+                <td className="px-3 py-1.5 text-center text-slate-600 align-top">{nights}</td>
+                <td className="px-3 py-1.5 text-right text-slate-600 align-top">{eur(pricePerNight)}</td>
+                <td className="px-3 py-1.5 text-center text-slate-500 text-xs align-top">7 %</td>
+                <td className="px-3 py-1.5 text-right text-slate-600 align-top">{eur(acc_net)}</td>
+                <td className="px-3 py-1.5 text-right font-semibold text-slate-800 align-top">{eur(accommodationGross)}</td>
               </tr>
               )}
 
               {/* Pos 2: Second room (if booked) */}
               {hasRoom2 && (
                 <tr className="border-b border-slate-100">
-                  <td className="px-3 py-2 text-slate-400 text-xs align-top">{POS.room2}</td>
-                  <td className="px-3 py-2 text-slate-800 align-top">
+                  <td className="px-3 py-1.5 text-slate-400 text-xs align-top">{POS.room2}</td>
+                  <td className="px-3 py-1.5 text-slate-800 align-top">
                     <span className="font-medium">{inv.room2_name || 'Zweites Zimmer'}</span>
                     <span className="block text-xs text-slate-400 mt-0.5">
                       Zimmer Nr. {inv.room2_number} · {format(room2CheckinDate, 'dd.MM.yyyy')} {format(room2CheckinDate, 'HH:mm')} Uhr – {format(room2CheckoutDate, 'dd.MM.yyyy')} {format(room2CheckoutDate, 'HH:mm')} Uhr · {room2GuestLabel}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-center text-slate-600 align-top">{room2DisplayNights}</td>
-                  <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(room2PricePerNight)}</td>
-                  <td className="px-3 py-2 text-center text-slate-500 text-xs align-top">7 %</td>
-                  <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(room2AccNet)}</td>
-                  <td className="px-3 py-2 text-right font-semibold text-slate-800 align-top">{eur(room2AccommodationGross)}</td>
+                  <td className="px-3 py-1.5 text-center text-slate-600 align-top">{room2DisplayNights}</td>
+                  <td className="px-3 py-1.5 text-right text-slate-600 align-top">{eur(room2PricePerNight)}</td>
+                  <td className="px-3 py-1.5 text-center text-slate-500 text-xs align-top">7 %</td>
+                  <td className="px-3 py-1.5 text-right text-slate-600 align-top">{eur(room2AccNet)}</td>
+                  <td className="px-3 py-1.5 text-right font-semibold text-slate-800 align-top">{eur(room2AccommodationGross)}</td>
                 </tr>
               )}
 
               {/* Frühstück */}
               {hasBreakfast && (
                 <tr className="border-b border-slate-100">
-                  <td className="px-3 py-2 text-slate-400 text-xs align-top">{POS.breakfast}</td>
-                  <td className="px-3 py-2 text-slate-800 align-top">
+                  <td className="px-3 py-1.5 text-slate-400 text-xs align-top">{POS.breakfast}</td>
+                  <td className="px-3 py-1.5 text-slate-800 align-top">
                     <span className="font-medium">Frühstück</span>
                     <span className="block text-xs text-slate-400 mt-0.5">
                       {hasRoom2
@@ -391,19 +376,19 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                       }
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-center text-slate-600 align-top">{bfstAnz}</td>
-                  <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(bfstEinzel)}</td>
-                  <td className="px-3 py-2 text-center text-slate-500 text-xs align-top">7 %</td>
-                  <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(bfst_net)}</td>
-                  <td className="px-3 py-2 text-right font-semibold text-slate-800 align-top">{eur(breakfastGross)}</td>
+                  <td className="px-3 py-1.5 text-center text-slate-600 align-top">{bfstAnz}</td>
+                  <td className="px-3 py-1.5 text-right text-slate-600 align-top">{eur(bfstEinzel)}</td>
+                  <td className="px-3 py-1.5 text-center text-slate-500 text-xs align-top">7 %</td>
+                  <td className="px-3 py-1.5 text-right text-slate-600 align-top">{eur(bfst_net)}</td>
+                  <td className="px-3 py-1.5 text-right font-semibold text-slate-800 align-top">{eur(breakfastGross)}</td>
                 </tr>
               )}
 
               {/* Zimmerservice */}
               {serviceTotal > 0 && (
                 <tr className="border-b border-slate-100">
-                  <td className="px-3 py-2 text-slate-400 text-xs align-top">{POS.service}</td>
-                  <td className="px-3 py-2 text-slate-800 align-top">
+                  <td className="px-3 py-1.5 text-slate-400 text-xs align-top">{POS.service}</td>
+                  <td className="px-3 py-1.5 text-slate-800 align-top">
                     <span className="font-medium">Zimmerservice</span>
                     {serviceItems.length > 0 && (
                       <ul className="mt-1 space-y-0.5">
@@ -415,11 +400,11 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                       </ul>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-center text-slate-400 text-xs align-top">—</td>
-                  <td className="px-3 py-2 text-right text-slate-400 text-xs align-top">—</td>
-                  <td className="px-3 py-2 text-center text-slate-500 text-xs align-top">19 %</td>
-                  <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(svc_net)}</td>
-                  <td className="px-3 py-2 text-right font-semibold text-slate-800 align-top">{eur(serviceTotal)}</td>
+                  <td className="px-3 py-1.5 text-center text-slate-400 text-xs align-top">—</td>
+                  <td className="px-3 py-1.5 text-right text-slate-400 text-xs align-top">—</td>
+                  <td className="px-3 py-1.5 text-center text-slate-500 text-xs align-top">19 %</td>
+                  <td className="px-3 py-1.5 text-right text-slate-600 align-top">{eur(svc_net)}</td>
+                  <td className="px-3 py-1.5 text-right font-semibold text-slate-800 align-top">{eur(serviceTotal)}</td>
                 </tr>
               )}
 
@@ -429,18 +414,18 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                 const net   = gross / (1 + item.vat_rate / 100)
                 return (
                   <tr key={item.id} className="border-b border-slate-100">
-                    <td className="px-3 py-2 text-slate-400 text-xs align-top">{POS.customStart + idx}</td>
-                    <td className="px-3 py-2 text-slate-800 align-top">
+                    <td className="px-3 py-1.5 text-slate-400 text-xs align-top">{POS.customStart + idx}</td>
+                    <td className="px-3 py-1.5 text-slate-800 align-top">
                       <span className="font-medium">{item.name || item.description || 'Sonstiges'}</span>
                       {item.name && item.description && (
                         <span className="block text-xs text-slate-400 mt-0.5">{item.description}</span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-center text-slate-600 align-top">{item.qty}</td>
-                    <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(item.unit_price)}</td>
-                    <td className="px-3 py-2 text-center text-slate-500 text-xs align-top">{item.vat_rate} %</td>
-                    <td className="px-3 py-2 text-right text-slate-600 align-top">{eur(net)}</td>
-                    <td className="px-3 py-2 text-right font-semibold text-slate-800 align-top">{eur(gross)}</td>
+                    <td className="px-3 py-1.5 text-center text-slate-600 align-top">{item.qty}</td>
+                    <td className="px-3 py-1.5 text-right text-slate-600 align-top">{eur(item.unit_price)}</td>
+                    <td className="px-3 py-1.5 text-center text-slate-500 text-xs align-top">{item.vat_rate} %</td>
+                    <td className="px-3 py-1.5 text-right text-slate-600 align-top">{eur(net)}</td>
+                    <td className="px-3 py-1.5 text-right font-semibold text-slate-800 align-top">{eur(gross)}</td>
                   </tr>
                 )
               })}
@@ -449,7 +434,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           </table>
 
           {/* ══ TOTALS ════════════════════════════════════════════════════════ */}
-          <div className="flex items-start justify-between mb-4 gap-6">
+          <div className="flex items-start justify-between mb-3 gap-6">
             <div className="text-xs text-slate-400 flex-1 pt-1">
               {inv.notes && <p className="text-slate-600 text-sm">{inv.notes}</p>}
             </div>
@@ -458,31 +443,31 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
               <table className="w-full text-sm">
                 <tbody>
                   <tr className="border-b border-slate-100">
-                    <td className="py-2 text-slate-500">Summe Netto</td>
-                    <td className="py-2 text-right font-medium text-slate-700">{eur(sumNetto)}</td>
+                    <td className="py-1.5 text-slate-500">Summe Netto</td>
+                    <td className="py-1.5 text-right font-medium text-slate-700">{eur(sumNetto)}</td>
                   </tr>
                   {vat7 > 0 && (
                   <tr className="border-b border-slate-100">
-                    <td className="py-2 text-slate-500">MwSt. 7 %</td>
-                    <td className="py-2 text-right font-medium text-slate-700">{eur(vat7)}</td>
+                    <td className="py-1.5 text-slate-500">MwSt. 7 %</td>
+                    <td className="py-1.5 text-right font-medium text-slate-700">{eur(vat7)}</td>
                   </tr>
                   )}
                   {(serviceTotal > 0 || custom19Gross > 0) && (
                     <tr className="border-b border-slate-100">
-                      <td className="py-2 text-slate-500">MwSt. 19 %</td>
-                      <td className="py-2 text-right font-medium text-slate-700">{eur(vat19)}</td>
+                      <td className="py-1.5 text-slate-500">MwSt. 19 %</td>
+                      <td className="py-1.5 text-right font-medium text-slate-700">{eur(vat19)}</td>
                     </tr>
                   )}
                   {hasDiscount && (
                     <tr className="border-b border-slate-100">
-                      <td className="py-2 text-slate-500">Summe Brutto</td>
-                      <td className="py-2 text-right font-medium text-slate-700">{eur(sumBrutto)}</td>
+                      <td className="py-1.5 text-slate-500">Summe Brutto</td>
+                      <td className="py-1.5 text-right font-medium text-slate-700">{eur(sumBrutto)}</td>
                     </tr>
                   )}
                   {hasDiscount && (
                     <tr className="border-b border-slate-200">
-                      <td className="py-2 font-semibold text-red-600">Rabatt</td>
-                      <td className="py-2 text-right font-semibold text-red-600">− {eur(discountAmt)}</td>
+                      <td className="py-1.5 font-semibold text-red-600">Rabatt</td>
+                      <td className="py-1.5 text-right font-semibold text-red-600">− {eur(discountAmt)}</td>
                     </tr>
                   )}
                   {/* Each payment is its own line: date, kind, method, amount */}
@@ -490,8 +475,8 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                     <>
                       {!hasDiscount && (
                         <tr className="border-b border-slate-100">
-                          <td className="py-2 text-slate-500">Summe Brutto</td>
-                          <td className="py-2 text-right font-medium text-slate-700">{eur(grossTotal)}</td>
+                          <td className="py-1.5 text-slate-500">Summe Brutto</td>
+                          <td className="py-1.5 text-right font-medium text-slate-700">{eur(grossTotal)}</td>
                         </tr>
                       )}
                       {ledger.payments.map(p => {
@@ -517,7 +502,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                   )}
                   <tr>
                     <td colSpan={2} className="pt-2">
-                      <div className="flex justify-between items-center bg-slate-800 text-white px-4 py-3 rounded-lg">
+                      <div className="flex justify-between items-center bg-slate-800 text-white px-4 py-2.5 rounded-lg">
                         <span className="font-bold text-sm">
                           {hasPayments ? 'Restbetrag' : hasDiscount ? 'Neue Summe' : 'Summe Brutto'}
                         </span>
@@ -547,8 +532,8 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                   <p className="text-amber-700 text-center mt-0.5">
                     Offener Betrag: <strong>{eur(amountDue)}</strong>
                   </p>
-                  <p className="text-xs text-amber-600 text-center mt-1.5 leading-snug">
-                    {REMAINING_DUE_TEXT} Bitte überweisen Sie den Betrag auf das unten angegebene Konto.
+                  <p className="text-2xs text-amber-600 text-center mt-1 leading-tight">
+                    {REMAINING_DUE_TEXT}
                   </p>
                 </div>
               ) : (

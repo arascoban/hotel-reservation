@@ -11,7 +11,6 @@ import {
 import { useAdmin }      from '@/hooks/useAdmin'
 import { cn }            from '@/lib/cn'
 import Link              from 'next/link'
-import DepositEditor, { type DepositState, EMPTY_DEPOSIT, depositPayload, depositFromRow } from '@/components/Deposit/DepositEditor'
 import PaymentsEditor from '@/components/Deposit/PaymentsEditor'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -399,7 +398,6 @@ function EditModal({
       room2_nights:               hasRoom2 && room2Nights      ? parseInt(room2Nights) || null           : null,
       room2_guest_count:          hasRoom2                     ? parseInt(room2GuestCount)  || 1         : null,
       room2_child_count:          hasRoom2                     ? parseInt(room2ChildCount2) || 0         : null,
-      ...depositPayload(deposit, grossTotal),
     }
     if (isAdmin) payload.invoice_number = parseInt(invoiceNum) || inv.invoice_number
 
@@ -470,7 +468,6 @@ function EditModal({
                     className={inp} placeholder="0.00" />
                 </Field>
               </div>
-              <DepositEditor value={deposit} onChange={setDeposit} total={grossTotal} />
               <PaymentsEditor invoiceId={inv.id} total={grossTotal} />
               <Field label="Notizen">
                 <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)}
@@ -643,10 +640,8 @@ function EditModal({
           </div>
 
           <div className="pt-2 border-t border-slate-100">
-            <LineItemsEditor items={lineItems} onChange={setLineItems} />
+            <LineItemsEditor items={lineItems} onChange={setLineItems} showName />
           </div>
-
-          <DepositEditor value={deposit} onChange={setDeposit} total={grossTotal} />
 
           <PaymentsEditor invoiceId={inv.id} total={grossTotal} />
 
@@ -717,7 +712,6 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [room2Nights,      setRoom2Nights]      = useState('')
   const [room2GuestCount,  setRoom2GuestCount]  = useState('1')
   const [room2ChildCount2, setRoom2ChildCount2] = useState('0')
-  const [deposit,          setDeposit]          = useState<DepositState>(EMPTY_DEPOSIT)
 
   // Gross total the deposit percentage is calculated from
   const grossTotal =
@@ -932,7 +926,6 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       room2_nights:               hasRoom2 && room2Nights      ? parseInt(room2Nights) || null           : null,
       room2_guest_count:          hasRoom2                     ? parseInt(room2GuestCount)  || 1         : null,
       room2_child_count:          hasRoom2                     ? parseInt(room2ChildCount2) || 0         : null,
-      ...depositPayload(deposit, grossTotal),
       created_by:                 user.user?.email ?? null,
       created_at:                 new Date().toISOString(),
     }
@@ -985,7 +978,6 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       room2_nights:               null,
       room2_guest_count:          null,
       room2_child_count:          null,
-      ...depositPayload(deposit, freeformTotal),
       created_by:                 user.user?.email ?? null,
       created_at:                 nowIso,
     }
@@ -1283,10 +1275,8 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             </div>
 
             <div className="pt-2 border-t border-slate-100">
-              <LineItemsEditor items={lineItems} onChange={setLineItems} />
+              <LineItemsEditor items={lineItems} onChange={setLineItems} showName />
             </div>
-
-            <DepositEditor value={deposit} onChange={setDeposit} total={grossTotal} />
 
             <Field label="Notizen">
               <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} className={cn(inp, 'resize-none')} />
@@ -1370,8 +1360,6 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                 {freeformTotal.toFixed(2)} €
               </span>
             </div>
-
-            <DepositEditor value={deposit} onChange={setDeposit} total={freeformTotal} />
 
             <Field label="Notizen">
               <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} className={cn(inp, 'resize-none')} />

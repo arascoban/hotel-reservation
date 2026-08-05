@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/cn'
 import {
   PAYMENT_KINDS, PAYMENT_KIND_LABELS, DEPOSIT_METHODS, DEPOSIT_METHOD_LABELS,
-  summarizeLedger, formatDeDate, eur, type PaymentRow, type PaymentKind,
+  summarizeLedger, formatDeDate, eur, round2, type PaymentRow, type PaymentKind,
 } from '@/lib/deposit'
 import { Plus, Trash2, Loader2, Wallet, CheckCircle2 } from 'lucide-react'
 
@@ -37,10 +37,18 @@ export default function PaymentsEditor({
   const [adding,  setAdding]  = useState(false)
 
   // New-row draft
-  const [kind,   setKind]   = useState<PaymentKind>('deposit')
-  const [amount, setAmount] = useState('')
-  const [paidOn, setPaidOn] = useState(new Date().toISOString().slice(0, 10))
-  const [method, setMethod] = useState('bank_transfer')
+  const [kind,     setKind]     = useState<PaymentKind>('deposit')
+  const [amount,   setAmount]   = useState('')
+  const [paidOn,   setPaidOn]   = useState(new Date().toISOString().slice(0, 10))
+  const [method,   setMethod]   = useState('bank_transfer')
+  // Deposits can be entered as a share of the total instead of a euro amount
+  const [depMode,  setDepMode]  = useState<'fixed' | 'percent'>('percent')
+  const [percent,  setPercent]  = useState('30')
+
+  // Effective euro amount for the row being added
+  const draftAmount = kind === 'deposit' && depMode === 'percent'
+    ? round2((total * (parseFloat(percent) || 0)) / 100)
+    : (parseFloat(amount) || 0)
 
   const load = useCallback(async () => {
     if (!reservationId && !invoiceId) { setLoading(false); return }
@@ -54,11 +62,25 @@ export default function PaymentsEditor({
 
   useEffect(() => { load() }, [load])
 
+  // Pre-fill the hotel's configured default deposit percentage
+  useEffect(() => {
+    supabase.from('invoice_settings').select('default_deposit_percent').eq('id', 1).single()
+      .then(({ data }) => {
+        const pct = (data as { default_deposit_percent?: number } | null)?.default_deposit_percent
+        if (pct != null && pct > 0) setPercent(String(pct))
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const ledger = summarizeLedger(rows, total)
 
   // Default the next entry to whatever is still open
   function startAdd() {
-    setKind(rows.length === 0 ? 'deposit' : 'payment')
+    const firstEntry = rows.length === 0
+    setKind(firstEntry ? 'deposit' : 'payment')
+    // A deposit defaults to the configured percentage, anything else to
+    // whatever is still open.
+    setDepMode(firstEntry ? 'percent' : 'fixed')
     setAmount(ledger.remaining > 0 ? String(ledger.remaining.toFixed(2)) : '')
     setPaidOn(new Date().toISOString().slice(0, 10))
     setMethod('bank_transfer')
@@ -66,7 +88,7 @@ export default function PaymentsEditor({
   }
 
   async function addPayment() {
-    const amt = parseFloat(amount)
+    const amt = draftAmount
     if (!amt || amt <= 0 || !paidOn) return
     setBusy(true)
     const { data } = await supabase.from('payments').insert({
@@ -171,11 +193,34 @@ export default function PaymentsEditor({
                     {PAYMENT_KINDS.map(k => <option key={k.value} value={k.value}>{k.label}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-xs text-slate-500 mb-1">Betrag (€)</label>
-                  <input type="number" min={0.01} step="0.01" value={amount}
-                    onChange={e => setAmount(e.target.value)} className={inp} placeholder="0.00" />
-                </div>
+                {/* A deposit may be given as a share of the total or as a
+                    plain euro amount — the toggle only appears for deposits. */}
+                {kind === 'deposit' ? (
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Betrag</label>
+                    <div className="flex gap-1">
+                      <select value={depMode}
+                        onChange={e => setDepMode(e.target.value as 'fixed' | 'percent')}
+                        className={cn(inp, 'w-[86px] flex-shrink-0')}>
+                        <option value="percent">%</option>
+                        <option value="fixed">€</option>
+                      </select>
+                      {depMode === 'percent' ? (
+                        <input type="number" min={0} max={100} step="1" value={percent}
+                          onChange={e => setPercent(e.target.value)} className={inp} placeholder="30" />
+                      ) : (
+                        <input type="number" min={0.01} step="0.01" value={amount}
+                          onChange={e => setAmount(e.target.value)} className={inp} placeholder="0.00" />
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Betrag (€)</label>
+                    <input type="number" min={0.01} step="0.01" value={amount}
+                      onChange={e => setAmount(e.target.value)} className={inp} placeholder="0.00" />
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs text-slate-500 mb-1">Datum</label>
                   <input type="date" value={paidOn} onChange={e => setPaidOn(e.target.value)} className={inp} />
@@ -187,17 +232,24 @@ export default function PaymentsEditor({
                   </select>
                 </div>
               </div>
-              <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setAdding(false)}
-                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50">
-                  Abbrechen
-                </button>
-                <button type="button" onClick={addPayment}
-                  disabled={busy || !amount || parseFloat(amount) <= 0 || !paidOn}
-                  className="rounded-lg bg-blue-600 text-white px-4 py-1.5 text-xs font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5">
-                  {busy && <Loader2 className="w-3 h-3 animate-spin" />}
-                  Hinzufügen
-                </button>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                {kind === 'deposit' && depMode === 'percent' && (
+                  <span className="text-xs text-slate-500">
+                    {percent || 0} % von {eur(total)} = <strong className="text-slate-800">{eur(draftAmount)}</strong>
+                  </span>
+                )}
+                <div className="flex justify-end gap-2 ml-auto">
+                  <button type="button" onClick={() => setAdding(false)}
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50">
+                    Abbrechen
+                  </button>
+                  <button type="button" onClick={addPayment}
+                    disabled={busy || draftAmount <= 0 || !paidOn}
+                    className="rounded-lg bg-blue-600 text-white px-4 py-1.5 text-xs font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5">
+                    {busy && <Loader2 className="w-3 h-3 animate-spin" />}
+                    Hinzufügen
+                  </button>
+                </div>
               </div>
             </div>
           )}
