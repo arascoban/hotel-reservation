@@ -6,7 +6,7 @@ import PrintButton       from '../../reservations/[id]/print/PrintButton'
 import SendEmailButton   from './SendEmailButton'
 import StornoButton      from './StornoButton'
 import DepositEmailButton from '@/components/Deposit/DepositEmailButton'
-import { summarizeDeposit, formatDeDate } from '@/lib/deposit'
+import { summarizeDeposit, summarizeLedger, formatDeDate, REMAINING_DUE_TEXT, PAYMENT_KIND_LABELS, DEPOSIT_METHOD_LABELS, type PaymentRow } from '@/lib/deposit'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +38,17 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
   const supabase = await createClient()
   const { data } = await supabase.from('invoices').select('*').eq('id', params.id).single()
   if (!data) notFound()
+
+  // Payments recorded on this invoice, plus any taken on its reservation
+  // before the invoice existed (e.g. a deposit at booking time).
+  const invRow = data as any
+  const { data: ownPayments } = await supabase
+    .from('payments').select('*').eq('invoice_id', params.id)
+  const { data: resPayments } = invRow.reservation_id
+    ? await supabase.from('payments').select('*')
+        .eq('reservation_id', invRow.reservation_id).is('invoice_id', null)
+    : { data: [] as PaymentRow[] }
+  const payments = [...(ownPayments ?? []), ...(resPayments ?? [])] as PaymentRow[]
 
   const inv = data as any
   // Free-text invoices store no room — that's how we tell them apart from hotel stays.
@@ -111,11 +122,13 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
   const hasDiscount   = discountAmt > 0
   const finalTotal    = sumBrutto - discountAmt
 
-  // Anzahlung — the amount actually received is deducted so the guest sees
-  // exactly what is still open (Restbetrag).
+  // Payments — every Anzahlung / Zahlung is listed separately with its own
+  // date, then deducted so the guest sees exactly what is still open.
   const grossTotal = hasDiscount ? finalTotal : sumBrutto
-  const deposit    = summarizeDeposit(inv, grossTotal)
-  const amountDue  = deposit.paid ? deposit.remaining : grossTotal
+  const deposit    = summarizeDeposit(inv, grossTotal)   // the *required* deposit
+  const ledger     = summarizeLedger(payments, grossTotal)
+  const hasPayments = ledger.payments.length > 0
+  const amountDue  = hasPayments ? ledger.remaining : grossTotal
 
   let posIdx = 0
   const POS = {
@@ -177,7 +190,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           isFreeform={isFreeform}
         />
         <StornoButton invoiceId={inv.id} cancelled={isCancelled} />
-        {deposit.paid && !isCancelled && (
+        {hasPayments && !isCancelled && (
           <DepositEmailButton
             invoiceId={inv.id}
             captureInvoice
@@ -229,7 +242,8 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
             </div>
 
             <div className="text-right">
-              <p className="text-5xl font-black tracking-tight leading-none mb-1 text-slate-900">RECHNUNG</p>
+              <p className="text-5xl font-black tracking-tight text-slate-900"
+                 style={{ lineHeight: 1.1, paddingBottom: '6px' }}>RECHNUNG</p>
               {isCancelled && (
                 <p className="inline-block bg-red-600 text-white text-sm font-black tracking-widest px-3 py-1 rounded-md mb-1">
                   STORNIERT
@@ -280,7 +294,7 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
           </div>
 
           {/* Anzahlung requested but not yet received */}
-          {!isCancelled && deposit.required && !deposit.paid && (
+          {!isCancelled && deposit.required && !hasPayments && (
             <div className="rounded-xl bg-blue-50 border border-blue-300 px-4 py-3 mb-4">
               <p className="text-sm font-bold text-blue-800">
                 Anzahlung erforderlich: {eur(deposit.requiredAmount)}
@@ -471,8 +485,8 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                       <td className="py-2 text-right font-semibold text-red-600">− {eur(discountAmt)}</td>
                     </tr>
                   )}
-                  {/* Anzahlung received → show the gross total, then deduct it */}
-                  {deposit.paid && (
+                  {/* Each payment is its own line: date, kind, method, amount */}
+                  {hasPayments && (
                     <>
                       {!hasDiscount && (
                         <tr className="border-b border-slate-100">
@@ -480,25 +494,32 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                           <td className="py-2 text-right font-medium text-slate-700">{eur(grossTotal)}</td>
                         </tr>
                       )}
-                      <tr className="border-b border-slate-200">
-                        <td className="py-2 font-semibold text-green-700">
-                          Anzahlung erhalten
-                          <span className="block text-xs font-normal text-green-600">
-                            am {formatDeDate(deposit.paidAt)}
-                            {deposit.paidMethodLabel ? ` · ${deposit.paidMethodLabel}` : ''}
-                          </span>
-                        </td>
-                        <td className="py-2 text-right font-semibold text-green-700 align-top">
-                          − {eur(deposit.paidAmount)}
-                        </td>
-                      </tr>
+                      {ledger.payments.map(p => {
+                        const isRefund = p.kind === 'refund'
+                        return (
+                          <tr key={p.id} className="border-b border-slate-100">
+                            <td className="py-1.5 align-top">
+                              <span className={isRefund ? 'font-semibold text-red-600' : 'font-semibold text-green-700'}>
+                                {PAYMENT_KIND_LABELS[p.kind]}
+                              </span>
+                              <span className="block text-xs font-normal text-slate-400">
+                                {formatDeDate(p.paid_on)}
+                                {p.method ? ` · ${DEPOSIT_METHOD_LABELS[p.method] ?? p.method}` : ''}
+                              </span>
+                            </td>
+                            <td className={`py-1.5 text-right font-semibold align-top ${isRefund ? 'text-red-600' : 'text-green-700'}`}>
+                              {isRefund ? '+ ' : '− '}{eur(Number(p.amount))}
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </>
                   )}
                   <tr>
                     <td colSpan={2} className="pt-2">
                       <div className="flex justify-between items-center bg-slate-800 text-white px-4 py-3 rounded-lg">
                         <span className="font-bold text-sm">
-                          {deposit.paid ? 'Restbetrag' : hasDiscount ? 'Neue Summe' : 'Summe Brutto'}
+                          {hasPayments ? 'Restbetrag' : hasDiscount ? 'Neue Summe' : 'Summe Brutto'}
                         </span>
                         <span className="font-black text-xl">{eur(amountDue)}</span>
                       </div>
@@ -511,23 +532,23 @@ export default async function InvoicePrintPage({ params }: { params: { id: strin
                 <div className="mt-2.5 px-4 py-3 rounded-lg border-2 border-red-500 bg-red-50 text-sm text-center">
                   <p className="font-black text-red-700 tracking-widest">STORNIERT</p>
                 </div>
-              ) : deposit.fullySettled ? (
+              ) : ledger.settled ? (
                 <div className="mt-2.5 px-4 py-3 rounded-lg border border-green-300 bg-green-50 text-sm text-center">
                   <p className="font-bold text-green-800">Vollständig bezahlt</p>
                   <p className="text-xs text-green-700 mt-0.5">
-                    Der Gesamtbetrag ist durch die Anzahlung ausgeglichen.
+                    Der Gesamtbetrag ist vollständig ausgeglichen.
                   </p>
                 </div>
-              ) : inv.payment_method === 'unpaid' ? (
+              ) : (inv.payment_method === 'unpaid' || ledger.partly) ? (
                 <div className="mt-2.5 px-4 py-3 rounded-lg border border-amber-300 bg-amber-50 text-sm">
                   <p className="font-bold text-amber-800 text-center">
-                    {deposit.paid ? 'Restbetrag ausstehend' : 'Zahlung ausstehend'}
+                    {ledger.partly ? 'Restbetrag ausstehend' : 'Zahlung ausstehend'}
                   </p>
                   <p className="text-amber-700 text-center mt-0.5">
                     Offener Betrag: <strong>{eur(amountDue)}</strong>
                   </p>
-                  <p className="text-xs text-amber-600 text-center mt-1">
-                    Bitte überweisen Sie den Betrag auf das unten angegebene Konto.
+                  <p className="text-xs text-amber-600 text-center mt-1.5 leading-snug">
+                    {REMAINING_DUE_TEXT} Bitte überweisen Sie den Betrag auf das unten angegebene Konto.
                   </p>
                 </div>
               ) : (

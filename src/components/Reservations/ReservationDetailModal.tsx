@@ -26,7 +26,8 @@ import CountryInput from '@/components/ui/CountryInput'
 import { findOrCreateCustomer, syncCustomerFromReservation } from '@/lib/customers'
 import DepositEditor, { type DepositState, EMPTY_DEPOSIT, depositPayload, depositFromRow } from '@/components/Deposit/DepositEditor'
 import DepositEmailButton from '@/components/Deposit/DepositEmailButton'
-import { summarizeDeposit, formatDeDate, eur } from '@/lib/deposit'
+import PaymentsEditor from '@/components/Deposit/PaymentsEditor'
+import { summarizeDeposit, summarizeLedger, formatDeDate, eur, type PaymentRow } from '@/lib/deposit'
 
 const STATUS_STYLES: Record<ReservationStatus, string> = {
   confirmed:   'bg-blue-100 text-blue-800',
@@ -106,6 +107,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
   const [editGuestCount, setEditGuestCount] = useState(1)
   const [editChildCount, setEditChildCount] = useState(0)
   const [editDeposit,    setEditDeposit]    = useState<DepositState>(EMPTY_DEPOSIT)
+  const [payments,       setPayments]       = useState<PaymentRow[]>([])
   const [editGuestName,      setEditGuestName]      = useState('')
   const [editGuestPhone,     setEditGuestPhone]     = useState('')
   const [editGuestEmail,     setEditGuestEmail]     = useState('')
@@ -152,6 +154,9 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       setEditGuestCount(r.guest_count)
       setEditChildCount(r.child_count ?? 0)
       setEditDeposit(depositFromRow(r))
+      const { data: pays } = await supabase
+        .from('payments').select('*').eq('reservation_id', reservationId).order('paid_on')
+      setPayments((pays ?? []) as PaymentRow[])
       setEditGuestName(r.guest_name)
       setEditGuestPhone(r.guest_phone ?? '')
       setEditGuestEmail(r.guest_email ?? '')
@@ -682,34 +687,45 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
 
         {/* ── Anzahlung ─────────────────────────────────────────────────── */}
         {editing ? (
-          <DepositEditor
-            value={editDeposit}
-            onChange={setEditDeposit}
-            total={editTotalPrice ? parseFloat(editTotalPrice) : 0}
-          />
+          <>
+            <DepositEditor
+              value={editDeposit}
+              onChange={setEditDeposit}
+              total={editTotalPrice ? parseFloat(editTotalPrice) : 0}
+            />
+            <PaymentsEditor
+              reservationId={reservationId}
+              total={editTotalPrice ? parseFloat(editTotalPrice) : 0}
+              onChanged={fetchReservation}
+            />
+          </>
         ) : (() => {
-          const dep = summarizeDeposit(r as any, r.total_price ?? 0)
-          if (!dep.required && !dep.paid) return null
+          const req = summarizeDeposit(r as any, r.total_price ?? 0)
+          const dep = summarizeLedger(payments, r.total_price ?? 0)
+          const hasPaid = dep.payments.length > 0
+          if (!req.required && !hasPaid) return null
           return (
             <div className={cn(
               'rounded-xl border p-4 space-y-2',
-              dep.paid ? 'border-green-200 bg-green-50' : 'border-blue-200 bg-blue-50',
+              hasPaid ? 'border-green-200 bg-green-50' : 'border-blue-200 bg-blue-50',
             )}>
               <p className={cn(
                 'text-xs font-semibold uppercase tracking-wide',
-                dep.paid ? 'text-green-700' : 'text-blue-700',
+                hasPaid ? 'text-green-700' : 'text-blue-700',
               )}>
-                Anzahlung
+                Zahlungen
               </p>
 
-              {dep.paid ? (
+              {hasPaid ? (
                 <>
-                  <p className="text-sm font-bold text-green-800">
-                    {eur(dep.paidAmount)} erhalten am {formatDeDate(dep.paidAt)}
-                    {dep.paidMethodLabel ? ` · ${dep.paidMethodLabel}` : ''}
-                  </p>
-                  <p className="text-xs text-green-700">
-                    {dep.fullySettled
+                  {dep.payments.map(pmt => (
+                    <p key={pmt.id} className="text-sm font-medium text-green-800">
+                      {formatDeDate(pmt.paid_on)} · {pmt.kind === 'deposit' ? 'Anzahlung' : pmt.kind === 'refund' ? 'Erstattung' : 'Zahlung'}
+                      {' '}<strong>{pmt.kind === 'refund' ? '+' : '−'} {eur(Number(pmt.amount))}</strong>
+                    </p>
+                  ))}
+                  <p className="text-xs text-green-700 pt-1 border-t border-green-200">
+                    {dep.settled
                       ? 'Vollständig bezahlt — kein Restbetrag offen.'
                       : <>Restbetrag: <strong>{eur(dep.remaining)}</strong></>}
                   </p>
@@ -729,7 +745,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
               ) : (
                 <>
                   <p className="text-sm font-bold text-blue-800">
-                    {eur(dep.requiredAmount)} erforderlich
+                    Anzahlung {eur(req.requiredAmount)} erforderlich
                   </p>
                   <p className="text-xs text-blue-700">
                     {(r as any).deposit_due_date

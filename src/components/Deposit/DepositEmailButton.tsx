@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Send, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { captureInvoicePdf } from '@/lib/pdfCapture'
 
 interface Props {
   /** Exactly one of these. Invoice wins when both are somehow present. */
@@ -40,46 +41,9 @@ export default function DepositEmailButton({
     try {
       let pdfBase64: string | undefined
 
-      // ── Capture the invoice exactly as rendered ──────────────────────────
       if (captureInvoice) {
         setStatus('generating')
-        const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-          import('html2canvas'), import('jspdf'),
-        ])
-
-        const pageEl = document.querySelector('.page') as HTMLElement | null
-        if (!pageEl) throw new Error('Rechnungsseite nicht gefunden')
-
-        // The logo is white on transparency — html2canvas flattens that to
-        // white, so fetch it separately and overlay it onto the PDF.
-        let logoDataUrl = ''
-        try {
-          const blob = await fetch('/logo.png').then(r => r.blob())
-          logoDataUrl = await new Promise<string>((res, rej) => {
-            const fr = new FileReader()
-            fr.onload  = e => res(e.target!.result as string)
-            fr.onerror = () => rej()
-            fr.readAsDataURL(blob)
-          })
-        } catch { /* non-fatal */ }
-
-        const canvas = await html2canvas(pageEl, {
-          scale: 2, useCORS: true, backgroundColor: '#ffffff',
-          logging: false, imageTimeout: 0,
-        })
-
-        const pdf    = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-        const pdfW   = pdf.internal.pageSize.getWidth()
-        const pdfH   = pdf.internal.pageSize.getHeight()
-        const imgH   = (canvas.height / canvas.width) * pdfW
-        const finalH = Math.min(imgH, pdfH)
-        const finalW = pdfW * (finalH / imgH)
-        pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, finalW, finalH)
-        if (logoDataUrl) {
-          const s = finalW / pdfW
-          pdf.addImage(logoDataUrl, 'PNG', 13.2 * s, 12.2 * s, 39.7 * s, 19.0 * s)
-        }
-        pdfBase64 = pdf.output('datauristring').split(',')[1]
+        pdfBase64 = await captureInvoicePdf()
       }
 
       // ── Send ─────────────────────────────────────────────────────────────

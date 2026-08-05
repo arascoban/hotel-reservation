@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Mail, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
+import { captureInvoicePdf } from '@/lib/pdfCapture'
 
 interface Props {
   invoiceRef:   string        // e.g. "R26_001"
@@ -34,64 +35,9 @@ export default function SendEmailButton({
     }
 
     try {
-      // ── 1. Capture the .page div as an image ───────────────────────
+      // ── 1. Capture the rendered invoice as an A4 PDF ───────────────
       setStatus('generating')
-
-      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-        import('html2canvas'),
-        import('jspdf'),
-      ])
-
-      const pageEl = document.querySelector('.page') as HTMLElement | null
-      if (!pageEl) throw new Error('Invoice page element not found')
-
-      // ── 1b. Pre-fetch logo as data URL ─────────────────────────────
-      // The logo is WHITE on a transparent background. html2canvas renders
-      // transparent areas as white, making the logo invisible on its
-      // internal white canvas. Fix: fetch it separately and overlay it
-      // directly onto the PDF after the canvas capture.
-      let logoDataUrl = ''
-      try {
-        const blob = await fetch('/logo.png').then(r => r.blob())
-        logoDataUrl = await new Promise<string>((resolve, reject) => {
-          const reader  = new FileReader()
-          reader.onload  = e  => resolve(e.target!.result as string)
-          reader.onerror = () => reject()
-          reader.readAsDataURL(blob)
-        })
-      } catch { /* non-fatal */ }
-
-      // ── 2. Capture page (logo area will be dark box, no logo yet) ──
-      const canvas = await html2canvas(pageEl, {
-        scale:           2,
-        useCORS:         true,
-        allowTaint:      false,
-        backgroundColor: '#ffffff',
-        logging:         false,
-        imageTimeout:    0,
-      })
-
-      // ── 3. Build the PDF — single A4 page ──────────────────────────
-      const imgData = canvas.toDataURL('image/jpeg', 0.92)
-      const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-      const pdfW    = pdf.internal.pageSize.getWidth()   // 210 mm
-      const pdfH    = pdf.internal.pageSize.getHeight()  // 297 mm
-      const imgH    = (canvas.height / canvas.width) * pdfW
-      const finalH  = Math.min(imgH, pdfH)
-      const finalW  = pdfW * (finalH / imgH)
-      pdf.addImage(imgData, 'JPEG', 0, 0, finalW, finalH)
-
-      // ── 4. Overlay logo directly onto the PDF ──────────────────────
-      // The page has 34px padding; the dark logo box has px-4 (16px) / py-3 (12px)
-      // padding. Scale: 210mm / 794px = 0.2644 mm/px. Logo: 150×72 CSS px.
-      // Coordinates (mm): x=(34+16)×0.2644=13.2, y=(34+12)×0.2644=12.2
-      // Size (mm): 150×0.2644=39.7 wide, 72×0.2644=19.0 tall
-      if (logoDataUrl) {
-        const s = finalW / pdfW          // scale factor (≈1 for A4 invoice)
-        pdf.addImage(logoDataUrl, 'PNG', 13.2 * s, 12.2 * s, 39.7 * s, 19.0 * s)
-      }
-
-      const pdfBase64 = pdf.output('datauristring').split(',')[1]
+      const pdfBase64 = await captureInvoicePdf()
 
       // ── 3. POST to API ──────────────────────────────────────────────
       setStatus('sending')

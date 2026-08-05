@@ -116,3 +116,92 @@ export function formatDeDate(iso: string | null | undefined): string {
 export function eur(n: number): string {
   return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 }
+
+
+// ─── Payment ledger ──────────────────────────────────────────────────────────
+
+export type PaymentKind = 'deposit' | 'payment' | 'refund'
+
+export const PAYMENT_KIND_LABELS: Record<PaymentKind, string> = {
+  deposit: 'Anzahlung',
+  payment: 'Zahlung',
+  refund:  'Erstattung',
+}
+
+export const PAYMENT_KINDS: { value: PaymentKind; label: string }[] = [
+  { value: 'deposit', label: 'Anzahlung' },
+  { value: 'payment', label: 'Zahlung (Restbetrag)' },
+  { value: 'refund',  label: 'Erstattung' },
+]
+
+export interface PaymentRow {
+  id:              string
+  reservation_id?: string | null
+  invoice_id?:     string | null
+  kind:            PaymentKind
+  amount:          number
+  paid_on:         string          // yyyy-MM-dd
+  method:          string
+  note?:           string | null
+}
+
+/** Refunds give money back, so they count against what has been received. */
+export function signedAmount(p: Pick<PaymentRow, 'kind' | 'amount'>): number {
+  return p.kind === 'refund' ? -Number(p.amount) : Number(p.amount)
+}
+
+export interface LedgerSummary {
+  payments:    PaymentRow[]
+  /** Sum of everything received (refunds subtracted). */
+  totalPaid:   number
+  /** Total minus received — what is still open. */
+  remaining:   number
+  /** Nothing left to pay. */
+  settled:     boolean
+  /** Some money arrived, but not all of it. */
+  partly:      boolean
+  /** The deposit portion specifically. */
+  depositPaid: number
+}
+
+/**
+ * Roll a list of payments up against a gross total.
+ * Payments are returned sorted by date so the invoice lists them in the
+ * order they happened.
+ */
+export function summarizeLedger(payments: PaymentRow[], total: number): LedgerSummary {
+  const sorted = [...payments].sort((a, b) => a.paid_on.localeCompare(b.paid_on))
+  const totalPaid = round2(sorted.reduce((s, p) => s + signedAmount(p), 0))
+  const remaining = round2(Math.max(0, total - totalPaid))
+
+  return {
+    payments:    sorted,
+    totalPaid,
+    remaining,
+    settled:     totalPaid > 0 && remaining <= 0.004,
+    partly:      totalPaid > 0 && remaining > 0.004,
+    depositPaid: round2(sorted.filter(p => p.kind === 'deposit')
+                              .reduce((s, p) => s + signedAmount(p), 0)),
+  }
+}
+
+/**
+ * Payment terms for the remaining balance.
+ * The hotel gives guests three working days after check-out to settle.
+ */
+export const REMAINING_DUE_WORKDAYS = 3
+
+export const REMAINING_DUE_TEXT =
+  `Der Restbetrag ist innerhalb von ${REMAINING_DUE_WORKDAYS} Werktagen nach dem Check-out zu begleichen.`
+
+/** Check-out + N working days (skips Sat/Sun). */
+export function addWorkdays(from: string | Date, days: number): Date {
+  const d = new Date(from)
+  let left = days
+  while (left > 0) {
+    d.setDate(d.getDate() + 1)
+    const wd = d.getDay()
+    if (wd !== 0 && wd !== 6) left--
+  }
+  return d
+}

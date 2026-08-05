@@ -6,12 +6,13 @@ import { format }        from 'date-fns'
 import { de }            from 'date-fns/locale'
 import {
   FileText, Settings, ChevronRight, Hash, Trash2, Edit2,
-  Plus, Search, X, Save, Loader2, Users, Calendar, Ban, RotateCcw,
+  Plus, Search, X, Save, Loader2, Users, Calendar, Ban, RotateCcw, ExternalLink,
 } from 'lucide-react'
 import { useAdmin }      from '@/hooks/useAdmin'
 import { cn }            from '@/lib/cn'
 import Link              from 'next/link'
 import DepositEditor, { type DepositState, EMPTY_DEPOSIT, depositPayload, depositFromRow } from '@/components/Deposit/DepositEditor'
+import PaymentsEditor from '@/components/Deposit/PaymentsEditor'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -470,6 +471,7 @@ function EditModal({
                 </Field>
               </div>
               <DepositEditor value={deposit} onChange={setDeposit} total={grossTotal} />
+              <PaymentsEditor invoiceId={inv.id} total={grossTotal} />
               <Field label="Notizen">
                 <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)}
                   className={cn(inp, 'resize-none')} placeholder="Interne Hinweise…" />
@@ -645,6 +647,8 @@ function EditModal({
           </div>
 
           <DepositEditor value={deposit} onChange={setDeposit} total={grossTotal} />
+
+          <PaymentsEditor invoiceId={inv.id} total={grossTotal} />
 
           <Field label="Notizen">
             <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)}
@@ -1419,6 +1423,71 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   )
 }
 
+// ── Invoice Preview Modal ─────────────────────────────────────────────────────
+
+/**
+ * Quick look at an invoice without leaving the list. The invoice page is
+ * rendered in an iframe so the preview is always byte-identical to the real
+ * document — no second layout to keep in sync.
+ */
+function PreviewModal({ inv, onClose }: { inv: Invoice; onClose: () => void }) {
+  const [loading, setLoading] = useState(true)
+  const ref = fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4"
+         onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[92vh] flex flex-col overflow-hidden"
+           onClick={e => e.stopPropagation()}>
+
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-slate-200 flex-shrink-0">
+          <div className="min-w-0">
+            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <span className="font-mono">{ref}</span>
+              {inv.cancelled_at && (
+                <span className="rounded-full bg-red-600 text-white px-2 py-0.5 text-2xs font-bold tracking-wide">
+                  STORNIERT
+                </span>
+              )}
+            </h2>
+            <p className="text-xs text-slate-400 truncate">{inv.guest_name}</p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Link href={`/invoices/${inv.id}`} target="_blank"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Öffnen / Drucken</span>
+            </Link>
+            <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="relative flex-1 bg-slate-100 overflow-auto">
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-400 gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" /> Rechnung wird geladen…
+            </div>
+          )}
+          <iframe
+            src={`/invoices/${inv.id}`}
+            title={`Rechnung ${ref}`}
+            onLoad={() => setLoading(false)}
+            className="w-full h-full border-0"
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function InvoicesPage() {
@@ -1437,6 +1506,7 @@ export default function InvoicesPage() {
   const [confirmStorno, setConfirmStorno] = useState<string | null>(null)
   const [editInv,      setEditInv]      = useState<Invoice | null>(null)
   const [showCreate,   setShowCreate]   = useState(false)
+  const [previewInv,   setPreviewInv]   = useState<Invoice | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -1562,7 +1632,8 @@ export default function InvoicesPage() {
             const isCancelled = !!inv.cancelled_at
             return (
               <div key={inv.id} className={cn('rounded-xl border p-3.5', isCancelled ? 'border-red-200 bg-red-50/50' : 'border-slate-200 bg-white')}>
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start justify-between gap-2 cursor-pointer"
+                     onClick={() => setPreviewInv(inv)}>
                   <div className="min-w-0">
                     <span className="font-mono font-bold text-slate-900 inline-flex items-center gap-1.5">
                       {fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())}
@@ -1586,7 +1657,8 @@ export default function InvoicesPage() {
                   </div>
                 </div>
 
-                <div className="mt-2 flex items-center gap-x-3 gap-y-1 flex-wrap text-xs text-slate-500">
+                <div className="mt-2 flex items-center gap-x-3 gap-y-1 flex-wrap text-xs text-slate-500 cursor-pointer"
+                     onClick={() => setPreviewInv(inv)}>
                   <span>{inv.room_number ? `Zi. ${inv.room_number}` : 'Freie Rechnung'}</span>
                   {inv.room_number && <span>Abreise {format(new Date(inv.checkout_at), 'd. MMM yyyy', { locale: de })}</span>}
                   <span>{PAY_LABELS[inv.payment_method] ?? inv.payment_method}</span>
@@ -1668,7 +1740,9 @@ export default function InvoicesPage() {
                     : 0
                   const isCancelled = !!inv.cancelled_at
                   return (
-                    <tr key={inv.id} className={cn('transition-colors', isCancelled ? 'bg-red-50/50 hover:bg-red-50' : 'hover:bg-slate-50')}>
+                    <tr key={inv.id}
+                        onClick={() => setPreviewInv(inv)}
+                        className={cn('transition-colors cursor-pointer', isCancelled ? 'bg-red-50/50 hover:bg-red-50' : 'hover:bg-slate-50')}>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
                           <span className={cn('font-mono font-bold', isCancelled ? 'text-slate-400 line-through' : 'text-slate-900')}>
@@ -1713,7 +1787,7 @@ export default function InvoicesPage() {
                       <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">
                         {format(new Date(inv.created_at), 'd. MMM yyyy', { locale: de })}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
                           <Link href={`/invoices/${inv.id}`} target="_blank"
                             className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
@@ -1782,6 +1856,10 @@ export default function InvoicesPage() {
           onClose={() => setEditInv(null)}
           onSaved={updated => setInvoices(prev => prev.map(i => i.id === updated.id ? updated : i))}
         />
+      )}
+
+      {previewInv && (
+        <PreviewModal inv={previewInv} onClose={() => setPreviewInv(null)} />
       )}
 
       {showCreate && (
