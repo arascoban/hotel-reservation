@@ -327,7 +327,6 @@ function EditModal({
   const [room2Nights,      setRoom2Nights]      = useState(String(inv.room2_nights ?? ''))
   const [room2GuestCount,  setRoom2GuestCount]  = useState(String(inv.room2_guest_count ?? 1))
   const [room2ChildCount2, setRoom2ChildCount2] = useState(String(inv.room2_child_count ?? 0))
-  const [deposit,          setDeposit]          = useState<DepositState>(depositFromRow(inv))
 
   // Gross total the deposit percentage is calculated from
   const grossTotal =
