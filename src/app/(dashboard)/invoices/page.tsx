@@ -78,6 +78,7 @@ interface Reservation {
   guest_postcode: string | null
   guest_city: string | null
   guest_country: string | null
+  customer_id: string | null
   notes: string | null
   rooms: { name: string; room_number: string; room_types?: { name: string } }
 }
@@ -711,7 +712,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       if (tab === 'reservation') {
         const { data } = await supabase
           .from('reservations')
-          .select('id, guest_name, guest_email, guest_count, room_id, checkin_at, checkout_at, total_price, payment_method, breakfast_included, billing_address, guest_street, guest_postcode, guest_city, guest_country, notes, rooms(name, room_number, room_types(name))')
+          .select('id, guest_name, guest_email, guest_count, room_id, checkin_at, checkout_at, total_price, payment_method, breakfast_included, billing_address, guest_street, guest_postcode, guest_city, guest_country, customer_id, notes, rooms(name, room_number, room_types(name))')
           .ilike('guest_name', `%${v}%`)
           .is('deleted_at', null)
           .order('checkin_at', { ascending: false })
@@ -771,13 +772,17 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     let address = buildAddress(r)
     let email   = r.guest_email ?? ''
 
-    // If reservation is missing address parts, look up in customers table
-    if (!r.guest_postcode && !r.guest_city) {
-      const { data: cust } = await (supabase as any)
+    // The customer record is the source of truth. Fall back to matching by
+    // e-mail/name for older reservations created before customer_id existed.
+    if (!r.guest_postcode || !r.guest_city || !address) {
+      const lookup = (supabase as any)
         .from('customers')
         .select('street, postcode, city, country, email')
-        .ilike('name', r.guest_name)
-        .maybeSingle()
+      const { data: cust } = r.customer_id
+        ? await lookup.eq('id', r.customer_id).maybeSingle()
+        : r.guest_email
+          ? await lookup.ilike('email', r.guest_email).maybeSingle()
+          : await lookup.ilike('name', r.guest_name).maybeSingle()
       if (cust) {
         const custAddr = buildCustomerAddress(cust as Customer)
         if (custAddr) address = custAddr

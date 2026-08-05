@@ -17,6 +17,7 @@ import { cn } from '@/lib/cn'
 import DateInput from '@/components/ui/DateInput'
 import TimeInput from '@/components/ui/TimeInput'
 import CountryInput from '@/components/ui/CountryInput'
+import { findOrCreateCustomer } from '@/lib/customers'
 
 // ── Family room definitions ────────────────────────────────────────────────────
 // Each pair shares a connecting door; booking a family room blocks BOTH rooms.
@@ -252,6 +253,11 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
 
         // Link them with the same family_booking_id so they deduplicate in list views
         const familyId = crypto.randomUUID()
+        // Central customer record — keeps Kunden page & invoices in sync
+        const customerId = await findOrCreateCustomer(supabase, {
+          name: guestName, email: guestEmail, phone: guestPhone,
+          street: guestStreet, postcode: guestPostcode, city: guestCity, country: guestCountry,
+        })
         const addressFields = {
           guest_street:   guestStreet   || null,
           guest_postcode: guestPostcode || null,
@@ -259,7 +265,13 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
           guest_country:  guestCountry  || null,
           billing_address: buildBillingAddress(guestStreet, guestPostcode, guestCity, guestCountry),
         }
-        const familyExtra = { family_booking_id: familyId, internal_notes: internalNotes || null, child_count: children, ...addressFields }
+        const familyExtra = {
+          family_booking_id: familyId,
+          internal_notes:    internalNotes || null,
+          child_count:       children,
+          customer_id:       customerId,
+          ...addressFields,
+        }
         await supabase.from('reservations').update(familyExtra).eq('id', id1)
         await supabase.from('reservations').update(familyExtra).eq('id', id2)
 
@@ -317,6 +329,13 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         external_id:        extId      || undefined,
       })
 
+      // Central customer record — an address typed here must also reach the
+      // Kunden page and any invoice created later.
+      const customerId = await findOrCreateCustomer(supabase, {
+        name: guestName, email: guestEmail, phone: guestPhone,
+        street: guestStreet, postcode: guestPostcode, city: guestCity, country: guestCountry,
+      })
+
       // Save extra fields (internal notes + address) that the RPC doesn't handle
       const extras: Record<string, unknown> = {}
       if (internalNotes) extras.internal_notes = internalNotes
@@ -328,6 +347,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         extras.billing_address = buildBillingAddress(guestStreet, guestPostcode, guestCity, guestCountry)
       }
       extras.child_count = children
+      if (customerId) extras.customer_id = customerId
       if (Object.keys(extras).length > 0) {
         await supabase.from('reservations').update(extras).eq('id', newId)
       }

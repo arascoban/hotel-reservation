@@ -23,6 +23,7 @@ import { cn } from '@/lib/cn'
 import DateInput from '@/components/ui/DateInput'
 import TimeInput from '@/components/ui/TimeInput'
 import CountryInput from '@/components/ui/CountryInput'
+import { findOrCreateCustomer, syncCustomerFromReservation } from '@/lib/customers'
 
 const STATUS_STYLES: Record<ReservationStatus, string> = {
   confirmed:   'bg-blue-100 text-blue-800',
@@ -197,6 +198,27 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
     ].filter(Boolean)
     const billingAddress = addrParts.length > 0 ? addrParts.join('\n') : null
 
+    // ── Keep the central customer record in sync ──────────────────────────
+    // Editing guest details here is an explicit act, so it overwrites the
+    // linked customer. If the reservation has no customer yet (older rows,
+    // iCal imports) we find or create one now.
+    const guestFields = {
+      name:     editGuestName,
+      email:    editGuestEmail,
+      phone:    editGuestPhone,
+      street:   editGuestStreet,
+      postcode: editGuestPostcode,
+      city:     editGuestCity,
+      country:  editGuestCountry,
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let customerId = (reservation as any).customer_id as string | null
+    if (customerId) {
+      await syncCustomerFromReservation(supabase, customerId, guestFields)
+    } else {
+      customerId = await findOrCreateCustomer(supabase, guestFields)
+    }
+
     // Save internal_notes + structured address fields (not handled by RPC)
     await supabase.from('reservations')
       .update({
@@ -207,6 +229,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
         guest_city:      editGuestCity     || null,
         guest_country:   editGuestCountry  || null,
         child_count:     editChildCount,
+        ...(customerId ? { customer_id: customerId } : {}),
       })
       .eq('id', reservationId)
 

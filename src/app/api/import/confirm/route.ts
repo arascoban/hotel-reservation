@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { randomUUID } from 'crypto'
 import { formatAddress, hasAddress } from '@/lib/address'
+import { findOrCreateCustomer } from '@/lib/customers'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,51 +42,27 @@ export async function POST(req: NextRequest) {
     const toImport = rows.filter(r => !r.skip && r.roomId && r.roomId !== '__DUPLICATE__')
     const results: Array<{ bookingNumber: string; ok: boolean; error?: string }> = []
 
-    // ── Upsert customers for all imported guests ──────────────────────────────
-    // Match on email when we have one (reliable), otherwise on name.
-    // An existing customer gets enriched — we only fill blanks, never
-    // overwrite details a staff member entered by hand.
-    const uniqueGuests = new Map<string, ConfirmRow>()
+    // ── Resolve the central customer record for every imported guest ──────────
+    // Same matching rules as the rest of the app (e-mail first, name second)
+    // so a Booking.com guest lands on their existing Kunden record instead of
+    // creating a duplicate. The resulting id is stored on each reservation.
+    const customerIdByKey = new Map<string, string | null>()
+    const guestKey = (row: ConfirmRow) =>
+      (row.email?.trim().toLowerCase()) || row.guestName.trim().toLowerCase()
+
     for (const row of toImport) {
-      const key = (row.email?.trim().toLowerCase()) || row.guestName.trim().toLowerCase()
-      if (key && !uniqueGuests.has(key)) uniqueGuests.set(key, row)
-    }
-    for (const [, row] of uniqueGuests) {
-      const name  = row.guestName.trim()
-      const email = row.email?.trim() || null
-
-      const { data: existing } = email
-        ? await supabase.from('customers').select('*').ilike('email', email).maybeSingle()
-        : await supabase.from('customers').select('*').ilike('name',  name ).maybeSingle()
-
-      const addr = {
-        street:   row.street?.trim()   || null,
-        postcode: row.postcode?.trim() || null,
-        city:     row.city?.trim()     || null,
-        country:  row.country?.trim()  || null,
-      }
-
-      if (existing) {
-        // Fill only the fields that are still empty on the existing record
-        const patch: Record<string, unknown> = {}
-        if (!existing.email    && email)          patch.email    = email
-        if (!existing.phone    && row.phone)      patch.phone    = row.phone.trim()
-        if (!existing.street   && addr.street)    patch.street   = addr.street
-        if (!existing.postcode && addr.postcode)  patch.postcode = addr.postcode
-        if (!existing.city     && addr.city)      patch.city     = addr.city
-        if (!existing.country  && addr.country)   patch.country  = addr.country
-        if (Object.keys(patch).length > 0) {
-          await supabase.from('customers').update(patch).eq('id', existing.id)
-        }
-      } else {
-        await supabase.from('customers').insert({
-          name,
-          email,
-          phone:  row.phone?.trim() || null,
-          ...addr,
-          source: 'booking.com',
-        })
-      }
+      const key = guestKey(row)
+      if (!key || customerIdByKey.has(key)) continue
+      customerIdByKey.set(key, await findOrCreateCustomer(supabase, {
+        name:     row.guestName,
+        email:    row.email,
+        phone:    row.phone,
+        street:   row.street,
+        postcode: row.postcode,
+        city:     row.city,
+        country:  row.country,
+        source:   'booking.com',
+      }))
     }
 
     for (const row of toImport) {
@@ -124,6 +101,7 @@ export async function POST(req: NextRequest) {
         guest_city:         addr.city     || null,
         guest_country:      addr.country  || null,
         billing_address:    hasAddress(addr) ? formatAddress(addr) : null,
+        customer_id:        customerIdByKey.get(guestKey(row)) ?? null,
       }
 
       // ── Family booking: insert TWO reservations linked by a shared family_booking_id ──

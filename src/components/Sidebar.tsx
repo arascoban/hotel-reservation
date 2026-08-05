@@ -9,11 +9,12 @@ import {
   ChevronRight, ChevronDown, X, CalendarClock, RefreshCw,
   BarChart3, Utensils, Hotel, Lock, ShieldCheck, User,
   UtensilsCrossed, ClipboardList, QrCode, Soup, TrendingUp, FileDown, History,
-  FileText, Users,
+  FileText, Users, SlidersHorizontal,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/cn'
 import { useAdmin } from '@/hooks/useAdmin'
+import { useMenuVisibility } from '@/hooks/useMenuVisibility'
 
 // ── Notification counts hook ─────────────────────────────────────────────────
 
@@ -84,9 +85,9 @@ interface NavItem {
 // ── Nav groups (static, no badges — badges injected dynamically) ─────────────
 
 const NAV_STANDALONE = [
-  { href: '/search',    label: 'Suche',    icon: Search       },
-  { href: '/',          label: 'Kalender', icon: CalendarDays },
-  { href: '/customers', label: 'Kunden',   icon: Users        },
+  { href: '/search',    label: 'Suche',    icon: Search,       menuKey: 'search'    },
+  { href: '/',          label: 'Kalender', icon: CalendarDays, menuKey: 'calendar'  },
+  { href: '/customers', label: 'Kunden',   icon: Users,        menuKey: 'customers' },
 ]
 
 const GROUP_CHECKINS = {
@@ -111,8 +112,9 @@ const GROUP_FINANCE = {
 }
 
 const NAV_ADMIN_EXTRAS = [
-  { href: '/sync',   label: 'iCal Synchronisation', icon: RefreshCw },
-  { href: '/import', label: 'Booking.com Import',   icon: FileDown  },
+  { href: '/sync',     label: 'iCal Synchronisation', icon: RefreshCw   },
+  { href: '/import',   label: 'Booking.com Import',   icon: FileDown    },
+  { href: '/settings', label: 'Menü-Einstellungen',   icon: SlidersHorizontal },
 ]
 
 const GROUP_FOOD_ADMIN_ITEMS: NavItem[] = [
@@ -207,6 +209,7 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
   const router      = useRouter()
   const supabase    = createClient()
   const { isAdmin } = useAdmin()
+  const { canSee }  = useMenuVisibility()
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const { foodCount, cleanCount, checkinCount, checkoutCount } = useNotificationCounts()
 
@@ -284,15 +287,14 @@ export default function Sidebar({ isOpen = false, onClose }: Props) {
       {/* Navigation */}
       <nav className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto">
 
-        {NAV_STANDALONE.map(({ href, label, icon }) => (
+        {NAV_STANDALONE.filter(n => canSee(n.menuKey)).map(({ href, label, icon }) => (
           <NavLink key={href} href={href} label={label} icon={icon} onClick={onClose} />
         ))}
 
-        <SubMenu {...checkinsGroup}  onClose={onClose} />
-        <SubMenu {...roomsGroup}     onClose={onClose} />
-        <SubMenu {...foodGroup}      onClose={onClose} />
-
-        <SubMenu {...GROUP_FINANCE} onClose={onClose} />
+        {canSee('arrivals') && <SubMenu {...checkinsGroup}  onClose={onClose} />}
+        {canSee('rooms')    && <SubMenu {...roomsGroup}     onClose={onClose} />}
+        {canSee('food')     && <SubMenu {...foodGroup}      onClose={onClose} />}
+        {canSee('finance')  && <SubMenu {...GROUP_FINANCE}  onClose={onClose} />}
 
         {isAdmin && NAV_ADMIN_EXTRAS.map(({ href, label, icon }) => (
           <NavLink key={href} href={href} label={label} icon={icon} onClick={onClose} />
