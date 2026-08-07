@@ -7,6 +7,7 @@ import {
   validateReservationInput,
   checkRoomAvailability,
   createReservationSafe,
+  capacitySafeCount,
   buildCheckinTimestamp,
   buildCheckoutTimestamp,
   formatDate,
@@ -254,9 +255,17 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
       }
 
       try {
-        // Create both room reservations
-        const id1 = await createReservationSafe(supabase, { ...baseInput, room_id: selectedFamily.room1!.id })
-        const id2 = await createReservationSafe(supabase, { ...baseInput, room_id: selectedFamily.room2!.id })
+        // Create both room reservations. The unit's occupancy does not fit a
+        // single one of its rooms — see capacitySafeCount().
+        const unitGuests = adults + children
+        const id1 = await createReservationSafe(supabase, {
+          ...baseInput, room_id: selectedFamily.room1!.id,
+          guest_count: capacitySafeCount(unitGuests, selectedFamily.room1!.max_capacity),
+        })
+        const id2 = await createReservationSafe(supabase, {
+          ...baseInput, room_id: selectedFamily.room2!.id,
+          guest_count: capacitySafeCount(unitGuests, selectedFamily.room2!.max_capacity),
+        })
 
         // Link them with the same family_booking_id so they deduplicate in list views
         const familyId = crypto.randomUUID()
@@ -276,6 +285,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
           ...requestedDeposit(),
           salutation:        salutation || null,
           family_booking_id: familyId,
+          guest_count:       unitGuests,
           internal_notes:    internalNotes || null,
           child_count:       children,
           customer_id:       customerId,

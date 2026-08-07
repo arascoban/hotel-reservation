@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
-  buildCheckinTimestamp, buildCheckoutTimestamp, createReservationSafe, ReservationError,
+  buildCheckinTimestamp, buildCheckoutTimestamp, createReservationSafe, capacitySafeCount,
+  ReservationError,
 } from '@/lib/reservations'
 import type { ReservationSource, PaymentMethod, PaymentStatus } from '@/types/database'
 import { cn } from '@/lib/cn'
@@ -368,8 +369,13 @@ export default function GroupReservationForm() {
         const inAt  = buildCheckinTimestamp(p.ownDates ? p.checkin : checkinDate, checkinTime)
         const outAt = buildCheckoutTimestamp(p.ownDates ? p.checkout : checkoutDate, checkoutTime)
         const familyId = u.isFamily ? crypto.randomUUID() : null
+        const unitGuests = p.adults + p.children
 
         for (const roomId of u.roomIds) {
+          // A family unit's occupancy belongs to the pair, not to either of
+          // its rooms — see capacitySafeCount(). A single room keeps the real
+          // count so the RPC's capacity check still guards it.
+          const roomCapacity = available.find(r => r.id === roomId)?.max_capacity
           const id = await createReservationSafe(supabase, {
             guest_name:         guestName,
             guest_email:        guestEmail || undefined,
@@ -377,7 +383,7 @@ export default function GroupReservationForm() {
             room_id:            roomId,
             checkin_at:         inAt,
             checkout_at:        outAt,
-            guest_count:        p.adults + p.children,
+            guest_count:        u.isFamily ? capacitySafeCount(unitGuests, roomCapacity) : unitGuests,
             breakfast_included: breakfast,
             source,
             payment_method:     payMethod,
@@ -390,6 +396,7 @@ export default function GroupReservationForm() {
             ...(isFirstRoom ? groupDeposit : {}),
             group_booking_id:  groupId,
             family_booking_id: familyId,
+            guest_count:       unitGuests,
             salutation:        salutation || null,
             customer_id:       custId,
             child_count:       p.children,

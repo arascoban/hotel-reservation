@@ -137,6 +137,27 @@ export async function checkRoomAvailability(
 // ─── RPC-based Safe Creation ──────────────────────────────────────────────────
 
 /**
+ * Guest count a single room of a connecting-door family unit may be created with.
+ *
+ * A family unit (11+12, 19+20, 21+22) is sold as one room but stored as one
+ * reservation per physical room, each carrying the whole unit's occupancy —
+ * that is the convention every list, invoice and e-mail already relies on.
+ * `create_reservation` and `update_reservation` validate the guest count
+ * against the *physical* room's type, which knows nothing about the pair, so
+ * 3 people in 21+22 fail on Zimmer 21 (Doppelzimmer, max. 2) and 2 people
+ * already fail on Zimmer 22 (Einzelzimmer, max. 1).
+ *
+ * Hand the RPC a count the room can hold and write the unit's real occupancy
+ * in the follow-up update. The ceiling that matters — the family type's — is
+ * enforced in the form before anything is written.
+ *
+ * For a normal single-room booking this returns the count unchanged.
+ */
+export function capacitySafeCount(unitCount: number, roomCapacity: number | null | undefined): number {
+  return Math.max(1, Math.min(unitCount, roomCapacity || 1))
+}
+
+/**
  * Creates a reservation via the Supabase RPC function `create_reservation`.
  * This is atomic and protected by the DB EXCLUDE constraint.
  *

@@ -17,6 +17,7 @@ import {
   getSourceLabel,
   getSourceColor,
   getRoomFloor,
+  capacitySafeCount,
 } from '@/lib/reservations'
 import { useAdmin } from '@/hooks/useAdmin'
 import { cn } from '@/lib/cn'
@@ -178,13 +179,21 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
     setSaving(true)
     setError(null)
 
+    // A family booking's occupancy belongs to the connecting-door pair, not to
+    // either of its rooms, and update_reservation checks the single room —
+    // see capacitySafeCount(). The real count is written below.
+    const isFamily = !!(reservation as any).family_booking_id
+    const rpcGuestCount = isFamily
+      ? capacitySafeCount(editGuestCount, (reservation as any).rooms?.room_types?.max_capacity)
+      : editGuestCount
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any).rpc('update_reservation', {
       p_reservation_id: reservationId,
       p_guest_name:     editGuestName    || null,
       p_guest_phone:    editGuestPhone   || null,
       p_guest_email:    editGuestEmail   || null,
-      p_guest_count:    editGuestCount,
+      p_guest_count:    rpcGuestCount,
       p_checkin_at:     buildCheckinTimestamp(editCheckin, editCheckinTime),
       p_checkout_at:    buildCheckoutTimestamp(editCheckout, editCheckoutTime),
       p_breakfast:      editBreakfast,
@@ -246,6 +255,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
         guest_city:      editGuestCity     || null,
         guest_country:   editGuestCountry  || null,
         child_count:     editChildCount,
+        ...(isFamily ? { guest_count: editGuestCount } : {}),
         ...(customerId ? { customer_id: customerId } : {}),
         // Only the requested deposit — received money lives in `payments`
         ...(() => {

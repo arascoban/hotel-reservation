@@ -154,6 +154,17 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
     const list = (data ?? []) as unknown as GroupRow[]
     setRows(list)
 
+    // A family pair is stored as two rooms that each carry the unit's
+    // occupancy, so validating them against the single room's type would
+    // reject a booking the pair can hold.
+    const { data: famType } = await supabase
+      .from('room_types')
+      .select('max_adults, max_children, max_capacity')
+      .eq('category', 'family_connecting')
+      .maybeSingle()
+    const fam = (famType ?? null) as
+      { max_adults: number | null; max_children: number | null; max_capacity: number } | null
+
     if (list.length > 0) {
       const f = list[0]
       setSalutation((f as any).salutation ?? '')
@@ -176,11 +187,11 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
     }
 
     setEdits(list.map(r => {
-      const t = r.rooms?.room_types
+      const t = r.family_booking_id ? (fam ?? r.rooms?.room_types) : r.rooms?.room_types
       return {
         id:          r.id,
         label:       `Zimmer ${r.rooms?.room_number ?? '?'}`,
-        typeName:    t?.name ?? r.rooms?.name ?? '',
+        typeName:    r.rooms?.room_types?.name ?? r.rooms?.name ?? '',
         maxAdults:   t?.max_adults   ?? t?.max_capacity ?? 2,
         maxChildren: t?.max_children ?? 0,
         maxCapacity: t?.max_capacity ?? 2,
