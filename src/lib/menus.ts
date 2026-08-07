@@ -4,14 +4,15 @@
  */
 
 export const MENU_KEYS = [
-  'search', 'calendar', 'customers', 'arrivals', 'rooms', 'food', 'finance',
+  'search', 'calendar', 'reservations', 'customers', 'arrivals', 'rooms', 'food', 'finance',
 ] as const
 
 export type MenuKey = typeof MENU_KEYS[number]
 
 export const MENU_LABELS: Record<MenuKey, string> = {
   search:    'Suche',
-  calendar:  'Kalender',
+  calendar:     'Kalender',
+  reservations: 'Reservierungen',
   customers: 'Kunden',
   arrivals:  'Ankünfte & Abreisen',
   rooms:     'Zimmer & Schlüssel',
@@ -22,7 +23,8 @@ export const MENU_LABELS: Record<MenuKey, string> = {
 /** Routes covered by each menu — used to guard the pages themselves. */
 export const MENU_ROUTES: Record<MenuKey, string[]> = {
   search:    ['/search'],
-  calendar:  ['/'],
+  calendar:     ['/'],
+  reservations: ['/reservations'],
   customers: ['/customers'],
   arrivals:  ['/checkins', '/checkouts', '/upcoming', '/past-guests'],
   rooms:     ['/rooms', '/lockers'],

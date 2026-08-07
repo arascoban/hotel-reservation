@@ -9,7 +9,7 @@ import {
   ChevronRight, ChevronDown, X, CalendarClock, RefreshCw,
   BarChart3, Utensils, Hotel, Lock, ShieldCheck, User,
   UtensilsCrossed, ClipboardList, QrCode, Soup, TrendingUp, FileDown, History,
-  FileText, Users, SlidersHorizontal,
+  FileText, Users, SlidersHorizontal, CalendarRange,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/cn'
@@ -85,9 +85,10 @@ interface NavItem {
 // ── Nav groups (static, no badges — badges injected dynamically) ─────────────
 
 const NAV_STANDALONE = [
-  { href: '/search',    label: 'Suche',    icon: Search,       menuKey: 'search'    },
-  { href: '/',          label: 'Kalender', icon: CalendarDays, menuKey: 'calendar'  },
-  { href: '/customers', label: 'Kunden',   icon: Users,        menuKey: 'customers' },
+  { href: '/search',       label: 'Suche',          icon: Search,        menuKey: 'search'       },
+  { href: '/',             label: 'Kalender',       icon: CalendarDays,  menuKey: 'calendar'     },
+  { href: '/reservations', label: 'Reservierungen', icon: CalendarRange, menuKey: 'reservations' },
+  { href: '/customers',    label: 'Kunden',         icon: Users,         menuKey: 'customers'    },
 ]
 
 const GROUP_CHECKINS = {
@@ -114,7 +115,7 @@ const GROUP_FINANCE = {
 const NAV_ADMIN_EXTRAS = [
   { href: '/sync',     label: 'iCal Synchronisation', icon: RefreshCw   },
   { href: '/import',   label: 'Booking.com Import',   icon: FileDown    },
-  { href: '/settings', label: 'Menü-Einstellungen',   icon: SlidersHorizontal },
+  { href: '/settings', label: 'Einstellungen',        icon: SlidersHorizontal },
 ]
 
 const GROUP_FOOD_ADMIN_ITEMS: NavItem[] = [

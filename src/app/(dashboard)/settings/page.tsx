@@ -7,11 +7,14 @@ import { cn } from '@/lib/cn'
 import { SlidersHorizontal, ShieldCheck, Loader2, Eye, EyeOff, Wallet, BedDouble } from 'lucide-react'
 
 interface RoomTypeRow {
-  id:         string
-  name:       string
-  category:   string
-  base_price: number | null
-  sort_order: number
+  id:           string
+  name:         string
+  category:     string
+  base_price:   number | null
+  max_adults:   number | null
+  max_children: number | null
+  max_capacity: number
+  sort_order:   number
 }
 
 interface MenuRow {
@@ -32,6 +35,7 @@ export default function SettingsPage() {
   const [savingDeposit, setSavingDeposit] = useState(false)
   const [roomTypes,     setRoomTypes]     = useState<RoomTypeRow[]>([])
   const [prices,        setPrices]        = useState<Record<string, string>>({})
+  const [caps,          setCaps]          = useState<Record<string, { a: string; c: string; t: string }>>({})
   const [savingPrice,   setSavingPrice]   = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -42,12 +46,17 @@ export default function SettingsPage() {
     if (data) setRows(data as MenuRow[])
 
     const { data: types } = await supabase
-      .from('room_types').select('id, name, category, base_price, sort_order').order('sort_order')
+      .from('room_types').select('id, name, category, base_price, max_adults, max_children, max_capacity, sort_order').order('sort_order')
     if (types) {
       setRoomTypes(types as RoomTypeRow[])
       setPrices(Object.fromEntries((types as RoomTypeRow[]).map(
         t => [t.id, t.base_price != null ? String(t.base_price) : ''],
       )))
+      setCaps(Object.fromEntries((types as RoomTypeRow[]).map(t => [t.id, {
+        a: String(t.max_adults   ?? ''),
+        c: String(t.max_children ?? ''),
+        t: String(t.max_capacity ?? ''),
+      }])))
     }
 
     const { data: settings } = await supabase
@@ -58,18 +67,42 @@ export default function SettingsPage() {
     setLoading(false)
   }, [supabase])
 
-  async function saveRoomPrice(t: RoomTypeRow) {
-    const raw = prices[t.id]
-    const val = raw === '' ? null : parseFloat(raw)
-    if (val != null && (Number.isNaN(val) || val < 0)) return
+  async function saveRoomType(t: RoomTypeRow) {
+    const raw   = prices[t.id]
+    const price = raw === '' ? null : parseFloat(raw)
+    if (price != null && (Number.isNaN(price) || price < 0)) return
+
+    const c = caps[t.id] ?? { a: '', c: '', t: '' }
+    const adults   = c.a === '' ? null : parseInt(c.a)
+    const children = c.c === '' ? null : parseInt(c.c)
+    const total    = c.t === '' ? t.max_capacity : parseInt(c.t)
+    if (adults != null && adults < 1) return
+    if (total < 1) return
+
     setSavingPrice(t.id)
-    const { error } = await supabase
-      .from('room_types').update({ base_price: val }).eq('id', t.id)
+    const { error } = await supabase.from('room_types').update({
+      base_price:   price,
+      max_adults:   adults,
+      max_children: children,
+      max_capacity: total,
+    }).eq('id', t.id)
+
     if (!error) {
-      setRoomTypes(prev => prev.map(r => r.id === t.id ? { ...r, base_price: val } : r))
+      setRoomTypes(prev => prev.map(r => r.id === t.id
+        ? { ...r, base_price: price, max_adults: adults, max_children: children, max_capacity: total }
+        : r))
       setMsg('✓ Gespeichert'); setTimeout(() => setMsg(''), 2000)
     }
     setSavingPrice(null)
+  }
+
+  function capChanged(t: RoomTypeRow): boolean {
+    const c = caps[t.id]
+    if (!c) return false
+    return c.a !== String(t.max_adults   ?? '')
+        || c.c !== String(t.max_children ?? '')
+        || c.t !== String(t.max_capacity ?? '')
+        || (prices[t.id] ?? '') !== (t.base_price != null ? String(t.base_price) : '')
   }
 
   async function saveDepositPct() {
@@ -133,10 +166,10 @@ export default function SettingsPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
           <SlidersHorizontal className="w-6 h-6 text-slate-500" />
-          Menü-Einstellungen
+          Einstellungen
         </h1>
         <p className="text-slate-500 mt-1 text-sm">
-          Bestimme, welche Menüs Mitarbeiter-Konten sehen.
+          Menü-Sichtbarkeit, Zimmerpreise und Belegung.
           {hiddenCount > 0 && (
             <span className="ml-1 font-medium text-slate-700">
               {hiddenCount} Menü{hiddenCount !== 1 ? 's' : ''} ausgeblendet.
@@ -232,35 +265,77 @@ export default function SettingsPage() {
         {loading ? (
           <div className="text-center py-10 text-slate-400 text-sm">Lädt…</div>
         ) : (
-          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-            {roomTypes.map((t, idx) => (
-              <div key={t.id}
-                className={cn('flex items-center gap-3 px-4 sm:px-5 py-3.5',
-                  idx < roomTypes.length - 1 && 'border-b border-slate-100')}>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-slate-900 truncate">{t.name}</p>
-                  <p className="text-xs text-slate-400">
-                    {t.base_price != null ? `Aktuell ${t.base_price.toFixed(2)} € / Nacht` : 'Kein Preis hinterlegt'}
-                  </p>
+          <div className="space-y-2.5">
+            {roomTypes.map(t => (
+              <div key={t.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm text-slate-900 truncate">{t.name}</p>
+                    <p className="text-xs text-slate-400">
+                      {t.base_price != null ? `${t.base_price.toFixed(2)} € / Nacht` : 'Kein Preis'}
+                      {' · '}max. {t.max_adults ?? '?'} Erw.
+                      {(t.max_children ?? 0) > 0 && ` + ${t.max_children} Ki.`}
+                      {' · '}insg. {t.max_capacity}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => saveRoomType(t)}
+                    disabled={savingPrice === t.id || !capChanged(t)}
+                    className="flex-shrink-0 rounded-xl bg-blue-600 text-white px-4 h-11 text-sm font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                    {savingPrice === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Speichern'}
+                  </button>
                 </div>
-                <div className="relative flex-shrink-0">
-                  <input
-                    type="number" min={0} step="0.01"
-                    value={prices[t.id] ?? ''}
-                    onChange={e => setPrices(p => ({ ...p, [t.id]: e.target.value }))}
-                    onKeyDown={e => { if (e.key === 'Enter') saveRoomPrice(t) }}
-                    placeholder="0.00"
-                    aria-label={`Preis für ${t.name}`}
-                    className="w-28 rounded-lg border border-slate-300 pl-3 pr-7 h-11 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">€</span>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div>
+                    <label className="block text-2xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">
+                      Preis / Nacht
+                    </label>
+                    <div className="relative">
+                      <input type="number" min={0} step="0.01"
+                        value={prices[t.id] ?? ''}
+                        onChange={e => setPrices(p => ({ ...p, [t.id]: e.target.value }))}
+                        placeholder="0.00"
+                        aria-label={`Preis für ${t.name}`}
+                        className="w-full rounded-lg border border-slate-300 pl-3 pr-6 h-11 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-slate-400">€</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-2xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">
+                      Max. Erwachsene
+                    </label>
+                    <input type="number" min={1} max={10}
+                      value={caps[t.id]?.a ?? ''}
+                      onChange={e => setCaps(c => ({ ...c, [t.id]: { ...c[t.id], a: e.target.value } }))}
+                      aria-label={`Maximale Erwachsene für ${t.name}`}
+                      className="w-full rounded-lg border border-slate-300 px-3 h-11 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-2xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">
+                      Max. Kinder
+                    </label>
+                    <input type="number" min={0} max={10}
+                      value={caps[t.id]?.c ?? ''}
+                      onChange={e => setCaps(c => ({ ...c, [t.id]: { ...c[t.id], c: e.target.value } }))}
+                      aria-label={`Maximale Kinder für ${t.name}`}
+                      className="w-full rounded-lg border border-slate-300 px-3 h-11 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-2xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">
+                      Max. gesamt
+                    </label>
+                    <input type="number" min={1} max={10}
+                      value={caps[t.id]?.t ?? ''}
+                      onChange={e => setCaps(c => ({ ...c, [t.id]: { ...c[t.id], t: e.target.value } }))}
+                      aria-label={`Maximale Personen gesamt für ${t.name}`}
+                      className="w-full rounded-lg border border-slate-300 px-3 h-11 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
                 </div>
-                <button
-                  onClick={() => saveRoomPrice(t)}
-                  disabled={savingPrice === t.id || (prices[t.id] ?? '') === (t.base_price != null ? String(t.base_price) : '')}
-                  className="flex-shrink-0 rounded-xl bg-blue-600 text-white px-4 h-11 text-sm font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                  {savingPrice === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Speichern'}
-                </button>
+                <p className="text-2xs text-slate-400 mt-2">
+                  „Max. gesamt" begrenzt Erwachsene und Kinder zusammen — z.&nbsp;B. 2 Erw. + 2 Ki.,
+                  aber nie mehr als 3 Personen im Zimmer.
+                </p>
               </div>
             ))}
           </div>
