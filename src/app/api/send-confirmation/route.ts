@@ -343,12 +343,12 @@ export async function POST(req: NextRequest) {
       : await payQuery.eq('reservation_id', reservationId).order('paid_on')
 
     const dep = summarizeLedger((payRows ?? []) as PaymentRow[], billTotal)
-    const req = summarizeDeposit(depositRow, billTotal)
+    const reqDeposit = summarizeDeposit(depositRow, billTotal)
     let depositBlock = ''
 
     // Nothing received yet, but a deposit was requested → ask for it, with the
     // bank details the guest needs to actually pay.
-    if (dep.payments.length === 0 && req.required) {
+    if (dep.payments.length === 0 && reqDeposit.required) {
       const due = depositRow.deposit_due_date
         ? ` Bitte überweisen Sie den Betrag bis zum <strong>${formatDeDate(depositRow.deposit_due_date)}</strong>.`
         : ''
@@ -361,7 +361,7 @@ export async function POST(req: NextRequest) {
                       <table width="100%" cellpadding="0" cellspacing="0">
                         <tr>
                           <td style="font-size:13px;color:#1e40af;">Erforderliche Anzahlung</td>
-                          <td style="font-size:18px;font-weight:800;color:#2563eb;text-align:right;">${depEur(req.requiredAmount)}</td>
+                          <td style="font-size:18px;font-weight:800;color:#2563eb;text-align:right;">${depEur(reqDeposit.requiredAmount)}</td>
                         </tr>
                       </table>
                       <p style="margin:10px 0 0;font-size:12px;color:#1e40af;line-height:1.6;">
@@ -388,10 +388,10 @@ export async function POST(req: NextRequest) {
                           <td style="font-size:13px;color:#166534;padding:3px 0;">${formatDeDate(pm.paid_on)} · ${PAYMENT_KIND_LABELS[pm.kind]} · ${DEPOSIT_METHOD_LABELS[pm.method] ?? pm.method}</td>
                           <td style="font-size:15px;font-weight:700;color:${pm.kind === 'refund' ? '#dc2626' : '#15803d'};text-align:right;padding:3px 0;">${pm.kind === 'refund' ? '+' : '−'} ${depEur(Number(pm.amount))}</td>
                         </tr>`).join('')}
-                        ${req.required && dep.totalPaid + 0.004 < req.requiredAmount ? `
+                        ${reqDeposit.required && dep.totalPaid + 0.004 < reqDeposit.requiredAmount ? `
                         <tr>
                           <td colspan="2" style="font-size:12px;color:#b45309;padding-top:8px;">
-                            Offene Anzahlung: ${depEur(req.requiredAmount - dep.totalPaid)}
+                            Offene Anzahlung: ${depEur(reqDeposit.requiredAmount - dep.totalPaid)}
                           </td>
                         </tr>` : ''}
                         <tr>
