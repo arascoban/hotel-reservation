@@ -6,9 +6,10 @@ import { cn } from '@/lib/cn'
 import { formatDate, getSourceLabel, getSourceColor } from '@/lib/reservations'
 import { eur } from '@/lib/deposit'
 import ReservationDetailModal from '@/components/Reservations/ReservationDetailModal'
+import GroupEditModal from '@/components/Reservations/GroupEditModal'
 import DateInput from '@/components/ui/DateInput'
 import {
-  CalendarRange, Loader2, Users, Layers, ChevronRight, Search, Mail,
+  CalendarRange, Loader2, Users, Layers, ChevronRight, Search, Mail, Pencil,
 } from 'lucide-react'
 import type { ReservationStatus, PaymentStatus } from '@/types/database'
 
@@ -114,27 +115,35 @@ export default function ReservationsBrowser() {
   const today = new Date()
   const inAMonth = new Date(); inAMonth.setMonth(inAMonth.getMonth() + 1)
 
+  // Default: everything still running or yet to come. Date filtering is
+  // opt-in, so opening the page always shows the bookings that matter now.
+  const [mode,    setMode]    = useState<'upcoming' | 'range' | 'all'>('upcoming')
   const [from,    setFrom]    = useState(iso(today))
   const [to,      setTo]      = useState(iso(inAMonth))
   const [query,   setQuery]   = useState('')
   const [rows,    setRows]    = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
   const [openId,  setOpenId]  = useState<string | null>(null)
+  const [editGroupId, setEditGroupId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
-    // Everything overlapping the window: starts before it ends, ends after it starts.
-    const { data } = await supabase
-      .from('reservations')
-      .select('id, guest_name, guest_email, checkin_at, checkout_at, guest_count, child_count, total_price, status, payment_status, source, group_booking_id, family_booking_id, deleted_at, rooms(room_number, name, room_types(name))')
-      .lt('checkin_at',  `${to}T23:59:59`)
-      .gt('checkout_at', `${from}T00:00:00`)
-      .is('deleted_at', null)
-      .order('checkin_at')
+    const cols = 'id, guest_name, guest_email, checkin_at, checkout_at, guest_count, child_count, total_price, status, payment_status, source, group_booking_id, family_booking_id, deleted_at, rooms(room_number, name, room_types(name))'
 
+    let q = supabase.from('reservations').select(cols).is('deleted_at', null)
+
+    if (mode === 'upcoming') {
+      // Still running or in the future — anything not yet departed.
+      q = q.gte('checkout_at', `${iso(new Date())}T00:00:00`)
+    } else if (mode === 'range') {
+      // Overlapping the window: starts before it ends, ends after it starts.
+      q = q.lt('checkin_at', `${to}T23:59:59`).gt('checkout_at', `${from}T00:00:00`)
+    }
+
+    const { data } = await q.order('checkin_at')
     setRows((data ?? []) as unknown as Row[])
     setLoading(false)
-  }, [supabase, from, to])
+  }, [supabase, mode, from, to])
 
   useEffect(() => { load() }, [load])
 
@@ -158,7 +167,9 @@ export default function ReservationsBrowser() {
             <>
               {bookings.length} Buchung{bookings.length !== 1 ? 'en' : ''}
               {roomCount !== bookings.length && ` · ${roomCount} Zimmer`}
-              {' im gewählten Zeitraum'}
+              {mode === 'upcoming' ? ' — aktuell & künftig'
+               : mode === 'range'  ? ' im gewählten Zeitraum'
+               : ' insgesamt'}
             </>
           )}
         </p>
@@ -166,16 +177,34 @@ export default function ReservationsBrowser() {
 
       {/* Filters */}
       <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Von</label>
-            <DateInput value={from} onChange={setFrom} />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Bis</label>
-            <DateInput value={to} onChange={setTo} min={from} />
-          </div>
+        <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
+          {([
+            ['upcoming', 'Aktuell & künftig'],
+            ['range',    'Zeitraum'],
+            ['all',      'Alle'],
+          ] as const).map(([m, label]) => (
+            <button key={m} onClick={() => setMode(m)}
+              className={cn(
+                'rounded-lg h-10 text-xs sm:text-sm font-medium transition-colors',
+                mode === m ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+              )}>
+              {label}
+            </button>
+          ))}
         </div>
+
+        {mode === 'range' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Von</label>
+              <DateInput value={from} onChange={setFrom} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Bis</label>
+              <DateInput value={to} onChange={setTo} min={from} />
+            </div>
+          </div>
+        )}
         <div>
           <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">Gast suchen</label>
           <div className="relative">
@@ -200,9 +229,11 @@ export default function ReservationsBrowser() {
       ) : (
         <div className="space-y-2.5">
           {bookings.map(b => (
-            <button key={b.key} onClick={() => setOpenId(b.primary.id)}
-              className="w-full text-left rounded-2xl border border-slate-200 bg-white p-4 hover:border-blue-300 hover:bg-blue-50/30 active:bg-slate-50 transition-colors">
+            <div key={b.key}
+              className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
 
+              <button onClick={() => setOpenId(b.primary.id)}
+                className="w-full text-left p-4 hover:bg-blue-50/30 active:bg-slate-50 transition-colors">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -260,7 +291,19 @@ export default function ReservationsBrowser() {
                   <ChevronRight className="w-4 h-4 text-slate-300" />
                 </div>
               </div>
-            </button>
+              </button>
+
+              {/* A group is edited as a whole: rooms, dates, prices at once */}
+              {b.kind === 'group' && b.primary.group_booking_id && (
+                <div className="border-t border-slate-100">
+                  <button
+                    onClick={() => setEditGroupId(b.primary.group_booking_id)}
+                    className="w-full inline-flex items-center justify-center gap-1.5 h-11 text-xs font-medium text-purple-700 hover:bg-purple-50 active:bg-purple-100 transition-colors">
+                    <Pencil className="w-3.5 h-3.5" /> Gruppenbuchung bearbeiten
+                  </button>
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -270,6 +313,14 @@ export default function ReservationsBrowser() {
           reservationId={openId}
           onClose={() => setOpenId(null)}
           onUpdated={() => { setOpenId(null); load() }}
+        />
+      )}
+
+      {editGroupId && (
+        <GroupEditModal
+          groupId={editGroupId}
+          onClose={() => setEditGroupId(null)}
+          onUpdated={() => { setEditGroupId(null); load() }}
         />
       )}
     </div>
