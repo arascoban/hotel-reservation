@@ -6,6 +6,7 @@ import { summarizeLedger, summarizeDeposit, formatDeDate, eur as depEur, PAYMENT
 import { resolveEmailLogo, originFromRequest } from '@/lib/emailLogo'
 import { greetingOrFriendly } from '@/lib/salutation'
 import { collapseBookingUnits, FAMILY_TYPE_NAME } from '@/lib/reservations'
+import { buildRecipient, type BillTo } from '@/lib/recipient'
 
 // Parse time directly from the stored ISO string to avoid UTC conversion on the server.
 // Timestamps are stored as +02:00 — new Date() would shift them by -2h in UTC Node.js.
@@ -81,10 +82,8 @@ function buildEmailHtml(opts: {
   reservationId: string
   nights: number
   includeKeys: boolean
-  guestStreet:    string | null
-  guestPostcode:  string | null
-  guestCity:      string | null
-  guestCountry:   string | null
+  /** Address block under the greeting, already resolved to person or company. */
+  recipientLines: string[]
   depositBlock:   string
   logoSrc:        string
   groupBlock:     string
@@ -98,18 +97,12 @@ function buildEmailHtml(opts: {
     checkinAt, checkoutAt, guestCount, breakfastIncluded,
     source, paymentMethod, paymentStatus, totalPrice,
     notes, lockerNumber, lockerPin, reservationId, nights, includeKeys,
-    guestStreet, guestPostcode, guestCity, guestCountry, depositBlock, logoSrc, groupBlock,
+    recipientLines, depositBlock, logoSrc, groupBlock,
     isGroup, lockers,
   } = opts
 
-  // Build address block (only if at least one field is present)
-  const addressLines = [
-    guestStreet,
-    [guestPostcode, guestCity].filter(Boolean).join(' ') || null,
-    guestCountry,
-  ].filter(Boolean) as string[]
-  const addressBlock = addressLines.length > 0
-    ? addressLines.map(l => `<p style="margin:1px 0;font-size:12px;color:#64748b;">${l}</p>`).join('')
+  const addressBlock = recipientLines.length > 0
+    ? recipientLines.map(l => `<p style="margin:1px 0;font-size:12px;color:#64748b;">${l}</p>`).join('')
     : ''
 
 
@@ -211,7 +204,7 @@ function buildEmailHtml(opts: {
                           ${totalPrice != null ? `
                           <tr>
                             <td style="font-size:15px;font-weight:700;color:#0f172a;padding-top:8px;border-top:1px solid #f1f5f9;">Gesamtpreis</td>
-                            <td style="font-size:18px;font-weight:800;color:#2563eb;text-align:right;padding-top:8px;border-top:1px solid #f1f5f9;">${depEur(totalPrice)}</td>
+                            <td class="amount-lg" style="font-size:18px;font-weight:800;color:#2563eb;text-align:right;white-space:nowrap;padding-top:8px;border-top:1px solid #f1f5f9;">${depEur(totalPrice)}</td>
                           </tr>` : ''}
                         </table>
                       </td>
@@ -222,7 +215,14 @@ function buildEmailHtml(opts: {
 
   return `<!DOCTYPE html>
 <html lang="de">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Buchungsbestätigung</title></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Buchungsbestätigung</title><style>
+  /* Phones: the fixed 32px gutters left barely 290px of usable width. */
+  @media only screen and (max-width:480px) {
+    .gutter { padding-left:18px !important; padding-right:18px !important; }
+    .amount { font-size:15px !important; }
+    .amount-lg { font-size:16px !important; }
+  }
+</style></head>
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 16px;">
     <tr><td align="center">
@@ -230,7 +230,7 @@ function buildEmailHtml(opts: {
 
         <!-- Header -->
         <tr>
-          <td style="background:#1e293b;border-radius:16px 16px 0 0;padding:24px 32px;">
+          <td class="gutter" style="background:#1e293b;border-radius:16px 16px 0 0;padding:24px 32px;">
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
                 <td style="vertical-align:middle;">
@@ -248,7 +248,7 @@ function buildEmailHtml(opts: {
 
         <!-- Body -->
         <tr>
-          <td style="background:white;padding:32px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;">
+          <td class="gutter" style="background:white;padding:32px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;">
             <table width="100%" cellpadding="0" cellspacing="0">
 
               <!-- Greeting -->
@@ -321,7 +321,7 @@ function buildEmailHtml(opts: {
 
         <!-- Footer -->
         <tr>
-          <td style="background:#f8fafc;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 16px 16px;padding:20px 32px;text-align:center;">
+          <td class="gutter" style="background:#f8fafc;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 16px 16px;padding:20px 32px;text-align:center;">
             <p style="margin:0;font-size:13px;font-weight:600;color:#475569;">Hotel-Pension Jägerstieg</p>
             <p style="margin:4px 0 0;font-size:12px;color:#94a3b8;">Von Eichendorf-Str. 16 · 37539 Bad Grund</p>
             <p style="margin:2px 0 0;font-size:12px;color:#94a3b8;">Tel: +49 5327 2828 · info@jaegerstieg.de</p>
@@ -386,7 +386,7 @@ function buildRoomsBlock(opts: {
                           ${adults} Erw.${kids > 0 ? ` + ${kids} Kind${kids !== 1 ? 'er' : ''}` : ''}${roomBreakfast}
                         </span>
                       </td>
-                      <td style="font-size:13px;font-weight:700;color:#0f172a;text-align:right;padding:6px 0;border-bottom:1px solid #f1f5f9;">
+                      <td style="font-size:13px;font-weight:700;color:#0f172a;text-align:right;white-space:nowrap;padding:6px 0;border-bottom:1px solid #f1f5f9;">
                         ${g.total_price != null ? depEur(g.total_price) : '—'}
                       </td>
                     </tr>`
@@ -403,7 +403,7 @@ function buildRoomsBlock(opts: {
                     ${roomRows}
                     <tr>
                       <td style="font-size:14px;font-weight:700;color:#0f172a;padding-top:10px;">Gesamtpreis</td>
-                      <td style="font-size:18px;font-weight:800;color:#2563eb;text-align:right;padding-top:10px;">${depEur(billTotal)}</td>
+                      <td class="amount-lg" style="font-size:18px;font-weight:800;color:#2563eb;text-align:right;white-space:nowrap;padding-top:10px;">${depEur(billTotal)}</td>
                     </tr>
                   </table>
                 </td>
@@ -513,7 +513,7 @@ export async function POST(req: NextRequest) {
                       <table width="100%" cellpadding="0" cellspacing="0">
                         <tr>
                           <td style="font-size:13px;color:#1e40af;">Erforderliche Anzahlung</td>
-                          <td style="font-size:18px;font-weight:800;color:#2563eb;text-align:right;">${depEur(reqDeposit.requiredAmount)}</td>
+                          <td class="amount-lg" style="font-size:18px;font-weight:800;color:#2563eb;text-align:right;white-space:nowrap;">${depEur(reqDeposit.requiredAmount)}</td>
                         </tr>
                       </table>
                       <p style="margin:10px 0 0;font-size:12px;color:#1e40af;line-height:1.6;">
@@ -538,7 +538,7 @@ export async function POST(req: NextRequest) {
                         ${dep.payments.map(pm => `
                         <tr>
                           <td style="font-size:13px;color:#166534;padding:3px 0;">${formatDeDate(pm.paid_on)} · ${PAYMENT_KIND_LABELS[pm.kind]} · ${DEPOSIT_METHOD_LABELS[pm.method] ?? pm.method}</td>
-                          <td style="font-size:15px;font-weight:700;color:${pm.kind === 'refund' ? '#dc2626' : '#15803d'};text-align:right;padding:3px 0;">${pm.kind === 'refund' ? '+' : '−'} ${depEur(Number(pm.amount))}</td>
+                          <td style="font-size:15px;font-weight:700;color:${pm.kind === 'refund' ? '#dc2626' : '#15803d'};text-align:right;white-space:nowrap;padding:3px 0;">${pm.kind === 'refund' ? '+' : '−'} ${depEur(Number(pm.amount))}</td>
                         </tr>`).join('')}
                         ${reqDeposit.required && dep.totalPaid + 0.004 < reqDeposit.requiredAmount ? `
                         <tr>
@@ -548,7 +548,7 @@ export async function POST(req: NextRequest) {
                         </tr>` : ''}
                         <tr>
                           <td style="font-size:13px;color:#166534;padding-top:8px;border-top:1px solid #bbf7d0;">Restbetrag</td>
-                          <td style="font-size:15px;font-weight:700;color:#166534;text-align:right;padding-top:8px;border-top:1px solid #bbf7d0;">${depEur(dep.remaining)}</td>
+                          <td class="amount" style="font-size:15px;font-weight:700;color:#166534;text-align:right;white-space:nowrap;padding-top:8px;border-top:1px solid #bbf7d0;">${depEur(dep.remaining)}</td>
                         </tr>
                       </table>
                     </td></tr>
@@ -560,6 +560,37 @@ export async function POST(req: NextRequest) {
     const groupBlock = isGroup
       ? buildRoomsBlock({ units, rows: groupRows, familyTypeName, isFamilyOnly, billTotal })
       : ''
+
+    // A guest may book for their company: the company then heads the address
+    // block, and it is named there even when the booking is in the guest's own
+    // name. The company details live on the central customer record.
+    let customer: any = null
+    if (r.customer_id) {
+      const { data: c } = await supabase
+        .from('customers')
+        .select('company_name, vat_id, company_street, company_postcode, company_city, company_country')
+        .eq('id', r.customer_id)
+        .maybeSingle()
+      customer = c ?? null
+    }
+    const recipient = buildRecipient({
+      name:     r.guest_name,
+      street:   r.guest_street,
+      postcode: r.guest_postcode,
+      city:     r.guest_city,
+      country:  r.guest_country,
+      companyName:     customer?.company_name,
+      vatId:           customer?.vat_id,
+      companyStreet:   customer?.company_street,
+      companyPostcode: customer?.company_postcode,
+      companyCity:     customer?.company_city,
+      companyCountry:  customer?.company_country,
+    }, (r.bill_to ?? 'person') as BillTo)
+
+    // The addressee heads the block whenever it is not the guest themself.
+    const recipientLines = recipient.name && recipient.name !== r.guest_name
+      ? [recipient.name, ...recipient.lines]
+      : recipient.lines
 
     const logo = await resolveEmailLogo(originFromRequest(req))
 
@@ -584,10 +615,7 @@ export async function POST(req: NextRequest) {
       reservationId:     r.id,
       nights,
       includeKeys,
-      guestStreet:   r.guest_street   ?? null,
-      guestPostcode: r.guest_postcode ?? null,
-      guestCity:     r.guest_city     ?? null,
-      guestCountry:  r.guest_country  ?? null,
+      recipientLines,
       depositBlock,
       logoSrc: logo.src,
       groupBlock,

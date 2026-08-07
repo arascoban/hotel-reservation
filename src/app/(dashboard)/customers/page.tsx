@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useAdmin } from '@/hooks/useAdmin'
 import CountryInput from '@/components/ui/CountryInput'
 import { SALUTATIONS } from '@/lib/salutation'
+import { fullName } from '@/lib/recipient'
 import {
   Users, Search, Plus, X, Edit2, Trash2,
   Mail, Phone, MapPin, Calendar, ExternalLink,
@@ -15,9 +16,18 @@ import {
 
 interface Customer {
   id: string
+  /** Full name, kept in sync as "Vorname Nachname". */
   name: string
+  first_name: string | null
+  last_name: string | null
   /** Anrede: 'Herr' | 'Frau' | null */
   salutation: string | null
+  company_name: string | null
+  vat_id: string | null
+  company_street: string | null
+  company_postcode: string | null
+  company_city: string | null
+  company_country: string | null
   email: string | null
   phone: string | null
   street: string | null
@@ -60,8 +70,16 @@ function CustomerModal({ customer, onClose, onSaved }: ModalProps) {
   const supabase = createClient()
   const isEdit = !!customer
 
-  const [name,     setName]     = useState(customer?.name     ?? '')
+  // The full name is derived: everything else in the app reads `name`.
+  const [firstName, setFirstName] = useState(customer?.first_name ?? '')
+  const [lastName,  setLastName]  = useState(customer?.last_name  ?? '')
   const [salutation, setSalutation] = useState(customer?.salutation ?? '')
+  const [companyName,     setCompanyName]     = useState(customer?.company_name     ?? '')
+  const [vatId,           setVatId]           = useState(customer?.vat_id           ?? '')
+  const [companyStreet,   setCompanyStreet]   = useState(customer?.company_street   ?? '')
+  const [companyPostcode, setCompanyPostcode] = useState(customer?.company_postcode ?? '')
+  const [companyCity,     setCompanyCity]     = useState(customer?.company_city     ?? '')
+  const [companyCountry,  setCompanyCountry]  = useState(customer?.company_country  ?? '')
   const [email,    setEmail]    = useState(customer?.email    ?? '')
   const [phone,    setPhone]    = useState(customer?.phone    ?? '')
   const [street,   setStreet]   = useState(customer?.street   ?? '')
@@ -73,11 +91,20 @@ function CustomerModal({ customer, onClose, onSaved }: ModalProps) {
   const [error,    setError]    = useState<string | null>(null)
 
   async function handleSave() {
-    if (!name.trim()) { setError('Name ist erforderlich.'); return }
+    const name = fullName(firstName, lastName)
+    if (!name) { setError('Vor- oder Nachname ist erforderlich.'); return }
     setSaving(true); setError(null)
     const payload = {
-      name:     name.trim(),
+      name,
+      first_name: firstName.trim() || null,
+      last_name:  lastName.trim()  || null,
       salutation: salutation || null,
+      company_name:     companyName.trim()     || null,
+      vat_id:           vatId.trim()           || null,
+      company_street:   companyStreet.trim()   || null,
+      company_postcode: companyPostcode.trim() || null,
+      company_city:     companyCity.trim()     || null,
+      company_country:  companyCountry.trim()  || null,
       email:    email.trim()    || null,
       phone:    phone.trim()    || null,
       street:   street.trim()   || null,
@@ -119,7 +146,7 @@ function CustomerModal({ customer, onClose, onSaved }: ModalProps) {
           {error && (
             <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-2 text-sm text-red-700">{error}</div>
           )}
-          <div className="grid grid-cols-[7rem_1fr] gap-3">
+          <div className="grid grid-cols-[7rem_1fr_1fr] gap-3">
             <div>
               <label className={labelCls}>Anrede</label>
               <select value={salutation} onChange={e => setSalutation(e.target.value)} className={inputCls}>
@@ -128,8 +155,12 @@ function CustomerModal({ customer, onClose, onSaved }: ModalProps) {
               </select>
             </div>
             <div>
-              <label className={labelCls}>Name *</label>
-              <input value={name} onChange={e => setName(e.target.value)} className={inputCls} placeholder="Vor- und Nachname" />
+              <label className={labelCls}>Vorname</label>
+              <input value={firstName} onChange={e => setFirstName(e.target.value)} className={inputCls} placeholder="Max" />
+            </div>
+            <div>
+              <label className={labelCls}>Nachname *</label>
+              <input value={lastName} onChange={e => setLastName(e.target.value)} className={inputCls} placeholder="Mustermann" />
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -160,7 +191,54 @@ function CustomerModal({ customer, onClose, onSaved }: ModalProps) {
             <label className={labelCls}>Land</label>
             <CountryInput value={country} onChange={setCountry} />
           </div>
-          <div>
+
+          {/* Firma — optional. Entering a company name makes it selectable as
+              the recipient of a Buchungsbestätigung or an invoice. */}
+          <div className="pt-3 border-t border-slate-100">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5" /> Firma <span className="font-normal normal-case text-slate-400">(optional)</span>
+            </p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>Firmenname</label>
+                  <input value={companyName} onChange={e => setCompanyName(e.target.value)}
+                    className={inputCls} placeholder="Mustermann GmbH" />
+                </div>
+                <div>
+                  <label className={labelCls}>USt-IdNr.</label>
+                  <input value={vatId} onChange={e => setVatId(e.target.value)}
+                    className={inputCls} placeholder="DE123456789" />
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>Firmenanschrift — Straße & Hausnummer</label>
+                <input value={companyStreet} onChange={e => setCompanyStreet(e.target.value)}
+                  className={inputCls} placeholder="Industriestraße 7" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>PLZ</label>
+                  <input value={companyPostcode} onChange={e => setCompanyPostcode(e.target.value)}
+                    className={inputCls} placeholder="20095" />
+                </div>
+                <div>
+                  <label className={labelCls}>Stadt</label>
+                  <input value={companyCity} onChange={e => setCompanyCity(e.target.value)}
+                    className={inputCls} placeholder="Hamburg" />
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>Land</label>
+                <CountryInput value={companyCountry} onChange={setCompanyCountry} />
+              </div>
+              <p className="text-xs text-slate-400">
+                Ohne eigene Firmenanschrift wird die Adresse des Kunden verwendet.
+              </p>
+            </div>
+          </div>
+
+          <div className="pt-3 border-t border-slate-100">
             <label className={labelCls}>Notizen</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)}
               className={`${inputCls} resize-none`} rows={3} placeholder="Interne Notizen zum Gast …" />
@@ -420,6 +498,7 @@ export default function CustomersPage() {
     const q = query.trim().toLowerCase()
     const matchQ = !q ||
       c.name.toLowerCase().includes(q) ||
+      (c.company_name ?? '').toLowerCase().includes(q) ||
       (c.email ?? '').toLowerCase().includes(q) ||
       (c.phone ?? '').toLowerCase().includes(q) ||
       (c.city  ?? '').toLowerCase().includes(q)
@@ -589,6 +668,11 @@ export default function CustomersPage() {
                     onClick={() => openDetail(c)}>
                     <td className="px-4 py-3">
                       <div className="font-medium text-slate-800">{c.name}</div>
+                      {c.company_name && (
+                        <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                          <Building2 className="w-3 h-3" />{c.company_name}
+                        </div>
+                      )}
                       {c.city && (
                         <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
                           <MapPin className="w-3 h-3" />

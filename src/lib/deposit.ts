@@ -114,7 +114,9 @@ export function formatDeDate(iso: string | null | undefined): string {
 
 /** Euro formatting matching the invoice PDF. */
 export function eur(n: number): string {
-  return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
+  // Non-breaking space: on a narrow screen a normal one lets the € wrap onto
+  // its own line, which is what made amounts break apart in the e-mails.
+  return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 }
 
 

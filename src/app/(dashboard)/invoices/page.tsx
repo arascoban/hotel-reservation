@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient }  from '@/lib/supabase/client'
 import { collapseBookingUnits, FAMILY_TYPE_NAME } from '@/lib/reservations'
+import { buildRecipient, BILL_TO_OPTIONS, type BillTo, type RecipientSource } from '@/lib/recipient'
 import { format }        from 'date-fns'
 import { de }            from 'date-fns/locale'
 import {
@@ -181,6 +182,19 @@ function buildAddress(r: Reservation): string {
     r.guest_country,
   ].filter(Boolean)
   return parts.length > 0 ? parts.join('\n') : (r.billing_address ?? '')
+}
+
+/** Address block for a customer, honouring the chosen Rechnungsempfänger. */
+function recipientFrom(c: Customer): RecipientSource {
+  return {
+    name: c.name, street: c.street, postcode: c.postcode, city: c.city, country: c.country,
+    companyName:     (c as any).company_name,
+    vatId:           (c as any).vat_id,
+    companyStreet:   (c as any).company_street,
+    companyPostcode: (c as any).company_postcode,
+    companyCity:     (c as any).company_city,
+    companyCountry:  (c as any).company_country,
+  }
 }
 
 function buildCustomerAddress(c: Customer): string {
@@ -703,6 +717,12 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [guestName,     setGuestName]     = useState('')
   const [guestEmail,    setGuestEmail]    = useState('')
   const [guestAddress,  setGuestAddress]  = useState('')
+  // Rechnungsempfänger: the company of the guest, when they book for one.
+  const [billTo,      setBillTo]      = useState<BillTo>('person')
+  const [companyName, setCompanyName] = useState('')
+  const [vatId,       setVatId]       = useState('')
+  /** The person's own details, kept so the recipient can be recomputed. */
+  const [personRecipient, setPersonRecipient] = useState<RecipientSource | null>(null)
   const [roomName,      setRoomName]      = useState('')
   const [roomNumber,    setRoomNumber]    = useState('')
   const [checkinAt,     setCheckinAt]     = useState(todayAt(14))
@@ -771,7 +791,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       } else {
         const { data } = await (supabase as any)
           .from('customers')
-          .select('id, name, salutation, email, phone, street, postcode, city, country')
+          .select('id, name, salutation, email, phone, street, postcode, city, country, company_name, vat_id, company_street, company_postcode, company_city, company_country')
           .ilike('name', `%${v}%`)
           .limit(12)
         setCustResults((data ?? []) as Customer[])
@@ -822,22 +842,23 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     let address = buildAddress(r)
     let email   = r.guest_email ?? ''
 
-    // The customer record is the source of truth. Fall back to matching by
-    // e-mail/name for older reservations created before customer_id existed.
-    if (!r.guest_postcode || !r.guest_city || !address) {
-      const lookup = (supabase as any)
-        .from('customers')
-        .select('street, postcode, city, country, email')
-      const { data: cust } = r.customer_id
-        ? await lookup.eq('id', r.customer_id).maybeSingle()
-        : r.guest_email
-          ? await lookup.ilike('email', r.guest_email).maybeSingle()
-          : await lookup.ilike('name', r.guest_name).maybeSingle()
-      if (cust) {
+    // The customer record is the source of truth for the address and holds the
+    // company the guest may book for. Fall back to matching by e-mail/name for
+    // older reservations created before customer_id existed.
+    const lookup = (supabase as any)
+      .from('customers')
+      .select('name, street, postcode, city, country, email, company_name, vat_id, company_street, company_postcode, company_city, company_country')
+    const { data: cust } = r.customer_id
+      ? await lookup.eq('id', r.customer_id).maybeSingle()
+      : r.guest_email
+        ? await lookup.ilike('email', r.guest_email).maybeSingle()
+        : await lookup.ilike('name', r.guest_name).maybeSingle()
+    if (cust) {
+      if (!r.guest_postcode || !r.guest_city || !address) {
         const custAddr = buildCustomerAddress(cust as Customer)
         if (custAddr) address = custAddr
-        if (!email && cust.email) email = cust.email
       }
+      if (!email && cust.email) email = cust.email
     }
 
     // Room type name (e.g. "Doppelzimmer"), fallback to room name
@@ -890,9 +911,21 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
 
     setReservationId(r.id)
     setSalutation((r as any).salutation ?? '')
-    setGuestName(r.guest_name)
     setGuestEmail(email)
-    setGuestAddress(address)
+    // The company comes from the central customer record; the booking decides
+    // whether the invoice is addressed to it.
+    applyRecipient({
+      name: r.guest_name,
+      // `address` is the already-resolved block: the reservation's own fields,
+      // falling back to the customer record.
+      street: address || null,
+      companyName:     cust?.company_name,
+      vatId:           cust?.vat_id,
+      companyStreet:   cust?.company_street,
+      companyPostcode: cust?.company_postcode,
+      companyCity:     cust?.company_city,
+      companyCountry:  cust?.company_country,
+    }, ((r as any).bill_to ?? 'person') as BillTo)
     setRoomName(roomTypeName)
     setRoomNumber((r.rooms as any).room_number)
     setCheckinAt(toLocalDatetime(r.checkin_at))
@@ -904,14 +937,31 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     setStep('form')
   }
 
+
+  /** Apply a recipient to the snapshot fields the invoice stores. */
+  function applyRecipient(src: RecipientSource, to: BillTo) {
+    const r = buildRecipient(src, to)
+    setPersonRecipient(src)
+    setBillTo(to)
+    setCompanyName(src.companyName ?? '')
+    setVatId(src.vatId ?? '')
+    setGuestName(r.name)
+    setGuestAddress(r.lines.join('\n'))
+  }
+
+  /** Rechnungsempfänger switched by hand — rebuild name and address. */
+  function switchBillTo(to: BillTo) {
+    if (personRecipient) applyRecipient(personRecipient, to)
+    else setBillTo(to)
+  }
+
   // ── Prefill from customer record ──────────────────────────────────────────
 
   function prefillFromCustomer(c: Customer) {
     setReservationId(null)
     setSalutation(c.salutation ?? '')
-    setGuestName(c.name)
     setGuestEmail(c.email ?? '')
-    setGuestAddress(buildCustomerAddress(c))
+    applyRecipient(recipientFrom(c), 'person')
     setStep('form')
   }
 
@@ -935,7 +985,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       setSearching(true)
       const { data } = await (supabase as any)
         .from('customers')
-        .select('id, name, salutation, email, phone, street, postcode, city, country')
+        .select('id, name, salutation, email, phone, street, postcode, city, country, company_name, vat_id, company_street, company_postcode, company_city, company_country')
         .ilike('name', `%${v}%`)
         .limit(8)
       setCustResults((data ?? []) as Customer[])
@@ -945,9 +995,8 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
 
   function applyCustomerToRecipient(c: Customer) {
     setSalutation(c.salutation ?? '')
-    setGuestName(c.name)
     setGuestEmail(c.email ?? '')
-    setGuestAddress(buildCustomerAddress(c))
+    applyRecipient(recipientFrom(c), 'person')
     setFfCustQuery(c.name)
     setCustResults([])
   }
@@ -965,6 +1014,9 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       reservation_id:             reservationId,
       salutation:                 salutation || null,
       guest_name:                 guestName,
+      bill_to:                    billTo,
+      company_name:               companyName || null,
+      vat_id:                     vatId       || null,
       guest_email:                guestEmail || null,
       guest_address:              guestAddress || null,
       room_name:                  roomName,
@@ -1027,6 +1079,9 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       reservation_id:             null,
       salutation:                 salutation || null,
       guest_name:                 guestName,
+      bill_to:                    billTo,
+      company_name:               companyName || null,
+      vat_id:                     vatId       || null,
       guest_email:                guestEmail || null,
       guest_address:              guestAddress || null,
       room_name:                  '',
@@ -1202,6 +1257,26 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                 <input value={guestEmail} onChange={e => setGuestEmail(e.target.value)} className={inp} />
               </Field>
             </div>
+            {companyName && (
+              <Field label="Rechnungsempfänger">
+                <div className="flex gap-2">
+                  {BILL_TO_OPTIONS.map(o => (
+                    <button key={o.value} type="button" onClick={() => switchBillTo(o.value)}
+                      className={cn(
+                        'flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
+                        billTo === o.value
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50',
+                      )}>
+                      {o.value === 'company' ? companyName : o.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-xs text-slate-400">
+                  Die Firma wird in der Anschrift in beiden Fällen genannt.
+                </p>
+              </Field>
+            )}
             <Field label="Adresse">
               <textarea rows={3} value={guestAddress} onChange={e => setGuestAddress(e.target.value)}
                 className={cn(inp, 'resize-none')} placeholder="Straße 1&#10;12345 Stadt&#10;Deutschland" />
@@ -1405,6 +1480,26 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                 <input value={guestEmail} onChange={e => setGuestEmail(e.target.value)} className={inp} />
               </Field>
             </div>
+            {companyName && (
+              <Field label="Rechnungsempfänger">
+                <div className="flex gap-2">
+                  {BILL_TO_OPTIONS.map(o => (
+                    <button key={o.value} type="button" onClick={() => switchBillTo(o.value)}
+                      className={cn(
+                        'flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
+                        billTo === o.value
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50',
+                      )}>
+                      {o.value === 'company' ? companyName : o.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-xs text-slate-400">
+                  Die Firma wird in der Anschrift in beiden Fällen genannt.
+                </p>
+              </Field>
+            )}
             <Field label="Adresse">
               <textarea rows={3} value={guestAddress} onChange={e => setGuestAddress(e.target.value)}
                 className={cn(inp, 'resize-none')} placeholder="Straße 1&#10;12345 Stadt&#10;Deutschland" />

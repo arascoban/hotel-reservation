@@ -9,6 +9,7 @@ import {
 } from '@/lib/reservations'
 import { syncCustomerFromReservation, findOrCreateCustomer } from '@/lib/customers'
 import { SALUTATIONS } from '@/lib/salutation'
+import { BILL_TO_OPTIONS, type BillTo } from '@/lib/recipient'
 import { eur } from '@/lib/deposit'
 import DateInput from '@/components/ui/DateInput'
 import CountryInput from '@/components/ui/CountryInput'
@@ -111,6 +112,9 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
 
   // Shared guest fields
   const [salutation, setSalutation] = useState('')
+  // Rechnungsempfänger — only offered when the linked customer has a company.
+  const [billTo, setBillTo] = useState<BillTo>('person')
+  const [customerCompany, setCustomerCompany] = useState<string | null>(null)
   const [guestName, setGuestName] = useState('')
   const [guestEmail, setGuestEmail] = useState('')
   const [guestPhone, setGuestPhone] = useState('')
@@ -172,6 +176,14 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
     if (list.length > 0) {
       const f = list[0]
       setSalutation((f as any).salutation ?? '')
+      setBillTo((((f as any).bill_to ?? 'person') as BillTo))
+      if (f.customer_id) {
+        const { data: c } = await supabase
+          .from('customers').select('company_name').eq('id', f.customer_id).maybeSingle()
+        setCustomerCompany((c as { company_name?: string | null } | null)?.company_name ?? null)
+      } else {
+        setCustomerCompany(null)
+      }
       setGuestName(f.guest_name)
       setGuestEmail(f.guest_email ?? '')
       setGuestPhone(f.guest_phone ?? '')
@@ -302,6 +314,7 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
       const shared = {
         guest_name:      guestName,
         salutation:      salutation || null,
+        bill_to:         billTo,
         guest_email:     guestEmail || null,
         guest_phone:     guestPhone || null,
         guest_street:    street   || null,
@@ -489,6 +502,24 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
                   <input value={guestPhone} onChange={e => setGuestPhone(e.target.value)}
                     className={inp} placeholder="Telefon" aria-label="Telefon" />
                 </div>
+                {customerCompany && (
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1.5">Adressiert an</p>
+                    <div className="flex gap-2">
+                      {BILL_TO_OPTIONS.map(o => (
+                        <button key={o.value} type="button" onClick={() => setBillTo(o.value)}
+                          className={cn(
+                            'flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
+                            billTo === o.value
+                              ? 'border-blue-500 bg-blue-50 text-blue-700'
+                              : 'border-slate-200 text-slate-600 hover:bg-slate-50',
+                          )}>
+                          {o.value === 'company' ? customerCompany : o.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <input value={street} onChange={e => setStreet(e.target.value)}
                     className={cn(inp, 'sm:col-span-2')} placeholder="Straße & Nr." aria-label="Straße" />

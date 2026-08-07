@@ -26,6 +26,7 @@ import TimeInput from '@/components/ui/TimeInput'
 import CountryInput from '@/components/ui/CountryInput'
 import { findOrCreateCustomer, syncCustomerFromReservation } from '@/lib/customers'
 import { SALUTATIONS } from '@/lib/salutation'
+import { BILL_TO_OPTIONS, type BillTo } from '@/lib/recipient'
 import DepositEmailButton from '@/components/Deposit/DepositEmailButton'
 import PaymentsEditor from '@/components/Deposit/PaymentsEditor'
 import DepositEditor, { type DepositState, EMPTY_DEPOSIT, depositPayload, depositFromRow } from '@/components/Deposit/DepositEditor'
@@ -113,6 +114,9 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
   // separate from the payments ledger, which records what actually arrived.
   const [editDeposit,    setEditDeposit]    = useState<DepositState>(EMPTY_DEPOSIT)
   const [editSalutation,     setEditSalutation]     = useState('')
+  // Rechnungsempfänger — only offered when the linked customer has a company.
+  const [editBillTo,     setEditBillTo]     = useState<BillTo>('person')
+  const [customerCompany, setCustomerCompany] = useState<string | null>(null)
   const [editGuestName,      setEditGuestName]      = useState('')
   const [editGuestPhone,     setEditGuestPhone]     = useState('')
   const [editGuestEmail,     setEditGuestEmail]     = useState('')
@@ -163,6 +167,14 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
         .from('payments').select('*').eq('reservation_id', reservationId).order('paid_on')
       setPayments((pays ?? []) as PaymentRow[])
       setEditSalutation((r as any).salutation ?? '')
+      setEditBillTo((((r as any).bill_to ?? 'person') as BillTo))
+      if ((r as any).customer_id) {
+        const { data: c } = await supabase
+          .from('customers').select('company_name').eq('id', (r as any).customer_id).maybeSingle()
+        setCustomerCompany((c as { company_name?: string | null } | null)?.company_name ?? null)
+      } else {
+        setCustomerCompany(null)
+      }
       setEditGuestName(r.guest_name)
       setEditGuestPhone(r.guest_phone ?? '')
       setEditGuestEmail(r.guest_email ?? '')
@@ -249,6 +261,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       .update({
         internal_notes:  editInternalNotes  || null,
         salutation:      editSalutation     || null,
+        bill_to:         editBillTo,
         billing_address: billingAddress,
         guest_street:    editGuestStreet   || null,
         guest_postcode:  editGuestPostcode || null,
@@ -625,6 +638,31 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
             </InfoField>
           )}
         </div>
+
+        {/* Rechnungsempfänger — only meaningful once a company is on file */}
+        {customerCompany && (
+          <InfoField label="Adressiert an" icon={<Tag className="w-3.5 h-3.5" />}>
+            {editing ? (
+              <div className="mt-1 flex gap-2">
+                {BILL_TO_OPTIONS.map(o => (
+                  <button key={o.value} type="button" onClick={() => setEditBillTo(o.value)}
+                    className={cn(
+                      'flex-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
+                      editBillTo === o.value
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50',
+                    )}>
+                    {o.value === 'company' ? customerCompany : o.label}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <span className="text-sm text-slate-900">
+                {(r as any).bill_to === 'company' ? customerCompany : r.guest_name}
+              </span>
+            )}
+          </InfoField>
+        )}
 
         {/* Status & source */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

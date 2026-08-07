@@ -11,6 +11,7 @@ import type { ReservationSource, PaymentMethod, PaymentStatus } from '@/types/da
 import { cn } from '@/lib/cn'
 import { findOrCreateCustomer } from '@/lib/customers'
 import { SALUTATIONS } from '@/lib/salutation'
+import { BILL_TO_OPTIONS, type BillTo } from '@/lib/recipient'
 import DepositEditor, { type DepositState, EMPTY_DEPOSIT, depositPayload } from '@/components/Deposit/DepositEditor'
 import DateInput from '@/components/ui/DateInput'
 import TimeInput from '@/components/ui/TimeInput'
@@ -23,7 +24,8 @@ import {
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Customer {
-  id: string; name: string; salutation: string | null; email: string | null; phone: string | null
+  id: string; name: string; salutation: string | null; company_name: string | null
+  email: string | null; phone: string | null
   street: string | null; postcode: string | null; city: string | null; country: string | null
 }
 
@@ -113,6 +115,9 @@ export default function GroupReservationForm() {
   const [customerId,  setCustomerId]  = useState<string | null>(null)
 
   const [salutation,   setSalutation]   = useState('')
+  // Rechnungsempfänger — appears once a customer with a company is picked.
+  const [billTo,       setBillTo]       = useState<BillTo>('person')
+  const [companyName,  setCompanyName]  = useState('')
   const [guestName,    setGuestName]    = useState('')
   const [guestEmail,   setGuestEmail]   = useState('')
   const [guestPhone,   setGuestPhone]   = useState('')
@@ -155,7 +160,7 @@ export default function GroupReservationForm() {
       setSearching(true)
       const { data } = await (supabase as any)
         .from('customers')
-        .select('id, name, salutation, email, phone, street, postcode, city, country')
+        .select('id, name, salutation, company_name, email, phone, street, postcode, city, country')
         .ilike('name', `%${custQuery}%`)
         .limit(8)
       setCustResults((data ?? []) as Customer[])
@@ -168,6 +173,8 @@ export default function GroupReservationForm() {
   function applyCustomer(c: Customer) {
     setCustomerId(c.id)
     setSalutation(c.salutation ?? '')
+    setCompanyName(c.company_name ?? '')
+    setBillTo('person')
     setGuestName(c.name)
     setGuestEmail(c.email ?? '')
     setGuestPhone(c.phone ?? '')
@@ -398,6 +405,7 @@ export default function GroupReservationForm() {
             family_booking_id: familyId,
             guest_count:       unitGuests,
             salutation:        salutation || null,
+            bill_to:           billTo,
             customer_id:       custId,
             child_count:       p.children,
             internal_notes:    internalNotes || null,
@@ -485,6 +493,28 @@ export default function GroupReservationForm() {
             <input type="tel" value={guestPhone} onChange={e => setGuestPhone(e.target.value)} className={inp} />
           </div>
         </div>
+
+        {companyName && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Adressiert an</label>
+            <div className="flex gap-2">
+              {BILL_TO_OPTIONS.map(o => (
+                <button key={o.value} type="button" onClick={() => setBillTo(o.value)}
+                  className={cn(
+                    'flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors',
+                    billTo === o.value
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-slate-200 text-slate-600 hover:bg-slate-50',
+                  )}>
+                  {o.value === 'company' ? companyName : o.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-slate-400">
+              Bestimmt, wer auf Buchungsbestätigung und Rechnung als Empfänger steht.
+            </p>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           <div className="sm:col-span-2">

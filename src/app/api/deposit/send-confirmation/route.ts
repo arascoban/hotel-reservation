@@ -158,7 +158,7 @@ Tel: +49 5327 2828 · info@jaegerstieg.de`
                       ${formatDeDate(p.paid_on)} · ${PAYMENT_KIND_LABELS[p.kind]}
                       <span style="color:#4ade80;"> · ${DEPOSIT_METHOD_LABELS[p.method] ?? p.method}</span>
                     </td>
-                    <td style="font-size:15px;font-weight:700;color:${p.kind === 'refund' ? '#dc2626' : '#15803d'};text-align:right;padding:4px 0;">
+                    <td style="font-size:15px;font-weight:700;color:${p.kind === 'refund' ? '#dc2626' : '#15803d'};text-align:right;white-space:nowrap;padding:4px 0;">
                       ${p.kind === 'refund' ? '+' : '−'} ${eur(Number(p.amount))}
                     </td>
                   </tr>`).join('')
@@ -166,21 +166,28 @@ Tel: +49 5327 2828 · info@jaegerstieg.de`
     const logo = await resolveEmailLogo(originFromRequest(req))
 
     const html = `<!DOCTYPE html>
-<html lang="de"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zahlungsbestätigung</title></head>
+<html lang="de"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Zahlungsbestätigung</title><style>
+  /* Phones: the fixed 32px gutters left barely 290px of usable width. */
+  @media only screen and (max-width:480px) {
+    .gutter { padding-left:18px !important; padding-right:18px !important; }
+    .amount { font-size:15px !important; }
+    .amount-lg { font-size:16px !important; }
+  }
+</style></head>
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:32px 16px;">
     <tr><td align="center">
       <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
 
         <tr>
-          <td style="background:#1e293b;border-radius:16px 16px 0 0;padding:24px 32px;">
+          <td class="gutter" style="background:#1e293b;border-radius:16px 16px 0 0;padding:24px 32px;">
             <img src="${logo.src}" alt="Jägerstieg Hotel &amp; Pension" width="120" height="60" style="display:block;object-fit:contain;" />
             <p style="margin:10px 0 0;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">Zahlungsbestätigung</p>
           </td>
         </tr>
 
         <tr>
-          <td style="background:white;padding:32px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;">
+          <td class="gutter" style="background:white;padding:32px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;">
             <p style="margin:0;font-size:18px;font-weight:700;color:#0f172a;">${hello},</p>
             <p style="margin:10px 0 0;font-size:15px;color:#475569;line-height:1.6;">
               vielen Dank für Ihre Zahlung! Wir bestätigen Ihnen hiermit den Eingang.
@@ -198,15 +205,15 @@ Tel: +49 5327 2828 · info@jaegerstieg.de`
                 <table width="100%" cellpadding="0" cellspacing="0">
                   <tr>
                     <td style="font-size:13px;color:#64748b;padding-bottom:6px;">Gesamtbetrag</td>
-                    <td style="font-size:13px;color:#0f172a;font-weight:600;text-align:right;padding-bottom:6px;">${eur(total)}</td>
+                    <td style="font-size:13px;color:#0f172a;font-weight:600;text-align:right;white-space:nowrap;padding-bottom:6px;">${eur(total)}</td>
                   </tr>
                   <tr>
                     <td style="font-size:13px;color:#64748b;padding-bottom:6px;">Bezahlt</td>
-                    <td style="font-size:13px;color:#15803d;font-weight:600;text-align:right;padding-bottom:6px;">− ${eur(dep.totalPaid)}</td>
+                    <td style="font-size:13px;color:#15803d;font-weight:600;text-align:right;white-space:nowrap;padding-bottom:6px;">− ${eur(dep.totalPaid)}</td>
                   </tr>
                   <tr>
                     <td style="font-size:15px;font-weight:700;color:#0f172a;padding-top:8px;border-top:1px solid #f1f5f9;">Restbetrag</td>
-                    <td style="font-size:18px;font-weight:800;color:${dep.settled ? '#15803d' : '#2563eb'};text-align:right;padding-top:8px;border-top:1px solid #f1f5f9;">${eur(dep.remaining)}</td>
+                    <td style="font-size:18px;font-weight:800;color:${dep.settled ? '#15803d' : '#2563eb'};text-align:right;white-space:nowrap;padding-top:8px;border-top:1px solid #f1f5f9;">${eur(dep.remaining)}</td>
                   </tr>
                 </table>
               </td></tr>
@@ -224,7 +231,7 @@ Tel: +49 5327 2828 · info@jaegerstieg.de`
         </tr>
 
         <tr>
-          <td style="background:#f8fafc;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 16px 16px;padding:20px 32px;text-align:center;">
+          <td class="gutter" style="background:#f8fafc;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 16px 16px;padding:20px 32px;text-align:center;">
             <p style="margin:0;font-size:13px;font-weight:600;color:#475569;">Hotel-Pension Jägerstieg</p>
             <p style="margin:4px 0 0;font-size:12px;color:#94a3b8;">Von Eichendorf-Str. 16 · 37539 Bad Grund</p>
             <p style="margin:2px 0 0;font-size:12px;color:#94a3b8;">Tel: +49 5327 2828 · info@jaegerstieg.de</p>

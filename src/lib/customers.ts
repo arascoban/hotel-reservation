@@ -93,10 +93,16 @@ export async function findOrCreateCustomer(
     }
 
     // ── 3. Create a new record ──────────────────────────────────────────────
+    // Split the name the same way the Kunden form does, so a customer created
+    // from a reservation already has Vor-/Nachname filled in.
+    const first = name.replace(/\s*\S+$/, '').trim() || null
+    const last  = (name.match(/(\S+)$/)?.[1] ?? '').trim() || null
+
     const { data: created } = await supabase
       .from('customers')
       .insert({
-        name, salutation, email, phone, street, postcode, city, country,
+        name, first_name: first, last_name: last,
+        salutation, email, phone, street, postcode, city, country,
         source: input.source ?? 'reservation',
       })
       .select('id')
@@ -122,7 +128,11 @@ export async function syncCustomerFromReservation(
 ): Promise<void> {
   const patch: Record<string, unknown> = {}
   const name = clean(input.name)
-  if (name) patch.name = name
+  if (name) {
+    patch.name = name
+    patch.first_name = name.replace(/\s*\S+$/, '').trim() || null
+    patch.last_name  = (name.match(/(\S+)$/)?.[1] ?? '').trim() || null
+  }
   // Explicit edits win — including clearing a field.
   if (input.salutation !== undefined) patch.salutation = clean(input.salutation)
   if (input.email    !== undefined) patch.email    = clean(input.email)

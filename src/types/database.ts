@@ -70,9 +70,18 @@ export interface Guest {
 
 export interface Customer {
   id: string
+  /** Full name, kept in sync as "Vorname Nachname". */
   name: string
+  first_name: string | null
+  last_name: string | null
   /** Anrede: 'Herr' | 'Frau' | null */
   salutation: string | null
+  company_name: string | null
+  vat_id: string | null
+  company_street: string | null
+  company_postcode: string | null
+  company_city: string | null
+  company_country: string | null
   email: string | null
   phone: string | null
   street: string | null
@@ -92,6 +101,8 @@ export interface Reservation {
   guest_name: string
   /** Anrede: 'Herr' | 'Frau' | null */
   salutation: string | null
+  /** Addressed to 'person' (default) or 'company'. */
+  bill_to: string | null
   guest_email: string | null
   guest_phone: string | null
   guest_count: number
