@@ -982,6 +982,16 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     const { data: inv, error: err } = await supabase
       .from('invoices').insert(payload).select('*').single()
     if (err) { setError(err.message); setSaving(false); return }
+
+    // Payments taken on the booking now belong to this invoice, so they stay
+    // on the document even if the reservation is later deleted.
+    if (reservationId && inv) {
+      await supabase.from('payments')
+        .update({ invoice_id: (inv as Invoice).id })
+        .eq('reservation_id', reservationId)
+        .is('invoice_id', null)
+    }
+
     onCreated(inv as Invoice)
     onClose()
   }
