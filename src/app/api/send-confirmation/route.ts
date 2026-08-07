@@ -84,6 +84,10 @@ function buildEmailHtml(opts: {
   depositBlock:   string
   logoSrc:        string
   groupBlock:     string
+  /** Group / family booking → the group block replaces the single-room sections. */
+  isGroup:        boolean
+  /** One locker per room of a group booking. */
+  lockers:        Array<{ roomNumber: string; pin: string }>
 }) {
   const {
     guestName, roomName, roomNumber, roomType,
@@ -91,6 +95,7 @@ function buildEmailHtml(opts: {
     source, paymentMethod, paymentStatus, totalPrice,
     notes, lockerNumber, lockerPin, reservationId, nights, includeKeys,
     guestStreet, guestPostcode, guestCity, guestCountry, depositBlock, logoSrc, groupBlock,
+    isGroup, lockers,
   } = opts
 
   // Build address block (only if at least one field is present)
@@ -104,7 +109,40 @@ function buildEmailHtml(opts: {
     : ''
 
 
-  const lockerSection = includeKeys && lockerNumber && lockerPin ? `
+  // A group booking hands over one locker per room — list them all, otherwise
+  // the guest only ever gets the key of the room the mail was sent from.
+  const groupLockerSection = includeKeys && isGroup && lockers.length > 0 ? `
+    <tr>
+      <td style="padding:20px 0;border-bottom:1px solid #f1f5f9;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#1e293b;border-radius:12px;padding:20px;">
+          <tr>
+            <td>
+              <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">🔐 Schlüsselabholung</p>
+              <p style="margin:0 0 14px;font-size:13px;color:#cbd5e1;line-height:1.6;">
+                Ihre Zimmerschlüssel befinden sich in den Schließfächern an der Rezeption.
+                Bitte öffnen Sie jedes Schließfach mit dem zugehörigen PIN-Code:
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                ${lockers.map(l => `
+                <tr>
+                  <td style="padding:6px 0;border-top:1px solid #334155;">
+                    <p style="margin:0;font-size:12px;color:#94a3b8;">Schließfach Nr.</p>
+                    <p style="margin:0;font-size:20px;font-weight:800;color:white;">${l.roomNumber}</p>
+                  </td>
+                  <td style="text-align:right;padding:6px 0;border-top:1px solid #334155;">
+                    <p style="margin:0;font-size:12px;color:#94a3b8;">PIN-Code</p>
+                    <p style="margin:0;font-size:26px;font-weight:800;color:white;letter-spacing:4px;font-family:monospace;">${l.pin}</p>
+                  </td>
+                </tr>`).join('')}
+              </table>
+              <p style="margin:12px 0 0;font-size:11px;color:#64748b;">Bitte bewahren Sie diese Codes vertraulich auf.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>` : ''
+
+  const lockerSection = includeKeys && !isGroup && lockerNumber && lockerPin ? `
     <tr>
       <td style="padding:20px 0;border-bottom:1px solid #f1f5f9;">
         <table width="100%" cellpadding="0" cellspacing="0" style="background:#1e293b;border-radius:12px;padding:20px;">
@@ -133,6 +171,50 @@ function buildEmailHtml(opts: {
         </table>
       </td>
     </tr>` : ''
+
+  // A group / family booking is one booking over several rooms: the group block
+  // lists every room with its own occupancy and price, so the single-room
+  // sections below would only repeat the sending room and contradict it.
+  const roomSection = isGroup ? '' : `
+              <tr>
+                <td style="padding:20px 0;border-bottom:1px solid #f1f5f9;">
+                  <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">Zimmer</p>
+                  <p style="margin:0;font-size:16px;font-weight:700;color:#0f172a;">${roomName}</p>
+                  <p style="margin:2px 0 0;font-size:13px;color:#64748b;">${getRoomFloor(roomNumber)} · ${roomType}</p>
+                  <p style="margin:6px 0 0;font-size:13px;color:#64748b;">${guestCount} Person${guestCount !== 1 ? 'en' : ''}</p>
+                  ${breakfastIncluded ? `<p style="margin:6px 0 0;display:inline-block;background:#fef3c7;color:#92400e;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;">☕ Frühstück inklusive</p>` : ''}
+                </td>
+              </tr>`
+
+  // Same for the payment box — it reports the sending room's price, while the
+  // group's total and ledger are already shown in the blocks above.
+  const paymentSection = isGroup ? '' : `
+              <tr>
+                <td style="padding:20px 0;border-bottom:1px solid #f1f5f9;">
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td>
+                        <p style="margin:0 0 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">Zahlung</p>
+                        <table width="100%" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td style="font-size:13px;color:#64748b;padding-bottom:6px;">Zahlungsmethode</td>
+                            <td style="font-size:13px;color:#0f172a;font-weight:600;text-align:right;padding-bottom:6px;">${PAY_METHOD_LABELS[paymentMethod] ?? paymentMethod}</td>
+                          </tr>
+                          <tr>
+                            <td style="font-size:13px;color:#64748b;padding-bottom:6px;">Zahlungsstatus</td>
+                            <td style="font-size:13px;color:#0f172a;font-weight:600;text-align:right;padding-bottom:6px;">${PAY_STATUS_LABELS[paymentStatus] ?? paymentStatus}</td>
+                          </tr>
+                          ${totalPrice != null ? `
+                          <tr>
+                            <td style="font-size:15px;font-weight:700;color:#0f172a;padding-top:8px;border-top:1px solid #f1f5f9;">Gesamtpreis</td>
+                            <td style="font-size:18px;font-weight:800;color:#2563eb;text-align:right;padding-top:8px;border-top:1px solid #f1f5f9;">${depEur(totalPrice)}</td>
+                          </tr>` : ''}
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>`
 
   return `<!DOCTYPE html>
 <html lang="de">
@@ -174,18 +256,10 @@ function buildEmailHtml(opts: {
                 </td>
               </tr>
 
-              <!-- Zimmer -->
-              <tr>
-                <td style="padding:20px 0;border-bottom:1px solid #f1f5f9;">
-                  <p style="margin:0 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">Zimmer</p>
-                  <p style="margin:0;font-size:16px;font-weight:700;color:#0f172a;">${roomName}</p>
-                  <p style="margin:2px 0 0;font-size:13px;color:#64748b;">${getRoomFloor(roomNumber)} · ${roomType}</p>
-                  <p style="margin:6px 0 0;font-size:13px;color:#64748b;">${guestCount} Person${guestCount !== 1 ? 'en' : ''}</p>
-                  ${breakfastIncluded ? `<p style="margin:6px 0 0;display:inline-block;background:#fef3c7;color:#92400e;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;">☕ Frühstück inklusive</p>` : ''}
-                </td>
-              </tr>
+              <!-- Zimmer (nur Einzelbuchung) -->
+              ${roomSection}
 
-              <!-- Weitere Zimmer der Gruppenbuchung -->
+              <!-- Gruppen- / Familienbuchung: alle Zimmer -->
               ${groupBlock}
 
               <!-- Aufenthalt -->
@@ -213,34 +287,10 @@ function buildEmailHtml(opts: {
 
               <!-- Locker PIN (after Aufenthalt, before Zahlung) -->
               ${lockerSection}
+              ${groupLockerSection}
 
-              <!-- Payment -->
-              <tr>
-                <td style="padding:20px 0;border-bottom:1px solid #f1f5f9;">
-                  <table width="100%" cellpadding="0" cellspacing="0">
-                    <tr>
-                      <td>
-                        <p style="margin:0 0 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">Zahlung</p>
-                        <table width="100%" cellpadding="0" cellspacing="0">
-                          <tr>
-                            <td style="font-size:13px;color:#64748b;padding-bottom:6px;">Zahlungsmethode</td>
-                            <td style="font-size:13px;color:#0f172a;font-weight:600;text-align:right;padding-bottom:6px;">${PAY_METHOD_LABELS[paymentMethod] ?? paymentMethod}</td>
-                          </tr>
-                          <tr>
-                            <td style="font-size:13px;color:#64748b;padding-bottom:6px;">Zahlungsstatus</td>
-                            <td style="font-size:13px;color:#0f172a;font-weight:600;text-align:right;padding-bottom:6px;">${PAY_STATUS_LABELS[paymentStatus] ?? paymentStatus}</td>
-                          </tr>
-                          ${totalPrice != null ? `
-                          <tr>
-                            <td style="font-size:15px;font-weight:700;color:#0f172a;padding-top:8px;border-top:1px solid #f1f5f9;">Gesamtpreis</td>
-                            <td style="font-size:18px;font-weight:800;color:#2563eb;text-align:right;padding-top:8px;border-top:1px solid #f1f5f9;">€${totalPrice.toFixed(2)}</td>
-                          </tr>` : ''}
-                        </table>
-                      </td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>
+              <!-- Zahlung (nur Einzelbuchung) -->
+              ${paymentSection}
 
               <!-- Anzahlung -->
               ${depositBlock}
@@ -268,8 +318,9 @@ function buildEmailHtml(opts: {
         <!-- Footer -->
         <tr>
           <td style="background:#f8fafc;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 16px 16px;padding:20px 32px;text-align:center;">
-            <p style="margin:0;font-size:13px;font-weight:600;color:#475569;">Jägerstieg Hotel &amp; Pension</p>
-            <p style="margin:4px 0 0;font-size:12px;color:#94a3b8;">info@jaegerstieg.de</p>
+            <p style="margin:0;font-size:13px;font-weight:600;color:#475569;">Hotel-Pension Jägerstieg</p>
+            <p style="margin:4px 0 0;font-size:12px;color:#94a3b8;">Von Eichendorf-Str. 16 · 37539 Bad Grund</p>
+            <p style="margin:2px 0 0;font-size:12px;color:#94a3b8;">Tel: +49 5327 2828 · info@jaegerstieg.de</p>
             <p style="margin:12px 0 0;font-size:11px;color:#cbd5e1;">Wir freuen uns auf Ihren Besuch!</p>
           </td>
         </tr>
@@ -303,8 +354,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Kein E-Mail hinterlegt.' }, { status: 400 })
     }
 
-    const nights = differenceInCalendarDays(new Date(r.checkout_at), new Date(r.checkin_at))
-
     // ── Zahlungen block ─────────────────────────────────────────────────────
     // Lists every payment recorded against this booking so the confirmation
     // always shows what has been received and what is still open.
@@ -318,7 +367,7 @@ export async function POST(req: NextRequest) {
     if (r.group_booking_id || r.family_booking_id) {
       const q = supabase
         .from('reservations')
-        .select('id, checkin_at, checkout_at, guest_count, child_count, total_price, deposit_mode, deposit_percent, deposit_amount, deposit_due_date, rooms(name, room_number, room_types(name))')
+        .select('id, checkin_at, checkout_at, guest_count, child_count, total_price, breakfast_included, deposit_mode, deposit_percent, deposit_amount, deposit_due_date, rooms(name, room_number, locker_pin, room_types(name))')
         .is('deleted_at', null)
         .order('checkin_at')
       const { data } = r.group_booking_id
@@ -329,6 +378,16 @@ export async function POST(req: NextRequest) {
 
     const isGroup    = groupRows.length > 1
     const depositRow = groupRows.find(g => g.deposit_amount != null || g.deposit_mode) ?? r
+
+    // The "Aufenthalt" box covers the booking as a whole: rooms of a group may
+    // have their own dates, so span from the first check-in to the last check-out.
+    const stayFrom = isGroup
+      ? groupRows.reduce((min, g) => (g.checkin_at  < min ? g.checkin_at  : min), groupRows[0].checkin_at)
+      : r.checkin_at
+    const stayTo = isGroup
+      ? groupRows.reduce((max, g) => (g.checkout_at > max ? g.checkout_at : max), groupRows[0].checkout_at)
+      : r.checkout_at
+    const nights = differenceInCalendarDays(new Date(stayTo), new Date(stayFrom))
     // A family booking stores the same price on both of its rows, so summing
     // would double it — count it once. A group prices each room separately.
     const billTotal  = !isGroup
@@ -416,9 +475,20 @@ export async function POST(req: NextRequest) {
           : rows.reduce((sum, g) => sum + (g.guest_count ?? 0), 0)
         const grandTotal  = billTotal
 
+        // Breakfast is stored per room. If every room has it, say so once under
+        // the header; if only some do, mark those rooms individually.
+        const allBreakfast  = rows.every(g => g.breakfast_included)
+        const someBreakfast = rows.some(g => g.breakfast_included)
+        const breakfastBadge = allBreakfast
+          ? `<p style="margin:0 0 10px;display:inline-block;background:#fef3c7;color:#92400e;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;">☕ Frühstück inklusive</p>`
+          : ''
+
         const roomRows = rows.map(g => {
           const kids = g.child_count ?? 0
           const adults = (g.guest_count ?? 1) - kids
+          const roomBreakfast = !allBreakfast && someBreakfast && g.breakfast_included
+            ? ' · ☕ Frühstück inkl.'
+            : ''
           return `
                     <tr>
                       <td style="font-size:13px;color:#0f172a;padding:6px 0;border-bottom:1px solid #f1f5f9;">
@@ -426,7 +496,7 @@ export async function POST(req: NextRequest) {
                         <span style="color:#64748b;"> · ${g.rooms?.room_types?.name ?? g.rooms?.name ?? ''}</span><br />
                         <span style="font-size:12px;color:#94a3b8;">
                           ${localDT(g.checkin_at).slice(0, 10)} – ${localDT(g.checkout_at).slice(0, 10)} ·
-                          ${adults} Erw.${kids > 0 ? ` + ${kids} Kind${kids !== 1 ? 'er' : ''}` : ''}
+                          ${adults} Erw.${kids > 0 ? ` + ${kids} Kind${kids !== 1 ? 'er' : ''}` : ''}${roomBreakfast}
                         </span>
                       </td>
                       <td style="font-size:13px;font-weight:700;color:#0f172a;text-align:right;padding:6px 0;border-bottom:1px solid #f1f5f9;">
@@ -441,6 +511,7 @@ export async function POST(req: NextRequest) {
                   <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">
                     ${isFamily ? 'Familienzimmer' : 'Gruppenbuchung'} · ${totalRooms} Zimmer · ${totalGuests} Personen
                   </p>
+                  ${breakfastBadge}
                   <table width="100%" cellpadding="0" cellspacing="0">
                     ${roomRows}
                     <tr>
@@ -460,8 +531,8 @@ export async function POST(req: NextRequest) {
       roomName:          r.rooms.name,
       roomNumber:        r.rooms.room_number,
       roomType:          r.rooms.room_types.name,
-      checkinAt:         r.checkin_at,
-      checkoutAt:        r.checkout_at,
+      checkinAt:         stayFrom,
+      checkoutAt:        stayTo,
       guestCount:        r.guest_count,
       breakfastIncluded: r.breakfast_included,
       source:            r.source,
@@ -482,6 +553,10 @@ export async function POST(req: NextRequest) {
       depositBlock,
       logoSrc: logo.src,
       groupBlock,
+      isGroup,
+      lockers: groupRows
+        .map(g => ({ roomNumber: g.rooms?.room_number ?? '', pin: g.rooms?.locker_pin ?? '' }))
+        .filter(l => l.roomNumber && l.pin),
     })
 
     const transporter = createTransporter()
@@ -490,7 +565,11 @@ export async function POST(req: NextRequest) {
       from:    `"Jägerstieg Hotel & Pension" <${process.env.STRATO_SMTP_USER}>`,
       to:      r.guest_email,
       bcc:     process.env.STRATO_SMTP_USER, // copy to own inbox → appears in sent/inbox
-      subject: `Buchungsbestätigung – ${r.rooms.name} · ${formatDate(r.checkin_at)}–${formatDate(r.checkout_at)}`,
+      // A group booking covers several rooms — naming just the sending room in
+      // the subject would contradict the body.
+      subject: isGroup
+        ? `Buchungsbestätigung – ${isFamily ? 'Familienzimmer' : 'Gruppenbuchung'} · ${groupRows.length} Zimmer · ${formatDate(stayFrom)}–${formatDate(stayTo)}`
+        : `Buchungsbestätigung – ${r.rooms.name} · ${formatDate(stayFrom)}–${formatDate(stayTo)}`,
       html,
       attachments: logo.attachments,
     })
