@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { createClient } from '@/lib/supabase/server'
 import { formatDate } from '@/lib/reservations'
-import { summarizeLedger, formatDeDate, eur as depEur, PAYMENT_KIND_LABELS, DEPOSIT_METHOD_LABELS, type PaymentRow } from '@/lib/deposit'
+import { summarizeLedger, summarizeDeposit, formatDeDate, eur as depEur, PAYMENT_KIND_LABELS, DEPOSIT_METHOD_LABELS, type PaymentRow } from '@/lib/deposit'
 import { resolveEmailLogo, originFromRequest } from '@/lib/emailLogo'
 
 // Parse time directly from the stored ISO string to avoid UTC conversion on the server.
@@ -311,8 +311,39 @@ export async function POST(req: NextRequest) {
     const { data: payRows } = await supabase
       .from('payments').select('*').eq('reservation_id', reservationId).order('paid_on')
     const dep = summarizeLedger((payRows ?? []) as PaymentRow[], r.total_price ?? 0)
+    const req = summarizeDeposit(r, r.total_price ?? 0)
     let depositBlock = ''
-    if (dep.payments.length > 0) {
+
+    // Nothing received yet, but a deposit was requested → ask for it, with the
+    // bank details the guest needs to actually pay.
+    if (dep.payments.length === 0 && req.required) {
+      const due = r.deposit_due_date
+        ? ` Bitte überweisen Sie den Betrag bis zum <strong>${formatDeDate(r.deposit_due_date)}</strong>.`
+        : ''
+      depositBlock = `
+              <tr>
+                <td style="padding:20px 0;border-bottom:1px solid #f1f5f9;">
+                  <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">Anzahlung</p>
+                  <table width="100%" cellpadding="0" cellspacing="0" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;">
+                    <tr><td style="padding:14px 16px;">
+                      <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="font-size:13px;color:#1e40af;">Erforderliche Anzahlung</td>
+                          <td style="font-size:18px;font-weight:800;color:#2563eb;text-align:right;">${depEur(req.requiredAmount)}</td>
+                        </tr>
+                      </table>
+                      <p style="margin:10px 0 0;font-size:12px;color:#1e40af;line-height:1.6;">
+                        Zur verbindlichen Bestätigung Ihrer Buchung bitten wir um eine Anzahlung.${due}
+                      </p>
+                      <p style="margin:8px 0 0;font-size:12px;color:#1e40af;line-height:1.5;">
+                        <strong>Bankverbindung:</strong> HASPA HAMBURG · Aaron Eddie Cetin<br />
+                        IBAN: DE33 2005 0550 1501 0613 43 · BIC: HASPDEHHXXX
+                      </p>
+                    </td></tr>
+                  </table>
+                </td>
+              </tr>`
+    } else if (dep.payments.length > 0) {
       depositBlock = `
               <tr>
                 <td style="padding:20px 0;border-bottom:1px solid #f1f5f9;">
@@ -325,6 +356,12 @@ export async function POST(req: NextRequest) {
                           <td style="font-size:13px;color:#166534;padding:3px 0;">${formatDeDate(pm.paid_on)} · ${PAYMENT_KIND_LABELS[pm.kind]} · ${DEPOSIT_METHOD_LABELS[pm.method] ?? pm.method}</td>
                           <td style="font-size:15px;font-weight:700;color:${pm.kind === 'refund' ? '#dc2626' : '#15803d'};text-align:right;padding:3px 0;">${pm.kind === 'refund' ? '+' : '−'} ${depEur(Number(pm.amount))}</td>
                         </tr>`).join('')}
+                        ${req.required && dep.totalPaid + 0.004 < req.requiredAmount ? `
+                        <tr>
+                          <td colspan="2" style="font-size:12px;color:#b45309;padding-top:8px;">
+                            Offene Anzahlung: ${depEur(req.requiredAmount - dep.totalPaid)}
+                          </td>
+                        </tr>` : ''}
                         <tr>
                           <td style="font-size:13px;color:#166534;padding-top:8px;border-top:1px solid #bbf7d0;">Restbetrag</td>
                           <td style="font-size:15px;font-weight:700;color:#166534;text-align:right;padding-top:8px;border-top:1px solid #bbf7d0;">${depEur(dep.remaining)}</td>

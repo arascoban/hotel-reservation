@@ -26,7 +26,8 @@ import CountryInput from '@/components/ui/CountryInput'
 import { findOrCreateCustomer, syncCustomerFromReservation } from '@/lib/customers'
 import DepositEmailButton from '@/components/Deposit/DepositEmailButton'
 import PaymentsEditor from '@/components/Deposit/PaymentsEditor'
-import { summarizeLedger, formatDeDate, eur, type PaymentRow } from '@/lib/deposit'
+import DepositEditor, { type DepositState, EMPTY_DEPOSIT, depositPayload, depositFromRow } from '@/components/Deposit/DepositEditor'
+import { summarizeLedger, summarizeDeposit, formatDeDate, eur, type PaymentRow } from '@/lib/deposit'
 
 const STATUS_STYLES: Record<ReservationStatus, string> = {
   confirmed:   'bg-blue-100 text-blue-800',
@@ -106,6 +107,9 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
   const [editGuestCount, setEditGuestCount] = useState(1)
   const [editChildCount, setEditChildCount] = useState(0)
   const [payments,       setPayments]       = useState<PaymentRow[]>([])
+  // The *requested* deposit — what the guest is asked to pay up front. Kept
+  // separate from the payments ledger, which records what actually arrived.
+  const [editDeposit,    setEditDeposit]    = useState<DepositState>(EMPTY_DEPOSIT)
   const [editGuestName,      setEditGuestName]      = useState('')
   const [editGuestPhone,     setEditGuestPhone]     = useState('')
   const [editGuestEmail,     setEditGuestEmail]     = useState('')
@@ -151,6 +155,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       setEditCheckoutTime(toHHMM(r.checkout_at))
       setEditGuestCount(r.guest_count)
       setEditChildCount(r.child_count ?? 0)
+      setEditDeposit(depositFromRow(r))
       const { data: pays } = await supabase
         .from('payments').select('*').eq('reservation_id', reservationId).order('paid_on')
       setPayments((pays ?? []) as PaymentRow[])
@@ -237,6 +242,12 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
         guest_country:   editGuestCountry  || null,
         child_count:     editChildCount,
         ...(customerId ? { customer_id: customerId } : {}),
+        // Only the requested deposit — received money lives in `payments`
+        ...(() => {
+          const { deposit_paid_amount, deposit_paid_at, deposit_paid_method, ...required } =
+            depositPayload(editDeposit, editTotalPrice ? parseFloat(editTotalPrice) : 0)
+          return required
+        })(),
       })
       .eq('id', reservationId)
 
@@ -683,14 +694,43 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
 
         {/* ── Zahlungen ─────────────────────────────────────────────────── */}
         {editing ? (
-          <PaymentsEditor
-            reservationId={reservationId}
-            total={editTotalPrice ? parseFloat(editTotalPrice) : 0}
-            onChanged={fetchReservation}
-          />
+          <>
+            {/* Requested deposit — appears on the Buchungsbestätigung */}
+            <DepositEditor
+              value={editDeposit}
+              onChange={setEditDeposit}
+              total={editTotalPrice ? parseFloat(editTotalPrice) : 0}
+              hidePayment
+            />
+            <PaymentsEditor
+              reservationId={reservationId}
+              total={editTotalPrice ? parseFloat(editTotalPrice) : 0}
+              onChanged={fetchReservation}
+            />
+          </>
         ) : (() => {
           const dep = summarizeLedger(payments, r.total_price ?? 0)
-          if (dep.payments.length === 0) return null
+          const req = summarizeDeposit(r as any, r.total_price ?? 0)
+
+          // Nothing paid yet, but a deposit was requested → show what is owed
+          if (dep.payments.length === 0) {
+            if (!req.required) return null
+            return (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+                  Anzahlung
+                </p>
+                <p className="text-sm font-bold text-blue-800">
+                  {eur(req.requiredAmount)} erforderlich
+                </p>
+                <p className="text-xs text-blue-700">
+                  {(r as any).deposit_due_date
+                    ? `Zahlbar bis ${formatDeDate((r as any).deposit_due_date)} · noch nicht eingegangen`
+                    : 'Noch nicht eingegangen — erscheint auf der Buchungsbestätigung.'}
+                </p>
+              </div>
+            )
+          }
           return (
             <div className="rounded-xl border border-green-200 bg-green-50 p-4 space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-green-700">

@@ -18,6 +18,7 @@ import DateInput from '@/components/ui/DateInput'
 import TimeInput from '@/components/ui/TimeInput'
 import CountryInput from '@/components/ui/CountryInput'
 import { findOrCreateCustomer } from '@/lib/customers'
+import DepositEditor, { type DepositState, EMPTY_DEPOSIT, depositPayload } from '@/components/Deposit/DepositEditor'
 
 // ── Family room definitions ────────────────────────────────────────────────────
 // Each pair shares a connecting door; booking a family room blocks BOTH rooms.
@@ -87,6 +88,9 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
   const [notes,          setNotes]          = useState('')
   const [internalNotes,  setInternalNotes]  = useState('')
   const [extId,          setExtId]          = useState('')
+
+  // ── Anzahlung (requested, shown on the confirmation) ────────────
+  const [deposit, setDeposit] = useState<DepositState>(EMPTY_DEPOSIT)
 
   // ── Address ─────────────────────────────────────────────────────
   const [guestStreet,   setGuestStreet]   = useState('')
@@ -267,6 +271,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
           billing_address: buildBillingAddress(guestStreet, guestPostcode, guestCity, guestCountry),
         }
         const familyExtra = {
+          ...requestedDeposit(),
           family_booking_id: familyId,
           internal_notes:    internalNotes || null,
           child_count:       children,
@@ -349,6 +354,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
       }
       extras.child_count = children
       if (customerId) extras.customer_id = customerId
+      Object.assign(extras, requestedDeposit())
       if (Object.keys(extras).length > 0) {
         await supabase.from('reservations').update(extras).eq('id', newId)
       }
@@ -364,6 +370,14 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
       }
       setSubmitting(false)
     }
+  }
+
+
+  /** Requested-deposit columns only; received money lives in `payments`. */
+  function requestedDeposit() {
+    const { deposit_paid_amount, deposit_paid_at, deposit_paid_method, ...required } =
+      depositPayload(deposit, parseFloat(totalPrice) || 0)
+    return required
   }
 
   // ── Helpers ─────────────────────────────────────────────────────
@@ -751,6 +765,15 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
               className={fieldClass('external_id')} placeholder="z.B. BDC-123456" />
           </div>
         </div>
+
+        {/* Requested deposit — appears on the Buchungsbestätigung.
+            Received payments are recorded later from the reservation detail. */}
+        <DepositEditor
+          value={deposit}
+          onChange={setDeposit}
+          total={parseFloat(totalPrice) || 0}
+          hidePayment
+        />
       </section>
 
       {/* ── Notizen ─── */}

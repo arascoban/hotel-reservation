@@ -9,6 +9,7 @@ import {
 import type { ReservationSource, PaymentMethod, PaymentStatus } from '@/types/database'
 import { cn } from '@/lib/cn'
 import { findOrCreateCustomer } from '@/lib/customers'
+import DepositEditor, { type DepositState, EMPTY_DEPOSIT, depositPayload } from '@/components/Deposit/DepositEditor'
 import DateInput from '@/components/ui/DateInput'
 import TimeInput from '@/components/ui/TimeInput'
 import CountryInput from '@/components/ui/CountryInput'
@@ -140,6 +141,7 @@ export default function GroupReservationForm() {
   const [notes,         setNotes]         = useState('')
   const [internalNotes, setInternalNotes] = useState('')
 
+  const [deposit,    setDeposit]    = useState<DepositState>(EMPTY_DEPOSIT)
   const [submitting, setSubmitting] = useState(false)
   const [error,      setError]      = useState<string | null>(null)
 
@@ -375,7 +377,11 @@ export default function GroupReservationForm() {
             notes:              notes || undefined,
           })
 
+          const { deposit_paid_amount, deposit_paid_at, deposit_paid_method, ...reqDeposit } =
+            depositPayload(deposit, groupTotal)
+
           await supabase.from('reservations').update({
+            ...reqDeposit,
             group_booking_id:  groupId,
             family_booking_id: familyId,
             customer_id:       custId,
@@ -718,6 +724,14 @@ export default function GroupReservationForm() {
             className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
           <span className="text-sm text-slate-700">Frühstück inklusive (in den Zimmerpreisen enthalten)</span>
         </label>
+
+        {/* Requested deposit for the whole group — shown on the confirmation */}
+        <DepositEditor
+          value={deposit}
+          onChange={setDeposit}
+          total={groupTotal}
+          hidePayment
+        />
       </section>
 
       {/* ── 5. Notizen ──────────────────────────────────────────── */}
