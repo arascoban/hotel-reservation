@@ -308,17 +308,40 @@ export async function POST(req: NextRequest) {
     // ── Zahlungen block ─────────────────────────────────────────────────────
     // Lists every payment recorded against this booking so the confirmation
     // always shows what has been received and what is still open.
-    const { data: payRows } = await supabase
-      .from('payments').select('*').eq('reservation_id', reservationId).order('paid_on')
-    const dep = summarizeLedger((payRows ?? []) as PaymentRow[], r.total_price ?? 0)
-    const req = summarizeDeposit(r, r.total_price ?? 0)
+    // A group booking shares one deposit, one payment ledger and one total
+    // across all its rooms, so resolve them over the whole group — the
+    // confirmation must look the same whichever room it is sent from.
+    let groupRows: any[] = []
+    if (r.group_booking_id) {
+      const { data } = await supabase
+        .from('reservations')
+        .select('id, checkin_at, checkout_at, guest_count, child_count, total_price, deposit_mode, deposit_percent, deposit_amount, deposit_due_date, rooms(name, room_number, room_types(name))')
+        .eq('group_booking_id', r.group_booking_id)
+        .is('deleted_at', null)
+        .order('checkin_at')
+      groupRows = data ?? []
+    }
+
+    const isGroup    = groupRows.length > 1
+    const depositRow = groupRows.find(g => g.deposit_amount != null || g.deposit_mode) ?? r
+    const billTotal  = isGroup
+      ? groupRows.reduce((sum, g) => sum + (g.total_price ?? 0), 0)
+      : (r.total_price ?? 0)
+
+    const payQuery = supabase.from('payments').select('*')
+    const { data: payRows } = isGroup
+      ? await payQuery.in('reservation_id', groupRows.map(g => g.id)).order('paid_on')
+      : await payQuery.eq('reservation_id', reservationId).order('paid_on')
+
+    const dep = summarizeLedger((payRows ?? []) as PaymentRow[], billTotal)
+    const req = summarizeDeposit(depositRow, billTotal)
     let depositBlock = ''
 
     // Nothing received yet, but a deposit was requested → ask for it, with the
     // bank details the guest needs to actually pay.
     if (dep.payments.length === 0 && req.required) {
-      const due = r.deposit_due_date
-        ? ` Bitte überweisen Sie den Betrag bis zum <strong>${formatDeDate(r.deposit_due_date)}</strong>.`
+      const due = depositRow.deposit_due_date
+        ? ` Bitte überweisen Sie den Betrag bis zum <strong>${formatDeDate(depositRow.deposit_due_date)}</strong>.`
         : ''
       depositBlock = `
               <tr>
@@ -375,16 +398,9 @@ export async function POST(req: NextRequest) {
 
     // A group booking is confirmed once, listing every room it covers.
     let groupBlock = ''
-    if (r.group_booking_id) {
-      const { data: groupRows } = await supabase
-        .from('reservations')
-        .select('checkin_at, checkout_at, guest_count, child_count, total_price, rooms(name, room_number, room_types(name))')
-        .eq('group_booking_id', r.group_booking_id)
-        .is('deleted_at', null)
-        .order('checkin_at')
-
-      const rows = (groupRows ?? []) as any[]
-      if (rows.length > 1) {
+    if (isGroup) {
+      const rows = groupRows
+      {
         const totalRooms  = rows.length
         const totalGuests = rows.reduce((sum, g) => sum + (g.guest_count ?? 0), 0)
         const grandTotal  = rows.reduce((sum, g) => sum + (g.total_price ?? 0), 0)

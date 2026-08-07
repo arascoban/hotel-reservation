@@ -11,6 +11,7 @@ import { eur } from '@/lib/deposit'
 import DateInput from '@/components/ui/DateInput'
 import CountryInput from '@/components/ui/CountryInput'
 import PaymentsEditor from '@/components/Deposit/PaymentsEditor'
+import DepositEditor, { type DepositState, EMPTY_DEPOSIT, depositPayload, depositFromRow } from '@/components/Deposit/DepositEditor'
 import {
   X, Loader2, Save, Trash2, Plus, Users, BedDouble, AlertTriangle, Check, Ban, RotateCcw,
 } from 'lucide-react'
@@ -41,6 +42,10 @@ interface GroupRow {
   internal_notes: string | null
   customer_id: string | null
   family_booking_id: string | null
+  deposit_mode: string | null
+  deposit_percent: number | null
+  deposit_amount: number | null
+  deposit_due_date: string | null
   rooms: { room_number: string; name: string; room_types?: { name: string; max_adults: number | null; max_children: number | null; max_capacity: number } } | null
 }
 
@@ -111,6 +116,8 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
   const [breakfast, setBreakfast] = useState(true)
   const [notes, setNotes] = useState('')
   const [internalNotes, setInternalNotes] = useState('')
+  // One requested deposit for the whole booking, stored on a single row
+  const [deposit, setDeposit] = useState<DepositState>(EMPTY_DEPOSIT)
 
   // Per-room
   const [edits, setEdits] = useState<RoomEdit[]>([])
@@ -152,6 +159,10 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
       setBreakfast(f.breakfast_included)
       setNotes(f.notes ?? '')
       setInternalNotes(f.internal_notes ?? '')
+
+      // The group's deposit lives on one row — find it wherever it sits.
+      const carrier = list.find(r => r.deposit_amount != null || r.deposit_mode)
+      setDeposit(carrier ? depositFromRow(carrier) : EMPTY_DEPOSIT)
     }
 
     setEdits(list.map(r => {
@@ -271,6 +282,17 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
         internal_notes:  internalNotes || null,
       }
 
+      // The deposit belongs to the booking, not to a room: keep it on the
+      // first remaining reservation and clear it everywhere else so it can
+      // never be counted twice.
+      const { deposit_paid_amount, deposit_paid_at, deposit_paid_method, ...groupDeposit } =
+        depositPayload(deposit, total)
+      const clearedDeposit = {
+        deposit_mode: null, deposit_percent: null,
+        deposit_amount: null, deposit_due_date: null,
+      }
+      const depositCarrierId = activeEdits[0]?.id ?? null
+
       // 1. Rooms removed from the group
       for (const e of edits.filter(x => x.remove)) {
         await supabase.from('reservations').delete().eq('id', e.id)
@@ -280,6 +302,7 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
       for (const e of activeEdits) {
         await supabase.from('reservations').update({
           ...shared,
+          ...(e.id === depositCarrierId ? groupDeposit : clearedDeposit),
           checkin_at:  buildCheckinTimestamp(e.checkin, '13:00'),
           checkout_at: buildCheckoutTimestamp(e.checkout, '12:00'),
           guest_count: e.adults + e.children,
@@ -306,6 +329,7 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
         })
         await supabase.from('reservations').update({
           ...shared,
+          ...clearedDeposit,
           group_booking_id: groupId,
           customer_id:      custId ?? await findOrCreateCustomer(supabase, guestFields),
           child_count:      a.children,
@@ -568,6 +592,15 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
                 <textarea rows={2} value={internalNotes} onChange={e => setInternalNotes(e.target.value)}
                   className={cn(inp, 'resize-none')} placeholder="Interne Notizen" />
               </section>
+
+              {/* Requested deposit for the whole booking — shown on the
+                  Buchungsbestätigung. Received money is the ledger below. */}
+              <DepositEditor
+                value={deposit}
+                onChange={setDeposit}
+                total={total}
+                hidePayment
+              />
 
               {/* Payments for the whole group sit on its first reservation */}
               {rows[0] && (

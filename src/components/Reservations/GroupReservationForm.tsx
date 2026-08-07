@@ -342,6 +342,12 @@ export default function GroupReservationForm() {
       })
 
       const groupId = crypto.randomUUID()
+      // The group's deposit is one amount for the whole booking, so it is
+      // stored once — on the first reservation created — rather than repeated
+      // on every room.
+      const { deposit_paid_amount, deposit_paid_at, deposit_paid_method, ...groupDeposit } =
+        depositPayload(deposit, groupTotal)
+      let isFirstRoom = true
       const billingAddress = [
         guestStreet.trim(),
         [guestPostcode.trim(), guestCity.trim()].filter(Boolean).join(' '),
@@ -377,11 +383,8 @@ export default function GroupReservationForm() {
             notes:              notes || undefined,
           })
 
-          const { deposit_paid_amount, deposit_paid_at, deposit_paid_method, ...reqDeposit } =
-            depositPayload(deposit, groupTotal)
-
           await supabase.from('reservations').update({
-            ...reqDeposit,
+            ...(isFirstRoom ? groupDeposit : {}),
             group_booking_id:  groupId,
             family_booking_id: familyId,
             customer_id:       custId,
@@ -393,6 +396,7 @@ export default function GroupReservationForm() {
             guest_country:     guestCountry  || null,
             billing_address:   billingAddress,
           }).eq('id', id)
+          isFirstRoom = false
         }
       }
 
