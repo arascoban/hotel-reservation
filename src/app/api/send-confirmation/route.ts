@@ -311,22 +311,31 @@ export async function POST(req: NextRequest) {
     // A group booking shares one deposit, one payment ledger and one total
     // across all its rooms, so resolve them over the whole group — the
     // confirmation must look the same whichever room it is sent from.
+    // Both a group and a family booking span several rooms and are one
+    // booking to the guest, so the confirmation covers all of them.
     let groupRows: any[] = []
-    if (r.group_booking_id) {
-      const { data } = await supabase
+    const isFamily = !r.group_booking_id && !!r.family_booking_id
+    if (r.group_booking_id || r.family_booking_id) {
+      const q = supabase
         .from('reservations')
         .select('id, checkin_at, checkout_at, guest_count, child_count, total_price, deposit_mode, deposit_percent, deposit_amount, deposit_due_date, rooms(name, room_number, room_types(name))')
-        .eq('group_booking_id', r.group_booking_id)
         .is('deleted_at', null)
         .order('checkin_at')
+      const { data } = r.group_booking_id
+        ? await q.eq('group_booking_id',  r.group_booking_id)
+        : await q.eq('family_booking_id', r.family_booking_id)
       groupRows = data ?? []
     }
 
     const isGroup    = groupRows.length > 1
     const depositRow = groupRows.find(g => g.deposit_amount != null || g.deposit_mode) ?? r
-    const billTotal  = isGroup
-      ? groupRows.reduce((sum, g) => sum + (g.total_price ?? 0), 0)
-      : (r.total_price ?? 0)
+    // A family booking stores the same price on both of its rows, so summing
+    // would double it — count it once. A group prices each room separately.
+    const billTotal  = !isGroup
+      ? (r.total_price ?? 0)
+      : isFamily
+        ? (groupRows[0]?.total_price ?? 0)
+        : groupRows.reduce((sum, g) => sum + (g.total_price ?? 0), 0)
 
     const payQuery = supabase.from('payments').select('*')
     const { data: payRows } = isGroup
@@ -402,8 +411,10 @@ export async function POST(req: NextRequest) {
       const rows = groupRows
       {
         const totalRooms  = rows.length
-        const totalGuests = rows.reduce((sum, g) => sum + (g.guest_count ?? 0), 0)
-        const grandTotal  = rows.reduce((sum, g) => sum + (g.total_price ?? 0), 0)
+        const totalGuests = isFamily
+          ? (rows[0]?.guest_count ?? 0)
+          : rows.reduce((sum, g) => sum + (g.guest_count ?? 0), 0)
+        const grandTotal  = billTotal
 
         const roomRows = rows.map(g => {
           const kids = g.child_count ?? 0
@@ -419,7 +430,7 @@ export async function POST(req: NextRequest) {
                         </span>
                       </td>
                       <td style="font-size:13px;font-weight:700;color:#0f172a;text-align:right;padding:6px 0;border-bottom:1px solid #f1f5f9;">
-                        ${g.total_price != null ? depEur(g.total_price) : '—'}
+                        ${isFamily ? '' : (g.total_price != null ? depEur(g.total_price) : '—')}
                       </td>
                     </tr>`
         }).join('')
@@ -428,7 +439,7 @@ export async function POST(req: NextRequest) {
               <tr>
                 <td style="padding:20px 0;border-bottom:1px solid #f1f5f9;">
                   <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">
-                    Gruppenbuchung · ${totalRooms} Zimmer · ${totalGuests} Personen
+                    ${isFamily ? 'Familienzimmer' : 'Gruppenbuchung'} · ${totalRooms} Zimmer · ${totalGuests} Personen
                   </p>
                   <table width="100%" cellpadding="0" cellspacing="0">
                     ${roomRows}

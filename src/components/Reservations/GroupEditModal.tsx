@@ -14,6 +14,7 @@ import PaymentsEditor from '@/components/Deposit/PaymentsEditor'
 import DepositEditor, { type DepositState, EMPTY_DEPOSIT, depositPayload, depositFromRow } from '@/components/Deposit/DepositEditor'
 import {
   X, Loader2, Save, Trash2, Plus, Users, BedDouble, AlertTriangle, Check, Ban, RotateCcw,
+  Mail, Send, CheckCircle, AlertCircle, KeyRound,
 } from 'lucide-react'
 import type { PaymentMethod, PaymentStatus, ReservationSource } from '@/types/database'
 
@@ -131,6 +132,12 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [acting,        setActing]        = useState(false)
+
+  // Buchungsbestätigung
+  const [mailStatus, setMailStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [mailError,  setMailError]  = useState('')
+  const [includeKeys, setIncludeKeys] = useState(true)
+  const [confirmMail, setConfirmMail] = useState(false)
 
   // ── Load ────────────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -373,6 +380,37 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
     onUpdated(); onClose()
   }
 
+  /**
+   * Send the Buchungsbestätigung for the whole booking.
+   *
+   * It goes out against the first reservation; the API resolves the group and
+   * lists every room, so one mail covers the booking. Unsaved edits are not
+   * included — the guest gets what is stored.
+   */
+  async function sendConfirmation() {
+    const target = rows[0]
+    if (!target) return
+    setConfirmMail(false)
+    setMailStatus('sending'); setMailError('')
+    try {
+      const res = await fetch('/api/send-confirmation', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ reservationId: target.id, includeKeys }),
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        throw new Error((j as { error?: string }).error ?? 'Fehler beim Senden')
+      }
+      setMailStatus('sent')
+      setTimeout(() => setMailStatus('idle'), 5000)
+    } catch (e) {
+      setMailError(e instanceof Error ? e.message : 'Unbekannter Fehler')
+      setMailStatus('error')
+      setTimeout(() => setMailStatus('idle'), 7000)
+    }
+  }
+
   // ── Render ──────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 sm:p-4"
@@ -606,6 +644,74 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
               {rows[0] && (
                 <PaymentsEditor reservationId={rows[0].id} total={total} onChanged={load} />
               )}
+
+              {/* Buchungsbestätigung — one mail covering every room */}
+              <section className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 space-y-3">
+                <h3 className="text-xs font-semibold text-blue-700 uppercase tracking-wide flex items-center gap-2">
+                  <Mail className="w-4 h-4" /> Buchungsbestätigung
+                </h3>
+
+                {!guestEmail ? (
+                  <p className="text-xs text-amber-700">
+                    Kein E-Mail hinterlegt — bitte oben eine Adresse eintragen und speichern.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-xs text-slate-600">
+                      Geht an <strong>{guestEmail}</strong> und listet alle {allRooms.length} Zimmer
+                      dieser Buchung in einer E-Mail.
+                    </p>
+
+                    <button type="button" onClick={() => setIncludeKeys(k => !k)}
+                      className={cn(
+                        'inline-flex items-center gap-1.5 rounded-lg border px-3 h-9 text-xs font-medium transition-colors',
+                        includeKeys
+                          ? 'border-slate-300 bg-white text-slate-700'
+                          : 'border-slate-200 bg-slate-100 text-slate-400',
+                      )}>
+                      <KeyRound className="w-3.5 h-3.5" />
+                      {includeKeys ? 'Mit Schlüssel-Infos' : 'Ohne Schlüssel-Infos'}
+                    </button>
+
+                    {confirmMail ? (
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <button type="button" onClick={sendConfirmation}
+                          disabled={mailStatus === 'sending'}
+                          className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 text-white h-11 text-sm font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors">
+                          <Send className="w-4 h-4" /> Jetzt an Gast senden
+                        </button>
+                        <button type="button" onClick={() => setConfirmMail(false)}
+                          className="rounded-xl border border-slate-300 px-4 h-11 text-sm text-slate-600 hover:bg-slate-50">
+                          Abbrechen
+                        </button>
+                      </div>
+                    ) : (
+                      <button type="button" onClick={() => setConfirmMail(true)}
+                        disabled={mailStatus === 'sending'}
+                        className={cn(
+                          'w-full inline-flex items-center justify-center gap-2 rounded-xl h-11 text-sm font-semibold transition-colors disabled:opacity-60',
+                          mailStatus === 'sent'  ? 'bg-green-100 text-green-700'
+                          : mailStatus === 'error' ? 'bg-red-100 text-red-700'
+                          : 'bg-blue-600 text-white hover:bg-blue-700',
+                        )}>
+                        {mailStatus === 'sending' ? <Loader2 className="w-4 h-4 animate-spin" />
+                          : mailStatus === 'sent'  ? <CheckCircle className="w-4 h-4" />
+                          : mailStatus === 'error' ? <AlertCircle className="w-4 h-4" />
+                          : <Mail className="w-4 h-4" />}
+                        {mailStatus === 'sending' ? 'Sende…'
+                          : mailStatus === 'sent'  ? 'Gesendet!'
+                          : mailStatus === 'error' ? `Fehler: ${mailError.slice(0, 40)}`
+                          : 'Buchungsbestätigung senden'}
+                      </button>
+                    )}
+
+                    <p className="text-2xs text-slate-400">
+                      Es werden die gespeicherten Daten gesendet — Änderungen oben bitte
+                      vorher speichern.
+                    </p>
+                  </>
+                )}
+              </section>
 
               {/* Whole-booking actions */}
               <section className="rounded-xl border border-slate-200 p-4 space-y-3">
