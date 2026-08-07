@@ -136,6 +136,37 @@ export async function checkRoomAvailability(
 
 // ─── RPC-based Safe Creation ──────────────────────────────────────────────────
 
+/** Room type name of a connecting-door pair, when the DB value is not at hand. */
+export const FAMILY_TYPE_NAME = 'Familienzimmer mit Verbindungstür'
+
+/** One room as the guest booked it: a single room, or a connecting-door pair. */
+export interface BookingUnit<T> {
+  /** The unit's reservations — one row, or the two rooms of a family pair. */
+  rows: T[]
+  isFamily: boolean
+}
+
+/**
+ * Collapse reservation rows into the rooms the guest actually booked.
+ *
+ * A family unit is stored as one reservation per physical room and *both* rows
+ * carry the whole unit's occupancy and price. Summing the raw rows therefore
+ * counts a family unit twice and presents it as two separate Doppelzimmer —
+ * so anything that totals or lists a booking has to collapse first.
+ */
+export function collapseBookingUnits<T extends { id: string; family_booking_id?: string | null }>(
+  rows: T[],
+): BookingUnit<T>[] {
+  const byKey = new Map<string, T[]>()
+  for (const r of rows) {
+    const key = r.family_booking_id ?? r.id
+    const list = byKey.get(key)
+    if (list) list.push(r)
+    else byKey.set(key, [r])
+  }
+  return [...byKey.values()].map(rs => ({ rows: rs, isFamily: !!rs[0].family_booking_id }))
+}
+
 /**
  * Guest count a single room of a connecting-door family unit may be created with.
  *

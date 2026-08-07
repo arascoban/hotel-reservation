@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient }  from '@/lib/supabase/client'
+import { collapseBookingUnits, FAMILY_TYPE_NAME } from '@/lib/reservations'
 import { format }        from 'date-fns'
 import { de }            from 'date-fns/locale'
 import {
@@ -846,17 +847,27 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     if (r.group_booking_id) {
       const { data: siblings } = await supabase
         .from('reservations')
-        .select('checkin_at, checkout_at, total_price, guest_count, child_count, rooms(name, room_number, room_types(name))')
+        .select('id, family_booking_id, checkin_at, checkout_at, total_price, guest_count, child_count, rooms(name, room_number, room_types(name))')
         .eq('group_booking_id', r.group_booking_id)
         .is('deleted_at', null)
         .order('checkin_at')
 
-      const lines: GroupRoomLine[] = ((siblings ?? []) as any[]).map(sr => {
+      // A connecting-door family unit is two reservations but one room, and
+      // both rows carry its occupancy and price — billing them separately
+      // would charge the guest twice.
+      const units = collapseBookingUnits((siblings ?? []) as any[])
+      const famName = units.some(u => u.isFamily)
+        ? ((await (supabase as any).from('room_types').select('name')
+            .eq('category', 'family_connecting').maybeSingle()).data?.name ?? FAMILY_TYPE_NAME)
+        : FAMILY_TYPE_NAME
+
+      const lines: GroupRoomLine[] = units.map(u => {
+        const sr = u.rows[0] as any
         const nn = Math.max(1, Math.round(
           (new Date(sr.checkout_at).getTime() - new Date(sr.checkin_at).getTime()) / 86400000))
         return {
-          room_number: sr.rooms?.room_number ?? '',
-          room_name:   sr.rooms?.room_types?.name ?? sr.rooms?.name ?? '',
+          room_number: u.rows.map((x: any) => x.rooms?.room_number ?? '').filter(Boolean).join(' + '),
+          room_name:   u.isFamily ? famName : (sr.rooms?.room_types?.name ?? sr.rooms?.name ?? ''),
           checkin_at:  sr.checkin_at,
           checkout_at: sr.checkout_at,
           nights:      nn,

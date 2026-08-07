@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/cn'
 import {
   buildCheckinTimestamp, buildCheckoutTimestamp, createReservationSafe, ReservationError,
+  collapseBookingUnits, FAMILY_TYPE_NAME,
 } from '@/lib/reservations'
 import { syncCustomerFromReservation, findOrCreateCustomer } from '@/lib/customers'
 import { SALUTATIONS } from '@/lib/salutation'
@@ -53,7 +54,10 @@ interface GroupRow {
 
 /** Editable state for one room of the group. */
 interface RoomEdit {
+  /** First reservation of this room — identifies the edit in the UI. */
   id:       string
+  /** Every reservation behind it: two for a connecting-door family pair. */
+  ids:      string[]
   label:    string
   typeName: string
   maxAdults:   number
@@ -186,12 +190,19 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
       setDeposit(carrier ? depositFromRow(carrier) : EMPTY_DEPOSIT)
     }
 
-    setEdits(list.map(r => {
-      const t = r.family_booking_id ? (fam ?? r.rooms?.room_types) : r.rooms?.room_types
+    // A connecting-door pair is two reservations but one room: edit it once
+    // and write the result to both, otherwise its occupancy and price show up
+    // — and get counted — twice.
+    setEdits(collapseBookingUnits(list).map(u => {
+      const r = u.rows[0]
+      const t = u.isFamily ? (fam ?? r.rooms?.room_types) : r.rooms?.room_types
       return {
         id:          r.id,
-        label:       `Zimmer ${r.rooms?.room_number ?? '?'}`,
-        typeName:    r.rooms?.room_types?.name ?? r.rooms?.name ?? '',
+        ids:         u.rows.map(x => x.id),
+        label:       `Zimmer ${u.rows.map(x => x.rooms?.room_number ?? '?').join(' + ')}`,
+        typeName:    u.isFamily
+          ? FAMILY_TYPE_NAME
+          : (r.rooms?.room_types?.name ?? r.rooms?.name ?? ''),
         maxAdults:   t?.max_adults   ?? t?.max_capacity ?? 2,
         maxChildren: t?.max_children ?? 0,
         maxCapacity: t?.max_capacity ?? 2,
@@ -235,6 +246,7 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
     const first = edits[0]
     setAdded(prev => [...prev, {
       id:          `new:${room.id}`,
+      ids:         [`new:${room.id}`],
       roomId:      room.id,
       label:       `Zimmer ${room.room_number}`,
       typeName:    room.type_name,
@@ -317,20 +329,22 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
 
       // 1. Rooms removed from the group
       for (const e of edits.filter(x => x.remove)) {
-        await supabase.from('reservations').delete().eq('id', e.id)
+        await supabase.from('reservations').delete().in('id', e.ids)
       }
 
       // 2. Existing rooms
       for (const e of activeEdits) {
-        await supabase.from('reservations').update({
-          ...shared,
-          ...(e.id === depositCarrierId ? groupDeposit : clearedDeposit),
-          checkin_at:  buildCheckinTimestamp(e.checkin, '13:00'),
-          checkout_at: buildCheckoutTimestamp(e.checkout, '12:00'),
-          guest_count: e.adults + e.children,
-          child_count: e.children,
-          total_price: parseFloat(e.price) || null,
-        }).eq('id', e.id)
+        for (const rid of e.ids) {
+          await supabase.from('reservations').update({
+            ...shared,
+            ...(rid === depositCarrierId ? groupDeposit : clearedDeposit),
+            checkin_at:  buildCheckinTimestamp(e.checkin, '13:00'),
+            checkout_at: buildCheckoutTimestamp(e.checkout, '12:00'),
+            guest_count: e.adults + e.children,
+            child_count: e.children,
+            total_price: parseFloat(e.price) || null,
+          }).eq('id', rid)
+        }
       }
 
       // 3. Newly added rooms join the same group

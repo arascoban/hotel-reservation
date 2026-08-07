@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/cn'
-import { formatDate, getSourceLabel, getSourceColor } from '@/lib/reservations'
+import { formatDate, getSourceLabel, getSourceColor, collapseBookingUnits, type BookingUnit } from '@/lib/reservations'
 import { eur } from '@/lib/deposit'
 import ReservationDetailModal from '@/components/Reservations/ReservationDetailModal'
 import GroupEditModal from '@/components/Reservations/GroupEditModal'
@@ -43,6 +43,8 @@ interface Booking {
   kind:       'single' | 'family' | 'group'
   primary:    Row          // the row actions operate on
   rows:       Row[]
+  /** The rooms as booked — a family pair counts as one. */
+  units:      BookingUnit<Row>[]
   checkin:    string
   checkout:   string
   guests:     number
@@ -83,6 +85,7 @@ function groupIntoBookings(rows: Row[]): Booking[] {
   return [...byKey.entries()].map(([key, list]) => {
     const sorted = [...list].sort((a, b) => a.checkin_at.localeCompare(b.checkin_at))
     const primary = sorted[0]
+    const units = collapseBookingUnits(sorted)
     const kind: Booking['kind'] =
       primary.group_booking_id  ? 'group'
       : primary.family_booking_id ? 'family'
@@ -93,16 +96,16 @@ function groupIntoBookings(rows: Row[]): Booking[] {
       kind,
       primary,
       rows: sorted,
+      units,
       // A group may span slightly different dates per room
       checkin:  sorted.reduce((min, r) => r.checkin_at  < min ? r.checkin_at  : min, sorted[0].checkin_at),
       checkout: sorted.reduce((max, r) => r.checkout_at > max ? r.checkout_at : max, sorted[0].checkout_at),
-      guests:   sorted.reduce((s, r) => s + (r.guest_count ?? 0), 0),
-      children: sorted.reduce((s, r) => s + (r.child_count ?? 0), 0),
-      // A family booking duplicates the price across both rows — count it once
-      total: kind === 'family'
-        ? (primary.total_price ?? null)
-        : sorted.reduce<number | null>((s, r) =>
-            r.total_price == null ? s : (s ?? 0) + r.total_price, null),
+      // A family unit duplicates occupancy and price across both of its rows,
+      // so total over the rooms the guest booked, not over the raw rows.
+      guests:   units.reduce((s, u) => s + (u.rows[0].guest_count ?? 0), 0),
+      children: units.reduce((s, u) => s + (u.rows[0].child_count ?? 0), 0),
+      total: units.reduce<number | null>((s, u) =>
+        u.rows[0].total_price == null ? s : (s ?? 0) + u.rows[0].total_price, null),
     }
   }).sort((a, b) => a.checkin.localeCompare(b.checkin))
 }
@@ -241,7 +244,7 @@ export default function ReservationsBrowser() {
 
                     {b.kind === 'group' && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 text-purple-700 px-2 py-0.5 text-2xs font-semibold">
-                        <Layers className="w-3 h-3" /> Gruppe · {b.rows.length} Zimmer
+                        <Layers className="w-3 h-3" /> Gruppe · {b.units.length} Zimmer
                       </span>
                     )}
                     {b.kind === 'family' && (
@@ -260,7 +263,8 @@ export default function ReservationsBrowser() {
 
                   {/* Every room of this booking */}
                   <p className="text-xs text-slate-400 mt-1">
-                    {b.rows.map(r => `Zi. ${r.rooms?.room_number ?? '?'}`).join(' · ')}
+                    {b.units.map(u =>
+                      `Zi. ${u.rows.map(r => r.rooms?.room_number ?? '?').join('+')}`).join(' · ')}
                   </p>
 
                   <div className="mt-2 flex items-center gap-2 flex-wrap text-xs">

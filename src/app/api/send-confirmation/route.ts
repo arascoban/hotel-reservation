@@ -5,6 +5,7 @@ import { formatDate } from '@/lib/reservations'
 import { summarizeLedger, summarizeDeposit, formatDeDate, eur as depEur, PAYMENT_KIND_LABELS, DEPOSIT_METHOD_LABELS, type PaymentRow } from '@/lib/deposit'
 import { resolveEmailLogo, originFromRequest } from '@/lib/emailLogo'
 import { greetingOrFriendly } from '@/lib/salutation'
+import { collapseBookingUnits, FAMILY_TYPE_NAME } from '@/lib/reservations'
 
 // Parse time directly from the stored ISO string to avoid UTC conversion on the server.
 // Timestamps are stored as +02:00 — new Date() would shift them by -2h in UTC Node.js.
@@ -335,6 +336,80 @@ function buildEmailHtml(opts: {
 </html>`
 }
 
+/**
+ * The rooms of a multi-room booking, one line per room the guest booked.
+ *
+ * A connecting-door family unit is two reservations but one room — it is
+ * listed as "Zimmer 21 + 22 · Familienzimmer" with its occupancy and price
+ * counted once, not as two separate Doppelzimmer.
+ */
+function buildRoomsBlock(opts: {
+  units: { rows: any[]; isFamily: boolean }[]
+  /** Every underlying reservation — breakfast is stored per physical room. */
+  rows: any[]
+  familyTypeName: string
+  /** A family unit booked on its own is one room, not a group. */
+  isFamilyOnly: boolean
+  billTotal: number
+}): string {
+  const { units, rows, familyTypeName, isFamilyOnly, billTotal } = opts
+
+  const totalRooms  = units.length
+  const totalGuests = units.reduce((sum, u) => sum + (u.rows[0].guest_count ?? 0), 0)
+
+  // Breakfast is stored per room. If every room has it, say so once under the
+  // header; if only some do, mark those rooms individually.
+  const allBreakfast  = rows.every(g => g.breakfast_included)
+  const someBreakfast = rows.some(g => g.breakfast_included)
+  const breakfastBadge = allBreakfast
+    ? `<p style="margin:0 0 10px;display:inline-block;background:#fef3c7;color:#92400e;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;">☕ Frühstück inklusive</p>`
+    : ''
+
+  const roomRows = units.map(u => {
+    const g = u.rows[0]
+    const kids   = g.child_count ?? 0
+    const adults = (g.guest_count ?? 1) - kids
+    const roomBreakfast = !allBreakfast && someBreakfast && g.breakfast_included
+      ? ' · ☕ Frühstück inkl.'
+      : ''
+    const roomNumbers = u.rows.map(x => x.rooms?.room_number ?? '').filter(Boolean).join(' + ')
+    const typeName = u.isFamily
+      ? familyTypeName
+      : (g.rooms?.room_types?.name ?? g.rooms?.name ?? '')
+    return `
+                    <tr>
+                      <td style="font-size:13px;color:#0f172a;padding:6px 0;border-bottom:1px solid #f1f5f9;">
+                        <strong>Zimmer ${roomNumbers}</strong>
+                        <span style="color:#64748b;"> · ${typeName}</span><br />
+                        <span style="font-size:12px;color:#94a3b8;">
+                          ${localDT(g.checkin_at).slice(0, 10)} – ${localDT(g.checkout_at).slice(0, 10)} ·
+                          ${adults} Erw.${kids > 0 ? ` + ${kids} Kind${kids !== 1 ? 'er' : ''}` : ''}${roomBreakfast}
+                        </span>
+                      </td>
+                      <td style="font-size:13px;font-weight:700;color:#0f172a;text-align:right;padding:6px 0;border-bottom:1px solid #f1f5f9;">
+                        ${g.total_price != null ? depEur(g.total_price) : '—'}
+                      </td>
+                    </tr>`
+  }).join('')
+
+  return `
+              <tr>
+                <td style="padding:20px 0;border-bottom:1px solid #f1f5f9;">
+                  <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">
+                    ${isFamilyOnly ? 'Familienzimmer' : 'Gruppenbuchung'} · ${totalRooms} Zimmer · ${totalGuests} Personen
+                  </p>
+                  ${breakfastBadge}
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    ${roomRows}
+                    <tr>
+                      <td style="font-size:14px;font-weight:700;color:#0f172a;padding-top:10px;">Gesamtpreis</td>
+                      <td style="font-size:18px;font-weight:800;color:#2563eb;text-align:right;padding-top:10px;">${depEur(billTotal)}</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>`
+}
+
 // ── POST /api/send-confirmation ────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
@@ -366,11 +441,10 @@ export async function POST(req: NextRequest) {
     // Both a group and a family booking span several rooms and are one
     // booking to the guest, so the confirmation covers all of them.
     let groupRows: any[] = []
-    const isFamily = !r.group_booking_id && !!r.family_booking_id
     if (r.group_booking_id || r.family_booking_id) {
       const q = supabase
         .from('reservations')
-        .select('id, checkin_at, checkout_at, guest_count, child_count, total_price, breakfast_included, deposit_mode, deposit_percent, deposit_amount, deposit_due_date, rooms(name, room_number, locker_pin, room_types(name))')
+        .select('id, family_booking_id, checkin_at, checkout_at, guest_count, child_count, total_price, breakfast_included, deposit_mode, deposit_percent, deposit_amount, deposit_due_date, rooms(name, room_number, locker_pin, room_types(name))')
         .is('deleted_at', null)
         .order('checkin_at')
       const { data } = r.group_booking_id
@@ -379,25 +453,41 @@ export async function POST(req: NextRequest) {
       groupRows = data ?? []
     }
 
-    const isGroup    = groupRows.length > 1
+    // A connecting-door family unit occupies two rooms but is one room to the
+    // guest, and both of its rows carry the unit's occupancy and price — so
+    // collapse before listing or totalling anything.
+    const units = collapseBookingUnits(groupRows as { id: string; family_booking_id: string | null }[]) as
+      { rows: any[]; isFamily: boolean }[]
+    const hasFamily = units.some(u => u.isFamily)
+    // Show the multi-room block for a group, and for a family unit booked on
+    // its own — in both cases the single-room sections would contradict it.
+    const isGroup = units.length > 1 || hasFamily
+    // A family booking on its own is one room, not a group.
+    const isFamilyOnly = units.length === 1 && hasFamily
+
+    // The family type's own name: its rooms are typed Doppel-/Einzelzimmer,
+    // which is exactly what made a family unit read as two separate rooms.
+    let familyTypeName = FAMILY_TYPE_NAME
+    if (hasFamily) {
+      const { data: ft } = await supabase
+        .from('room_types').select('name').eq('category', 'family_connecting').maybeSingle()
+      familyTypeName = (ft as { name?: string } | null)?.name ?? FAMILY_TYPE_NAME
+    }
+
     const depositRow = groupRows.find(g => g.deposit_amount != null || g.deposit_mode) ?? r
 
     // The "Aufenthalt" box covers the booking as a whole: rooms of a group may
     // have their own dates, so span from the first check-in to the last check-out.
-    const stayFrom = isGroup
+    const stayFrom = groupRows.length > 0
       ? groupRows.reduce((min, g) => (g.checkin_at  < min ? g.checkin_at  : min), groupRows[0].checkin_at)
       : r.checkin_at
-    const stayTo = isGroup
+    const stayTo = groupRows.length > 0
       ? groupRows.reduce((max, g) => (g.checkout_at > max ? g.checkout_at : max), groupRows[0].checkout_at)
       : r.checkout_at
     const nights = differenceInCalendarDays(new Date(stayTo), new Date(stayFrom))
-    // A family booking stores the same price on both of its rows, so summing
-    // would double it — count it once. A group prices each room separately.
-    const billTotal  = !isGroup
-      ? (r.total_price ?? 0)
-      : isFamily
-        ? (groupRows[0]?.total_price ?? 0)
-        : groupRows.reduce((sum, g) => sum + (g.total_price ?? 0), 0)
+    const billTotal = isGroup
+      ? units.reduce((sum, u) => sum + (u.rows[0].total_price ?? 0), 0)
+      : (r.total_price ?? 0)
 
     const payQuery = supabase.from('payments').select('*')
     const { data: payRows } = isGroup
@@ -467,65 +557,9 @@ export async function POST(req: NextRequest) {
               </tr>`
     }
 
-    // A group booking is confirmed once, listing every room it covers.
-    let groupBlock = ''
-    if (isGroup) {
-      const rows = groupRows
-      {
-        const totalRooms  = rows.length
-        const totalGuests = isFamily
-          ? (rows[0]?.guest_count ?? 0)
-          : rows.reduce((sum, g) => sum + (g.guest_count ?? 0), 0)
-        const grandTotal  = billTotal
-
-        // Breakfast is stored per room. If every room has it, say so once under
-        // the header; if only some do, mark those rooms individually.
-        const allBreakfast  = rows.every(g => g.breakfast_included)
-        const someBreakfast = rows.some(g => g.breakfast_included)
-        const breakfastBadge = allBreakfast
-          ? `<p style="margin:0 0 10px;display:inline-block;background:#fef3c7;color:#92400e;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;">☕ Frühstück inklusive</p>`
-          : ''
-
-        const roomRows = rows.map(g => {
-          const kids = g.child_count ?? 0
-          const adults = (g.guest_count ?? 1) - kids
-          const roomBreakfast = !allBreakfast && someBreakfast && g.breakfast_included
-            ? ' · ☕ Frühstück inkl.'
-            : ''
-          return `
-                    <tr>
-                      <td style="font-size:13px;color:#0f172a;padding:6px 0;border-bottom:1px solid #f1f5f9;">
-                        <strong>Zimmer ${g.rooms?.room_number ?? ''}</strong>
-                        <span style="color:#64748b;"> · ${g.rooms?.room_types?.name ?? g.rooms?.name ?? ''}</span><br />
-                        <span style="font-size:12px;color:#94a3b8;">
-                          ${localDT(g.checkin_at).slice(0, 10)} – ${localDT(g.checkout_at).slice(0, 10)} ·
-                          ${adults} Erw.${kids > 0 ? ` + ${kids} Kind${kids !== 1 ? 'er' : ''}` : ''}${roomBreakfast}
-                        </span>
-                      </td>
-                      <td style="font-size:13px;font-weight:700;color:#0f172a;text-align:right;padding:6px 0;border-bottom:1px solid #f1f5f9;">
-                        ${isFamily ? '' : (g.total_price != null ? depEur(g.total_price) : '—')}
-                      </td>
-                    </tr>`
-        }).join('')
-
-        groupBlock = `
-              <tr>
-                <td style="padding:20px 0;border-bottom:1px solid #f1f5f9;">
-                  <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">
-                    ${isFamily ? 'Familienzimmer' : 'Gruppenbuchung'} · ${totalRooms} Zimmer · ${totalGuests} Personen
-                  </p>
-                  ${breakfastBadge}
-                  <table width="100%" cellpadding="0" cellspacing="0">
-                    ${roomRows}
-                    <tr>
-                      <td style="font-size:14px;font-weight:700;color:#0f172a;padding-top:10px;">Gesamtpreis</td>
-                      <td style="font-size:18px;font-weight:800;color:#2563eb;text-align:right;padding-top:10px;">${depEur(grandTotal)}</td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>`
-      }
-    }
+    const groupBlock = isGroup
+      ? buildRoomsBlock({ units, rows: groupRows, familyTypeName, isFamilyOnly, billTotal })
+      : ''
 
     const logo = await resolveEmailLogo(originFromRequest(req))
 
@@ -572,7 +606,7 @@ export async function POST(req: NextRequest) {
       // A group booking covers several rooms — naming just the sending room in
       // the subject would contradict the body.
       subject: isGroup
-        ? `Buchungsbestätigung – ${isFamily ? 'Familienzimmer' : 'Gruppenbuchung'} · ${groupRows.length} Zimmer · ${formatDate(stayFrom)}–${formatDate(stayTo)}`
+        ? `Buchungsbestätigung – ${isFamilyOnly ? 'Familienzimmer' : 'Gruppenbuchung'} · ${units.length} Zimmer · ${formatDate(stayFrom)}–${formatDate(stayTo)}`
         : `Buchungsbestätigung – ${r.rooms.name} · ${formatDate(stayFrom)}–${formatDate(stayTo)}`,
       html,
       attachments: logo.attachments,
