@@ -47,7 +47,7 @@ const CATEGORY_LABELS: Record<RoomTypeCategory, string> = {
 // Mobile compact view: booking-source dot colors + weekday headers
 const SOURCE_DOT: Record<string, string> = {
   booking_com: 'bg-blue-500', expedia: 'bg-violet-500', airbnb: 'bg-rose-500',
-  walk_in: 'bg-emerald-500', phone: 'bg-amber-500', website: 'bg-orange-500', other: 'bg-slate-400',
+  walk_in: 'bg-emerald-500', phone: 'bg-amber-500', email: 'bg-sky-500', website: 'bg-orange-500', other: 'bg-slate-400',
 }
 const MOBILE_WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
 

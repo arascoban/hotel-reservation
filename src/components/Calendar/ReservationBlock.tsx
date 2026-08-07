@@ -9,6 +9,7 @@ const SOURCE_COLORS: Record<string, { bg: string; text: string }> = {
   expedia:     { bg: 'bg-violet-500 hover:bg-violet-600', text: 'text-white' },
   airbnb:      { bg: 'bg-rose-500 hover:bg-rose-600',    text: 'text-white' },
   walk_in:     { bg: 'bg-emerald-500 hover:bg-emerald-600', text: 'text-white' },
+  email:       { bg: 'bg-sky-500 hover:bg-sky-600',         text: 'text-white' },
   phone:       { bg: 'bg-amber-500 hover:bg-amber-600',  text: 'text-white' },
   website:     { bg: 'bg-orange-500 hover:bg-orange-600', text: 'text-white' },
   other:       { bg: 'bg-slate-400 hover:bg-slate-500',  text: 'text-white' },

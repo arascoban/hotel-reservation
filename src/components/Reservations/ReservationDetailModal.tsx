@@ -610,7 +610,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
             {editing ? (
               <select value={editSource} onChange={e => setEditSource(e.target.value as ReservationSource)}
                 className="mt-1 text-sm border border-slate-300 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-blue-500">
-                {(['booking_com','expedia','airbnb','walk_in','phone','website','other'] as ReservationSource[]).map(s => (
+                {(['booking_com','expedia','airbnb','walk_in','phone','email','website','other'] as ReservationSource[]).map(s => (
                   <option key={s} value={s}>{getSourceLabel(s)}</option>
                 ))}
               </select>

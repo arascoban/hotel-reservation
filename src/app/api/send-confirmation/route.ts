@@ -18,7 +18,7 @@ import { differenceInCalendarDays } from 'date-fns'
 
 const SOURCE_LABELS: Record<string, string> = {
   booking_com: 'Booking.com', expedia: 'Expedia', airbnb: 'Airbnb',
-  walk_in: 'Laufkundschaft', phone: 'Telefon', website: 'Website', other: 'Sonstige',
+  walk_in: 'Laufkundschaft', phone: 'Telefon', email: 'E-Mail', website: 'Website', other: 'Sonstige',
 }
 const PAY_METHOD_LABELS: Record<string, string> = {
   cash: 'Bargeld', ec_card: 'EC-Karte', credit_card: 'Kreditkarte',

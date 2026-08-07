@@ -2,7 +2,7 @@
 
 export type ReservationSource =
   | 'booking_com' | 'expedia' | 'airbnb'
-  | 'walk_in' | 'phone' | 'website' | 'other'
+  | 'walk_in' | 'phone' | 'email' | 'website' | 'other'
 
 export type RoomCleaningStatus = 'clean' | 'dirty' | 'maintenance'
 

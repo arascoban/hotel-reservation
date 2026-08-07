@@ -12,7 +12,7 @@ import DateInput from '@/components/ui/DateInput'
 import CountryInput from '@/components/ui/CountryInput'
 import PaymentsEditor from '@/components/Deposit/PaymentsEditor'
 import {
-  X, Loader2, Save, Trash2, Plus, Users, BedDouble, AlertTriangle, Check,
+  X, Loader2, Save, Trash2, Plus, Users, BedDouble, AlertTriangle, Check, Ban, RotateCcw,
 } from 'lucide-react'
 import type { PaymentMethod, PaymentStatus, ReservationSource } from '@/types/database'
 
@@ -120,6 +120,11 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
   const [freeRooms, setFreeRooms] = useState<FreeRoom[]>([])
   const [loadingFree, setLoadingFree] = useState(false)
 
+  // Whole-booking actions
+  const [confirmCancel, setConfirmCancel] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [acting,        setActing]        = useState(false)
+
   // ── Load ────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     setLoading(true)
@@ -213,6 +218,8 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
     }])
     setShowAdd(false)
   }
+
+  const allCancelled = rows.length > 0 && rows.every(r => (r as any).status === 'cancelled')
 
   const activeEdits = edits.filter(e => !e.remove)
   const allRooms    = [...activeEdits, ...added]
@@ -313,6 +320,33 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
         : 'Änderungen konnten nicht gespeichert werden.')
       setSaving(false)
     }
+  }
+
+  /**
+   * Cancel or reinstate the whole booking. Cancelling frees the rooms in the
+   * calendar (the no-overlap constraint ignores cancelled rows) but keeps the
+   * booking and its history.
+   */
+  async function toggleCancelGroup() {
+    if (!allCancelled && !confirmCancel) { setConfirmCancel(true); return }
+    setActing(true); setConfirmCancel(false)
+    await supabase.from('reservations')
+      .update({ status: allCancelled ? 'confirmed' : 'cancelled' })
+      .eq('group_booking_id', groupId)
+    setActing(false)
+    onUpdated(); onClose()
+  }
+
+  /** Soft-delete every room of the booking — recoverable, unlike removing a
+   *  single room, and invoices already issued keep their payments. */
+  async function deleteGroup() {
+    if (!confirmDelete) { setConfirmDelete(true); return }
+    setActing(true); setConfirmDelete(false)
+    await supabase.from('reservations')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('group_booking_id', groupId)
+    setActing(false)
+    onUpdated(); onClose()
   }
 
   // ── Render ──────────────────────────────────────────────────────
@@ -539,6 +573,64 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
               {rows[0] && (
                 <PaymentsEditor reservationId={rows[0].id} total={total} onChanged={load} />
               )}
+
+              {/* Whole-booking actions */}
+              <section className="rounded-xl border border-slate-200 p-4 space-y-3">
+                <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                  Gesamte Buchung
+                </h3>
+
+                {allCancelled && (
+                  <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+                    Diese Gruppenbuchung ist storniert — die Zimmer sind im Kalender wieder frei.
+                  </p>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  {/* Storno / reinstate */}
+                  <button type="button" onClick={toggleCancelGroup} disabled={acting}
+                    className={cn(
+                      'flex-1 inline-flex items-center justify-center gap-2 rounded-xl h-11 text-sm font-medium transition-colors disabled:opacity-50',
+                      allCancelled
+                        ? 'border border-green-300 bg-green-50 text-green-700 hover:bg-green-100'
+                        : confirmCancel
+                          ? 'bg-amber-600 text-white hover:bg-amber-700'
+                          : 'border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100',
+                    )}>
+                    {acting ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : allCancelled ? <RotateCcw className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+                    {allCancelled ? 'Storno aufheben'
+                      : confirmCancel ? `Wirklich stornieren? (${allRooms.length} Zimmer)`
+                      : 'Buchung stornieren'}
+                  </button>
+
+                  {/* Soft delete */}
+                  <button type="button" onClick={deleteGroup} disabled={acting}
+                    className={cn(
+                      'flex-1 inline-flex items-center justify-center gap-2 rounded-xl h-11 text-sm font-medium transition-colors disabled:opacity-50',
+                      confirmDelete
+                        ? 'bg-red-600 text-white hover:bg-red-700'
+                        : 'border border-red-300 bg-red-50 text-red-700 hover:bg-red-100',
+                    )}>
+                    {acting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    {confirmDelete ? `Wirklich löschen? (${allRooms.length} Zimmer)` : 'Buchung löschen'}
+                  </button>
+                </div>
+
+                {(confirmCancel || confirmDelete) && (
+                  <button type="button"
+                    onClick={() => { setConfirmCancel(false); setConfirmDelete(false) }}
+                    className="w-full rounded-xl border border-slate-300 h-10 text-xs text-slate-600 hover:bg-slate-50">
+                    Abbrechen
+                  </button>
+                )}
+
+                <p className="text-2xs text-slate-400">
+                  Stornieren behält die Buchung und gibt die Zimmer frei.
+                  Löschen blendet sie aus — bereits erstellte Rechnungen und
+                  erfasste Zahlungen bleiben unverändert.
+                </p>
+              </section>
             </>
           )}
         </div>

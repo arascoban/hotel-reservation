@@ -34,6 +34,7 @@ const SOURCES: { value: ReservationSource | ''; label: string }[] = [
   { value: 'expedia',     label: 'Expedia' },
   { value: 'airbnb',      label: 'Airbnb' },
   { value: 'walk_in',     label: 'Laufkundschaft' },
+  { value: 'email',       label: 'E-Mail' },
   { value: 'phone',       label: 'Telefon' },
   { value: 'website',     label: 'Website' },
   { value: 'other',       label: 'Sonstige' },

@@ -18,7 +18,7 @@ const PAY_STATUS_LABELS: Record<string, string> = {
 }
 const SOURCE_LABELS: Record<string, string> = {
   booking_com: 'Booking.com', expedia: 'Expedia', airbnb: 'Airbnb',
-  walk_in: 'Laufkundschaft', phone: 'Telefon', website: 'Website', other: 'Sonstige',
+  walk_in: 'Laufkundschaft', phone: 'Telefon', email: 'E-Mail', website: 'Website', other: 'Sonstige',
 }
 
 // Parse date+time directly from the stored ISO string so the +02:00 timezone

@@ -33,6 +33,7 @@ const SOURCES: { value: ReservationSource; label: string }[] = [
   { value: 'airbnb',      label: 'Airbnb' },
   { value: 'walk_in',     label: 'Laufkundschaft' },
   { value: 'phone',       label: 'Telefon' },
+  { value: 'email',       label: 'E-Mail' },
   { value: 'website',     label: 'Website' },
   { value: 'other',       label: 'Sonstige' },
 ]

@@ -72,6 +72,7 @@ interface GroupRoom {
 
 const SOURCES: { value: ReservationSource; label: string }[] = [
   { value: 'phone',   label: 'Telefon' },
+  { value: 'email',   label: 'E-Mail' },
   { value: 'website', label: 'Website' },
   { value: 'walk_in', label: 'Laufkundschaft' },
   { value: 'other',   label: 'Sonstige' },

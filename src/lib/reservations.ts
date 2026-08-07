@@ -10,7 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type ReservationSource =
   | 'booking_com' | 'expedia' | 'airbnb'
-  | 'walk_in' | 'phone' | 'website' | 'other'
+  | 'walk_in' | 'phone' | 'email' | 'website' | 'other'
 
 export type PaymentMethod = 'cash' | 'ec_card' | 'credit_card' | 'online' | 'unpaid'
 export type PaymentStatus = 'paid' | 'deposit_paid' | 'unpaid' | 'refunded'
@@ -327,6 +327,7 @@ export function getSourceColor(source: ReservationSource): string {
     expedia:     'bg-purple-500',
     airbnb:      'bg-red-500',
     walk_in:     'bg-green-500',
+    email:       'bg-sky-500',
     phone:       'bg-yellow-500',
     website:     'bg-orange-500',
     other:       'bg-gray-400',
@@ -340,6 +341,7 @@ export function getSourceLabel(source: ReservationSource): string {
     expedia:     'Expedia',
     airbnb:      'Airbnb',
     walk_in:     'Laufkundschaft',
+    email:       'E-Mail',
     phone:       'Telefon',
     website:     'Website',
     other:       'Sonstige',
