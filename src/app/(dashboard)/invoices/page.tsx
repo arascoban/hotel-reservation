@@ -24,6 +24,18 @@ interface LineItem {
   vat_rate: 7 | 19
 }
 
+/** One room inside a group invoice. */
+interface GroupRoomLine {
+  room_number: string
+  room_name:   string
+  checkin_at:  string
+  checkout_at: string
+  nights:      number
+  adults:      number
+  children:    number
+  price:       number
+}
+
 interface Invoice {
   id: string
   invoice_number: number
@@ -67,6 +79,8 @@ interface Invoice {
   deposit_paid_at: string | null
   deposit_paid_method: string | null
   deposit_email_sent_at: string | null
+  group_rooms: GroupRoomLine[] | null
+  group_booking_id: string | null
   created_at: string
   created_by: string | null
 }
@@ -88,6 +102,7 @@ interface Reservation {
   guest_city: string | null
   guest_country: string | null
   customer_id: string | null
+  group_booking_id: string | null
   notes: string | null
   rooms: { name: string; room_number: string; room_types?: { name: string } }
 }
@@ -702,6 +717,8 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [notes,         setNotes]         = useState('')
   const [lineItems,     setLineItems]     = useState<LineItem[]>([])
   const [reservationId, setReservationId] = useState<string | null>(null)
+  const [groupRooms,    setGroupRooms]    = useState<GroupRoomLine[]>([])
+  const [groupId,       setGroupId]       = useState<string | null>(null)
   const [hasRoom2,         setHasRoom2]         = useState(false)
   const [room2Number,      setRoom2Number]      = useState('')
   const [room2Name,        setRoom2Name]        = useState('')
@@ -743,7 +760,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       if (tab === 'reservation') {
         const { data } = await supabase
           .from('reservations')
-          .select('id, guest_name, guest_email, guest_count, room_id, checkin_at, checkout_at, total_price, payment_method, breakfast_included, billing_address, guest_street, guest_postcode, guest_city, guest_country, customer_id, notes, rooms(name, room_number, room_types(name))')
+          .select('id, guest_name, guest_email, guest_count, room_id, checkin_at, checkout_at, total_price, payment_method, breakfast_included, billing_address, guest_street, guest_postcode, guest_city, guest_country, customer_id, group_booking_id, notes, rooms(name, room_number, room_types(name))')
           .ilike('guest_name', `%${v}%`)
           .is('deleted_at', null)
           .order('checkin_at', { ascending: false })
@@ -824,6 +841,41 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     // Room type name (e.g. "Doppelzimmer"), fallback to room name
     const roomTypeName = (r.rooms as any).room_types?.name ?? (r.rooms as any).name
 
+    // A group booking bills every room on one invoice.
+    if (r.group_booking_id) {
+      const { data: siblings } = await supabase
+        .from('reservations')
+        .select('checkin_at, checkout_at, total_price, guest_count, child_count, rooms(name, room_number, room_types(name))')
+        .eq('group_booking_id', r.group_booking_id)
+        .is('deleted_at', null)
+        .order('checkin_at')
+
+      const lines: GroupRoomLine[] = ((siblings ?? []) as any[]).map(sr => {
+        const nn = Math.max(1, Math.round(
+          (new Date(sr.checkout_at).getTime() - new Date(sr.checkin_at).getTime()) / 86400000))
+        return {
+          room_number: sr.rooms?.room_number ?? '',
+          room_name:   sr.rooms?.room_types?.name ?? sr.rooms?.name ?? '',
+          checkin_at:  sr.checkin_at,
+          checkout_at: sr.checkout_at,
+          nights:      nn,
+          adults:      (sr.guest_count ?? 1) - (sr.child_count ?? 0),
+          children:    sr.child_count ?? 0,
+          price:       sr.total_price ?? 0,
+        }
+      })
+      setGroupRooms(lines)
+      setGroupId(r.group_booking_id)
+      setTotalPrice(String(lines.reduce((sum, l) => sum + l.price, 0)))
+      setGuestCount(String(lines.reduce((sum, l) => sum + l.adults, 0)))
+      setChildCount(String(lines.reduce((sum, l) => sum + l.children, 0)))
+    } else {
+      setGroupRooms([])
+      setGroupId(null)
+      setTotalPrice(String(r.total_price ?? ''))
+      setGuestCount(String(r.guest_count))
+    }
+
     setReservationId(r.id)
     setGuestName(r.guest_name)
     setGuestEmail(email)
@@ -833,10 +885,8 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     setCheckinAt(toLocalDatetime(r.checkin_at))
     setCheckoutAt(toLocalDatetime(r.checkout_at))
     setNights(String(n))
-    setTotalPrice(String(r.total_price ?? ''))
     setPayMethod(r.payment_method)
     setBreakfast(r.breakfast_included)
-    setGuestCount(String(r.guest_count))
     setNotes(r.notes ?? '')
     setStep('form')
   }

@@ -4,7 +4,15 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAdmin } from '@/hooks/useAdmin'
 import { cn } from '@/lib/cn'
-import { SlidersHorizontal, ShieldCheck, Loader2, Eye, EyeOff, Wallet } from 'lucide-react'
+import { SlidersHorizontal, ShieldCheck, Loader2, Eye, EyeOff, Wallet, BedDouble } from 'lucide-react'
+
+interface RoomTypeRow {
+  id:         string
+  name:       string
+  category:   string
+  base_price: number | null
+  sort_order: number
+}
 
 interface MenuRow {
   menu_key:          string
@@ -22,6 +30,9 @@ export default function SettingsPage() {
   const [msg,     setMsg]     = useState('')
   const [depositPct,    setDepositPct]    = useState('30')
   const [savingDeposit, setSavingDeposit] = useState(false)
+  const [roomTypes,     setRoomTypes]     = useState<RoomTypeRow[]>([])
+  const [prices,        setPrices]        = useState<Record<string, string>>({})
+  const [savingPrice,   setSavingPrice]   = useState<string | null>(null)
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -30,6 +41,15 @@ export default function SettingsPage() {
       .order('sort_order')
     if (data) setRows(data as MenuRow[])
 
+    const { data: types } = await supabase
+      .from('room_types').select('id, name, category, base_price, sort_order').order('sort_order')
+    if (types) {
+      setRoomTypes(types as RoomTypeRow[])
+      setPrices(Object.fromEntries((types as RoomTypeRow[]).map(
+        t => [t.id, t.base_price != null ? String(t.base_price) : ''],
+      )))
+    }
+
     const { data: settings } = await supabase
       .from('invoice_settings').select('default_deposit_percent').eq('id', 1).single()
     const pct = (settings as { default_deposit_percent?: number } | null)?.default_deposit_percent
@@ -37,6 +57,20 @@ export default function SettingsPage() {
 
     setLoading(false)
   }, [supabase])
+
+  async function saveRoomPrice(t: RoomTypeRow) {
+    const raw = prices[t.id]
+    const val = raw === '' ? null : parseFloat(raw)
+    if (val != null && (Number.isNaN(val) || val < 0)) return
+    setSavingPrice(t.id)
+    const { error } = await supabase
+      .from('room_types').update({ base_price: val }).eq('id', t.id)
+    if (!error) {
+      setRoomTypes(prev => prev.map(r => r.id === t.id ? { ...r, base_price: val } : r))
+      setMsg('✓ Gespeichert'); setTimeout(() => setMsg(''), 2000)
+    }
+    setSavingPrice(null)
+  }
 
   async function saveDepositPct() {
     const pct = parseFloat(depositPct)
@@ -183,6 +217,55 @@ export default function SettingsPage() {
           ))}
         </div>
       )}
+
+      {/* ── Room base prices ───────────────────────────────────────────── */}
+      <div className="mt-8">
+        <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-1">
+          <BedDouble className="w-5 h-5 text-slate-500" />
+          Zimmerpreise
+        </h2>
+        <p className="text-slate-500 text-sm mb-4">
+          Preis pro Nacht <strong>inklusive Frühstück</strong>, je Zimmertyp.
+          Wird bei Gruppenbuchungen vorgeschlagen und bleibt dort änderbar.
+        </p>
+
+        {loading ? (
+          <div className="text-center py-10 text-slate-400 text-sm">Lädt…</div>
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+            {roomTypes.map((t, idx) => (
+              <div key={t.id}
+                className={cn('flex items-center gap-3 px-4 sm:px-5 py-3.5',
+                  idx < roomTypes.length - 1 && 'border-b border-slate-100')}>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm text-slate-900 truncate">{t.name}</p>
+                  <p className="text-xs text-slate-400">
+                    {t.base_price != null ? `Aktuell ${t.base_price.toFixed(2)} € / Nacht` : 'Kein Preis hinterlegt'}
+                  </p>
+                </div>
+                <div className="relative flex-shrink-0">
+                  <input
+                    type="number" min={0} step="0.01"
+                    value={prices[t.id] ?? ''}
+                    onChange={e => setPrices(p => ({ ...p, [t.id]: e.target.value }))}
+                    onKeyDown={e => { if (e.key === 'Enter') saveRoomPrice(t) }}
+                    placeholder="0.00"
+                    aria-label={`Preis für ${t.name}`}
+                    className="w-28 rounded-lg border border-slate-300 pl-3 pr-7 h-11 text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">€</span>
+                </div>
+                <button
+                  onClick={() => saveRoomPrice(t)}
+                  disabled={savingPrice === t.id || (prices[t.id] ?? '') === (t.base_price != null ? String(t.base_price) : '')}
+                  className="flex-shrink-0 rounded-xl bg-blue-600 text-white px-4 h-11 text-sm font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                  {savingPrice === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Speichern'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* ── Default deposit percentage ─────────────────────────────────── */}
       <div className="mt-8">

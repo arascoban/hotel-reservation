@@ -22,6 +22,8 @@ export interface RoomType {
   base_capacity: number
   max_capacity: number
   sort_order: number
+  /** Price per night incl. breakfast — pre-fills group bookings. */
+  base_price: number | null
   description: string | null
   created_at: string
   updated_at: string
@@ -107,6 +109,8 @@ export interface Reservation {
   guest_city:      string | null
   guest_country:   string | null
   family_booking_id: string | null
+  group_booking_id: string | null
+  customer_id: string | null
   locker_id: string | null
   deleted_at: string | null
   created_at: string

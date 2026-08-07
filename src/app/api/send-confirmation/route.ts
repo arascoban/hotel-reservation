@@ -83,13 +83,14 @@ function buildEmailHtml(opts: {
   guestCountry:   string | null
   depositBlock:   string
   logoSrc:        string
+  groupBlock:     string
 }) {
   const {
     guestName, roomName, roomNumber, roomType,
     checkinAt, checkoutAt, guestCount, breakfastIncluded,
     source, paymentMethod, paymentStatus, totalPrice,
     notes, lockerNumber, lockerPin, reservationId, nights, includeKeys,
-    guestStreet, guestPostcode, guestCity, guestCountry, depositBlock, logoSrc,
+    guestStreet, guestPostcode, guestCity, guestCountry, depositBlock, logoSrc, groupBlock,
   } = opts
 
   // Build address block (only if at least one field is present)
@@ -183,6 +184,9 @@ function buildEmailHtml(opts: {
                   ${breakfastIncluded ? `<p style="margin:6px 0 0;display:inline-block;background:#fef3c7;color:#92400e;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;">☕ Frühstück inklusive</p>` : ''}
                 </td>
               </tr>
+
+              <!-- Weitere Zimmer der Gruppenbuchung -->
+              ${groupBlock}
 
               <!-- Aufenthalt -->
               <tr>
@@ -332,6 +336,59 @@ export async function POST(req: NextRequest) {
               </tr>`
     }
 
+    // A group booking is confirmed once, listing every room it covers.
+    let groupBlock = ''
+    if (r.group_booking_id) {
+      const { data: groupRows } = await supabase
+        .from('reservations')
+        .select('checkin_at, checkout_at, guest_count, child_count, total_price, rooms(name, room_number, room_types(name))')
+        .eq('group_booking_id', r.group_booking_id)
+        .is('deleted_at', null)
+        .order('checkin_at')
+
+      const rows = (groupRows ?? []) as any[]
+      if (rows.length > 1) {
+        const totalRooms  = rows.length
+        const totalGuests = rows.reduce((sum, g) => sum + (g.guest_count ?? 0), 0)
+        const grandTotal  = rows.reduce((sum, g) => sum + (g.total_price ?? 0), 0)
+
+        const roomRows = rows.map(g => {
+          const kids = g.child_count ?? 0
+          const adults = (g.guest_count ?? 1) - kids
+          return `
+                    <tr>
+                      <td style="font-size:13px;color:#0f172a;padding:6px 0;border-bottom:1px solid #f1f5f9;">
+                        <strong>Zimmer ${g.rooms?.room_number ?? ''}</strong>
+                        <span style="color:#64748b;"> · ${g.rooms?.room_types?.name ?? g.rooms?.name ?? ''}</span><br />
+                        <span style="font-size:12px;color:#94a3b8;">
+                          ${localDT(g.checkin_at).slice(0, 10)} – ${localDT(g.checkout_at).slice(0, 10)} ·
+                          ${adults} Erw.${kids > 0 ? ` + ${kids} Kind${kids !== 1 ? 'er' : ''}` : ''}
+                        </span>
+                      </td>
+                      <td style="font-size:13px;font-weight:700;color:#0f172a;text-align:right;padding:6px 0;border-bottom:1px solid #f1f5f9;">
+                        ${g.total_price != null ? depEur(g.total_price) : '—'}
+                      </td>
+                    </tr>`
+        }).join('')
+
+        groupBlock = `
+              <tr>
+                <td style="padding:20px 0;border-bottom:1px solid #f1f5f9;">
+                  <p style="margin:0 0 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;">
+                    Gruppenbuchung · ${totalRooms} Zimmer · ${totalGuests} Personen
+                  </p>
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    ${roomRows}
+                    <tr>
+                      <td style="font-size:14px;font-weight:700;color:#0f172a;padding-top:10px;">Gesamtpreis</td>
+                      <td style="font-size:18px;font-weight:800;color:#2563eb;text-align:right;padding-top:10px;">${depEur(grandTotal)}</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>`
+      }
+    }
+
     const logo = await resolveEmailLogo(originFromRequest(req))
 
     const html = buildEmailHtml({
@@ -360,6 +417,7 @@ export async function POST(req: NextRequest) {
       guestCountry:  r.guest_country  ?? null,
       depositBlock,
       logoSrc: logo.src,
+      groupBlock,
     })
 
     const transporter = createTransporter()

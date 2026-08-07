@@ -32,6 +32,12 @@ const PAY_LABELS: Record<string, string> = {
 }
 
 interface ServiceItem    { name: string; qty: number; unit_price: number; total: number }
+/** One room of a group booking — a group is billed on a single invoice. */
+interface GroupRoomLine {
+  room_number: string; room_name: string
+  checkin_at: string; checkout_at: string; nights: number
+  adults: number; children: number; price: number
+}
 interface CustomLineItem { id: string; name?: string; description: string; qty: number; unit_price: number; vat_rate: 7 | 19 }
 
 interface Props {
@@ -82,6 +88,13 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
   const totalPrice                   = (inv.total_price ?? 0) as number
   const customItems: CustomLineItem[] = Array.isArray(inv.line_items) ? (inv.line_items as CustomLineItem[]) : []
 
+  // Group booking: every room gets its own line instead of the single
+  // room / room2 pair a normal invoice uses.
+  const groupRooms: GroupRoomLine[] = Array.isArray(inv.group_rooms) ? inv.group_rooms : []
+  const isGroup = groupRooms.length > 0
+  const groupGross = groupRooms.reduce((s2, g) => s2 + (g.price ?? 0), 0)
+  const groupAdultNights = groupRooms.reduce((s2, g) => s2 + g.adults * g.nights, 0)
+
   const custom7Gross  = customItems.filter(i => i.vat_rate === 7) .reduce((s, i) => s + i.qty * i.unit_price, 0)
   const custom19Gross = customItems.filter(i => i.vat_rate === 19).reduce((s, i) => s + i.qty * i.unit_price, 0)
   const custom7Net    = custom7Gross  > 0 ? custom7Gross  / 1.07 : 0
@@ -105,18 +118,22 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
     : `${room2AdultCount} Erw.`
 
   // Breakfast: extract from EACH room's gross price separately
-  const room1BreakfastGross = hasBreakfast ? adultCount * nights * breakfastPPP : 0
+  const room1BreakfastGross = hasBreakfast
+    ? (isGroup ? groupAdultNights * breakfastPPP : adultCount * nights * breakfastPPP)
+    : 0
   const room2BreakfastGross = hasRoom2 && hasBreakfast ? room2AdultCount * room2DisplayNights * breakfastPPP : 0
   const breakfastGross      = room1BreakfastGross + room2BreakfastGross
   // Breakfast Anz = Personen × Nächte (per room, summed)
-  const bfstAnz    = adultCount * nights + (hasRoom2 ? room2AdultCount * room2DisplayNights : 0)
+  const bfstAnz    = isGroup
+    ? groupAdultNights
+    : adultCount * nights + (hasRoom2 ? room2AdultCount * room2DisplayNights : 0)
   const bfstEinzel = breakfastPPP
 
   // Accommodation = room price minus its breakfast share
-  const accommodationGross      = totalPrice - room1BreakfastGross
+  const accommodationGross      = (isGroup ? groupGross : totalPrice) - room1BreakfastGross
   const room2AccommodationGross = hasRoom2 ? room2Gross - room2BreakfastGross : 0
 
-  const grandTotal         = totalPrice + serviceTotal + customTotal
+  const grandTotal         = (isGroup ? groupGross : totalPrice) + serviceTotal + customTotal
   const pricePerNight      = nights > 0 ? accommodationGross / nights : accommodationGross
   const room2PricePerNight = room2DisplayNights > 0 ? room2AccommodationGross / room2DisplayNights : room2AccommodationGross
 
@@ -142,11 +159,19 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
 
   let posIdx = 0
   const POS = {
-    accommodation: isFreeform ? null : ++posIdx,
+    accommodation: (isFreeform || isGroup) ? null : ++posIdx,
+    groupStart:    isGroup ? 1 : null,
     room2:         hasRoom2         ? ++posIdx : null,
     breakfast:     hasBreakfast     ? ++posIdx : null,
     service:       serviceTotal > 0 ? ++posIdx : null,
     customStart:   posIdx + 1,
+  }
+  if (isGroup) {
+    // Group rows occupy positions 1..N; everything after continues from there.
+    posIdx += groupRooms.length
+    if (POS.breakfast) POS.breakfast = posIdx + (POS.breakfast - 1)
+    if (POS.service)   POS.service   = posIdx + (POS.service   - 1)
+    POS.customStart = posIdx + (POS.breakfast ? 1 : 0) + (POS.service ? 1 : 0) + 1
   }
 
   const addressLines = (inv.guest_address ?? '').split('\n').filter(Boolean) as string[]
@@ -348,8 +373,31 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
             </thead>
             <tbody>
 
+              {/* Group booking: one row per room */}
+              {isGroup && groupRooms.map((g, i) => {
+                const gNet = g.price / (1 + BREAKFAST_VAT)
+                const perNight = g.nights > 0 ? g.price / g.nights : g.price
+                return (
+                  <tr key={`${g.room_number}-${i}`} className="border-b border-slate-100">
+                    <td className="px-3 py-1.5 text-slate-400 text-xs align-top">{i + 1}</td>
+                    <td className="px-3 py-1.5 text-slate-800 align-top">
+                      <span className="font-medium">{g.room_name || 'Übernachtung'}</span>
+                      <span className="block text-xs text-slate-400 mt-0.5">
+                        Zimmer Nr. {g.room_number} · {format(new Date(g.checkin_at), 'dd.MM.yyyy')} – {format(new Date(g.checkout_at), 'dd.MM.yyyy')}
+                        {' · '}{g.adults} Erw.{g.children > 0 ? ` + ${g.children} Kind${g.children !== 1 ? 'er' : ''}` : ''}
+                      </span>
+                    </td>
+                    <td className="px-3 py-1.5 text-center text-slate-600 align-top">{g.nights}</td>
+                    <td className="px-3 py-1.5 text-right text-slate-600 align-top">{eur(perNight)}</td>
+                    <td className="px-3 py-1.5 text-center text-slate-500 text-xs align-top">7 %</td>
+                    <td className="px-3 py-1.5 text-right text-slate-600 align-top">{eur(gNet)}</td>
+                    <td className="px-3 py-1.5 text-right font-semibold text-slate-800 align-top">{eur(g.price)}</td>
+                  </tr>
+                )
+              })}
+
               {/* Pos 1: Room type as main description (hotel invoices only) */}
-              {!isFreeform && (
+              {!isFreeform && !isGroup && (
               <tr className="border-b border-slate-100">
                 <td className="px-3 py-1.5 text-slate-400 text-xs align-top">{POS.accommodation}</td>
                 <td className="px-3 py-1.5 text-slate-800 align-top">
