@@ -71,6 +71,8 @@ export interface Guest {
 export interface Customer {
   id: string
   name: string
+  /** Anrede: 'Herr' | 'Frau' | null */
+  salutation: string | null
   email: string | null
   phone: string | null
   street: string | null
@@ -88,6 +90,8 @@ export interface Reservation {
   room_id: string
   guest_id: string | null
   guest_name: string
+  /** Anrede: 'Herr' | 'Frau' | null */
+  salutation: string | null
   guest_email: string | null
   guest_phone: string | null
   guest_count: number

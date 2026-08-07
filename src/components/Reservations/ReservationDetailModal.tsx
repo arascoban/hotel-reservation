@@ -24,6 +24,7 @@ import DateInput from '@/components/ui/DateInput'
 import TimeInput from '@/components/ui/TimeInput'
 import CountryInput from '@/components/ui/CountryInput'
 import { findOrCreateCustomer, syncCustomerFromReservation } from '@/lib/customers'
+import { SALUTATIONS } from '@/lib/salutation'
 import DepositEmailButton from '@/components/Deposit/DepositEmailButton'
 import PaymentsEditor from '@/components/Deposit/PaymentsEditor'
 import DepositEditor, { type DepositState, EMPTY_DEPOSIT, depositPayload, depositFromRow } from '@/components/Deposit/DepositEditor'
@@ -110,6 +111,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
   // The *requested* deposit — what the guest is asked to pay up front. Kept
   // separate from the payments ledger, which records what actually arrived.
   const [editDeposit,    setEditDeposit]    = useState<DepositState>(EMPTY_DEPOSIT)
+  const [editSalutation,     setEditSalutation]     = useState('')
   const [editGuestName,      setEditGuestName]      = useState('')
   const [editGuestPhone,     setEditGuestPhone]     = useState('')
   const [editGuestEmail,     setEditGuestEmail]     = useState('')
@@ -159,6 +161,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       const { data: pays } = await supabase
         .from('payments').select('*').eq('reservation_id', reservationId).order('paid_on')
       setPayments((pays ?? []) as PaymentRow[])
+      setEditSalutation((r as any).salutation ?? '')
       setEditGuestName(r.guest_name)
       setEditGuestPhone(r.guest_phone ?? '')
       setEditGuestEmail(r.guest_email ?? '')
@@ -215,7 +218,8 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
     // linked customer. If the reservation has no customer yet (older rows,
     // iCal imports) we find or create one now.
     const guestFields = {
-      name:     editGuestName,
+      name:       editGuestName,
+      salutation: editSalutation,
       email:    editGuestEmail,
       phone:    editGuestPhone,
       street:   editGuestStreet,
@@ -235,6 +239,7 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
     await supabase.from('reservations')
       .update({
         internal_notes:  editInternalNotes  || null,
+        salutation:      editSalutation     || null,
         billing_address: billingAddress,
         guest_street:    editGuestStreet   || null,
         guest_postcode:  editGuestPostcode || null,
@@ -391,12 +396,23 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       <div className="flex items-start justify-between p-5 border-b border-slate-200">
         <div className="flex-1 min-w-0">
           {editing ? (
-            <input
-              type="text"
-              value={editGuestName}
-              onChange={e => setEditGuestName(e.target.value)}
-              className="text-lg font-semibold text-slate-900 border-b border-slate-300 bg-transparent focus:outline-none focus:border-blue-500 w-full"
-            />
+            <div className="flex items-center gap-2">
+              <select
+                value={editSalutation}
+                onChange={e => setEditSalutation(e.target.value)}
+                aria-label="Anrede"
+                className="text-sm text-slate-700 border-b border-slate-300 bg-transparent focus:outline-none focus:border-blue-500 py-1"
+              >
+                <option value="">Anrede</option>
+                {SALUTATIONS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <input
+                type="text"
+                value={editGuestName}
+                onChange={e => setEditGuestName(e.target.value)}
+                className="text-lg font-semibold text-slate-900 border-b border-slate-300 bg-transparent focus:outline-none focus:border-blue-500 w-full"
+              />
+            </div>
           ) : (
             <h2 className={cn('text-lg font-semibold truncate', isDeleted && 'line-through text-slate-400')}>
               {r.guest_name}

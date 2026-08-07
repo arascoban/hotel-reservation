@@ -7,6 +7,7 @@ import {
   buildCheckinTimestamp, buildCheckoutTimestamp, createReservationSafe, ReservationError,
 } from '@/lib/reservations'
 import { syncCustomerFromReservation, findOrCreateCustomer } from '@/lib/customers'
+import { SALUTATIONS } from '@/lib/salutation'
 import { eur } from '@/lib/deposit'
 import DateInput from '@/components/ui/DateInput'
 import CountryInput from '@/components/ui/CountryInput'
@@ -105,6 +106,7 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
   const [rows,    setRows]    = useState<GroupRow[]>([])
 
   // Shared guest fields
+  const [salutation, setSalutation] = useState('')
   const [guestName, setGuestName] = useState('')
   const [guestEmail, setGuestEmail] = useState('')
   const [guestPhone, setGuestPhone] = useState('')
@@ -154,6 +156,7 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
 
     if (list.length > 0) {
       const f = list[0]
+      setSalutation((f as any).salutation ?? '')
       setGuestName(f.guest_name)
       setGuestEmail(f.guest_email ?? '')
       setGuestPhone(f.guest_phone ?? '')
@@ -268,13 +271,14 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
       // Guest details are shared, so they go to the linked customer too.
       const custId = rows[0]?.customer_id ?? null
       const guestFields = {
-        name: guestName, email: guestEmail, phone: guestPhone,
+        name: guestName, salutation, email: guestEmail, phone: guestPhone,
         street, postcode, city, country,
       }
       if (custId) await syncCustomerFromReservation(supabase, custId, guestFields)
 
       const shared = {
         guest_name:      guestName,
+        salutation:      salutation || null,
         guest_email:     guestEmail || null,
         guest_phone:     guestPhone || null,
         guest_street:    street   || null,
@@ -447,7 +451,12 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
                 <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
                   Gast <span className="font-normal normal-case text-slate-400">(gilt für alle Zimmer)</span>
                 </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <select value={salutation} onChange={e => setSalutation(e.target.value)}
+                    className={inp} aria-label="Anrede">
+                    <option value="">Anrede</option>
+                    {SALUTATIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
                   <input value={guestName} onChange={e => setGuestName(e.target.value)}
                     className={inp} placeholder="Name / Firma" aria-label="Name" />
                   <input value={guestEmail} onChange={e => setGuestEmail(e.target.value)}

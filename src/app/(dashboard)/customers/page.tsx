@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAdmin } from '@/hooks/useAdmin'
 import CountryInput from '@/components/ui/CountryInput'
+import { SALUTATIONS } from '@/lib/salutation'
 import {
   Users, Search, Plus, X, Edit2, Trash2,
   Mail, Phone, MapPin, Calendar, ExternalLink,
@@ -15,6 +16,8 @@ import {
 interface Customer {
   id: string
   name: string
+  /** Anrede: 'Herr' | 'Frau' | null */
+  salutation: string | null
   email: string | null
   phone: string | null
   street: string | null
@@ -58,6 +61,7 @@ function CustomerModal({ customer, onClose, onSaved }: ModalProps) {
   const isEdit = !!customer
 
   const [name,     setName]     = useState(customer?.name     ?? '')
+  const [salutation, setSalutation] = useState(customer?.salutation ?? '')
   const [email,    setEmail]    = useState(customer?.email    ?? '')
   const [phone,    setPhone]    = useState(customer?.phone    ?? '')
   const [street,   setStreet]   = useState(customer?.street   ?? '')
@@ -73,6 +77,7 @@ function CustomerModal({ customer, onClose, onSaved }: ModalProps) {
     setSaving(true); setError(null)
     const payload = {
       name:     name.trim(),
+      salutation: salutation || null,
       email:    email.trim()    || null,
       phone:    phone.trim()    || null,
       street:   street.trim()   || null,
@@ -114,9 +119,18 @@ function CustomerModal({ customer, onClose, onSaved }: ModalProps) {
           {error && (
             <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-2 text-sm text-red-700">{error}</div>
           )}
-          <div>
-            <label className={labelCls}>Name *</label>
-            <input value={name} onChange={e => setName(e.target.value)} className={inputCls} placeholder="Vor- und Nachname" />
+          <div className="grid grid-cols-[7rem_1fr] gap-3">
+            <div>
+              <label className={labelCls}>Anrede</label>
+              <select value={salutation} onChange={e => setSalutation(e.target.value)} className={inputCls}>
+                <option value="">—</option>
+                {SALUTATIONS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Name *</label>
+              <input value={name} onChange={e => setName(e.target.value)} className={inputCls} placeholder="Vor- und Nachname" />
+            </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>

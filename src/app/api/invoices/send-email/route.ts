@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
+import { greeting as buildGreeting } from '@/lib/salutation'
 
 // Strato SMTP transporter (same config as send-confirmation)
 function createTransporter() {
@@ -32,10 +33,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Build gender-correct salutation
-    const greeting =
-      salutation === 'Herr' ? `Sehr geehrter Herr ${guestSurname}` :
-      salutation === 'Frau' ? `Sehr geehrte Frau ${guestSurname}`  :
-      `Sehr geehrte/r Frau/Herr ${guestSurname}`
+    const greeting = buildGreeting(salutation, guestSurname)
 
     // Free-text invoices have no stay → generic, date-free wording.
     const subject = freeform

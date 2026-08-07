@@ -110,6 +110,7 @@ interface Reservation {
 interface Customer {
   id: string
   name: string
+  salutation: string | null
   email: string | null
   phone: string | null
   street: string | null
@@ -760,7 +761,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       if (tab === 'reservation') {
         const { data } = await supabase
           .from('reservations')
-          .select('id, guest_name, guest_email, guest_count, room_id, checkin_at, checkout_at, total_price, payment_method, breakfast_included, billing_address, guest_street, guest_postcode, guest_city, guest_country, customer_id, group_booking_id, notes, rooms(name, room_number, room_types(name))')
+          .select('id, guest_name, salutation, guest_email, guest_count, room_id, checkin_at, checkout_at, total_price, payment_method, breakfast_included, billing_address, guest_street, guest_postcode, guest_city, guest_country, customer_id, group_booking_id, notes, rooms(name, room_number, room_types(name))')
           .ilike('guest_name', `%${v}%`)
           .is('deleted_at', null)
           .order('checkin_at', { ascending: false })
@@ -769,7 +770,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       } else {
         const { data } = await (supabase as any)
           .from('customers')
-          .select('id, name, email, phone, street, postcode, city, country')
+          .select('id, name, salutation, email, phone, street, postcode, city, country')
           .ilike('name', `%${v}%`)
           .limit(12)
         setCustResults((data ?? []) as Customer[])
@@ -877,6 +878,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     }
 
     setReservationId(r.id)
+    setSalutation((r as any).salutation ?? '')
     setGuestName(r.guest_name)
     setGuestEmail(email)
     setGuestAddress(address)
@@ -895,6 +897,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
 
   function prefillFromCustomer(c: Customer) {
     setReservationId(null)
+    setSalutation(c.salutation ?? '')
     setGuestName(c.name)
     setGuestEmail(c.email ?? '')
     setGuestAddress(buildCustomerAddress(c))
@@ -921,7 +924,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       setSearching(true)
       const { data } = await (supabase as any)
         .from('customers')
-        .select('id, name, email, phone, street, postcode, city, country')
+        .select('id, name, salutation, email, phone, street, postcode, city, country')
         .ilike('name', `%${v}%`)
         .limit(8)
       setCustResults((data ?? []) as Customer[])
@@ -930,6 +933,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   }
 
   function applyCustomerToRecipient(c: Customer) {
+    setSalutation(c.salutation ?? '')
     setGuestName(c.name)
     setGuestEmail(c.email ?? '')
     setGuestAddress(buildCustomerAddress(c))

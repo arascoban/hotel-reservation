@@ -9,6 +9,7 @@ import {
 import type { ReservationSource, PaymentMethod, PaymentStatus } from '@/types/database'
 import { cn } from '@/lib/cn'
 import { findOrCreateCustomer } from '@/lib/customers'
+import { SALUTATIONS } from '@/lib/salutation'
 import DepositEditor, { type DepositState, EMPTY_DEPOSIT, depositPayload } from '@/components/Deposit/DepositEditor'
 import DateInput from '@/components/ui/DateInput'
 import TimeInput from '@/components/ui/TimeInput'
@@ -21,7 +22,7 @@ import {
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Customer {
-  id: string; name: string; email: string | null; phone: string | null
+  id: string; name: string; salutation: string | null; email: string | null; phone: string | null
   street: string | null; postcode: string | null; city: string | null; country: string | null
 }
 
@@ -110,6 +111,7 @@ export default function GroupReservationForm() {
   const [searching,   setSearching]   = useState(false)
   const [customerId,  setCustomerId]  = useState<string | null>(null)
 
+  const [salutation,   setSalutation]   = useState('')
   const [guestName,    setGuestName]    = useState('')
   const [guestEmail,   setGuestEmail]   = useState('')
   const [guestPhone,   setGuestPhone]   = useState('')
@@ -152,7 +154,7 @@ export default function GroupReservationForm() {
       setSearching(true)
       const { data } = await (supabase as any)
         .from('customers')
-        .select('id, name, email, phone, street, postcode, city, country')
+        .select('id, name, salutation, email, phone, street, postcode, city, country')
         .ilike('name', `%${custQuery}%`)
         .limit(8)
       setCustResults((data ?? []) as Customer[])
@@ -164,6 +166,7 @@ export default function GroupReservationForm() {
 
   function applyCustomer(c: Customer) {
     setCustomerId(c.id)
+    setSalutation(c.salutation ?? '')
     setGuestName(c.name)
     setGuestEmail(c.email ?? '')
     setGuestPhone(c.phone ?? '')
@@ -337,7 +340,7 @@ export default function GroupReservationForm() {
     try {
       // One customer record for the whole group
       const custId = customerId ?? await findOrCreateCustomer(supabase, {
-        name: guestName, email: guestEmail, phone: guestPhone,
+        name: guestName, salutation, email: guestEmail, phone: guestPhone,
         street: guestStreet, postcode: guestPostcode, city: guestCity, country: guestCountry,
       })
 
@@ -387,6 +390,7 @@ export default function GroupReservationForm() {
             ...(isFirstRoom ? groupDeposit : {}),
             group_booking_id:  groupId,
             family_booking_id: familyId,
+            salutation:        salutation || null,
             customer_id:       custId,
             child_count:       p.children,
             internal_notes:    internalNotes || null,
@@ -450,7 +454,14 @@ export default function GroupReservationForm() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Anrede</label>
+            <select value={salutation} onChange={e => setSalutation(e.target.value)} className={inp}>
+              <option value="">—</option>
+              {SALUTATIONS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
               Name <span className="text-red-500">*</span>

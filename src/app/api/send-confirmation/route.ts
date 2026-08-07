@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { formatDate } from '@/lib/reservations'
 import { summarizeLedger, summarizeDeposit, formatDeDate, eur as depEur, PAYMENT_KIND_LABELS, DEPOSIT_METHOD_LABELS, type PaymentRow } from '@/lib/deposit'
 import { resolveEmailLogo, originFromRequest } from '@/lib/emailLogo'
+import { greetingOrFriendly } from '@/lib/salutation'
 
 // Parse time directly from the stored ISO string to avoid UTC conversion on the server.
 // Timestamps are stored as +02:00 — new Date() would shift them by -2h in UTC Node.js.
@@ -59,6 +60,8 @@ function getRoomFloor(roomNumber: string): string {
 
 function buildEmailHtml(opts: {
   guestName: string
+  /** 'Herr' | 'Frau' | null — decides the opening line. */
+  salutation: string | null
   roomName: string
   roomNumber: string
   roomType: string
@@ -90,7 +93,7 @@ function buildEmailHtml(opts: {
   lockers:        Array<{ roomNumber: string; pin: string }>
 }) {
   const {
-    guestName, roomName, roomNumber, roomType,
+    guestName, salutation, roomName, roomNumber, roomType,
     checkinAt, checkoutAt, guestCount, breakfastIncluded,
     source, paymentMethod, paymentStatus, totalPrice,
     notes, lockerNumber, lockerPin, reservationId, nights, includeKeys,
@@ -250,7 +253,7 @@ function buildEmailHtml(opts: {
               <!-- Greeting -->
               <tr>
                 <td style="padding-bottom:24px;border-bottom:1px solid #f1f5f9;">
-                  <p style="margin:0;font-size:20px;font-weight:700;color:#0f172a;">Liebe/r ${guestName},</p>
+                  <p style="margin:0;font-size:20px;font-weight:700;color:#0f172a;">${greetingOrFriendly(salutation, guestName)},</p>
                   <p style="margin:8px 0 0;font-size:15px;color:#475569;line-height:1.6;">vielen Dank für Ihre Buchung! Wir freuen uns auf Ihren Aufenthalt und bestätigen Ihre Reservierung wie folgt:</p>
                   ${addressBlock ? `<div style="margin-top:12px;padding-top:12px;border-top:1px solid #f1f5f9;">${addressBlock}</div>` : ''}
                 </td>
@@ -528,6 +531,7 @@ export async function POST(req: NextRequest) {
 
     const html = buildEmailHtml({
       guestName:         r.guest_name,
+      salutation:        r.salutation ?? null,
       roomName:          r.rooms.name,
       roomNumber:        r.rooms.room_number,
       roomType:          r.rooms.room_types.name,

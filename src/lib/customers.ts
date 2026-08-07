@@ -18,6 +18,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface CustomerInput {
   name:      string
+  /** Anrede: 'Herr' | 'Frau' | null */
+  salutation?: string | null
   email?:    string | null
   phone?:    string | null
   street?:   string | null
@@ -50,6 +52,7 @@ export async function findOrCreateCustomer(
   const name = clean(input.name)
   if (!name) return null
 
+  const salutation = clean(input.salutation)
   const email    = clean(input.email)
   const phone    = clean(input.phone)
   const street   = clean(input.street)
@@ -75,6 +78,7 @@ export async function findOrCreateCustomer(
     // ── 2. Enrich blanks on the existing record ─────────────────────────────
     if (existing) {
       const patch: Record<string, unknown> = {}
+      if (!existing.salutation && salutation) patch.salutation = salutation
       if (!existing.email    && email)    patch.email    = email
       if (!existing.phone    && phone)    patch.phone    = phone
       if (!existing.street   && street)   patch.street   = street
@@ -92,7 +96,7 @@ export async function findOrCreateCustomer(
     const { data: created } = await supabase
       .from('customers')
       .insert({
-        name, email, phone, street, postcode, city, country,
+        name, salutation, email, phone, street, postcode, city, country,
         source: input.source ?? 'reservation',
       })
       .select('id')
@@ -120,6 +124,7 @@ export async function syncCustomerFromReservation(
   const name = clean(input.name)
   if (name) patch.name = name
   // Explicit edits win — including clearing a field.
+  if (input.salutation !== undefined) patch.salutation = clean(input.salutation)
   if (input.email    !== undefined) patch.email    = clean(input.email)
   if (input.phone    !== undefined) patch.phone    = clean(input.phone)
   if (input.street   !== undefined) patch.street   = clean(input.street)

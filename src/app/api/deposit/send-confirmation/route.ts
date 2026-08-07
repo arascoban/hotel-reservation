@@ -20,6 +20,7 @@ import nodemailer from 'nodemailer'
 import { createClient } from '@/lib/supabase/server'
 import { summarizeLedger, formatDeDate, eur, PAYMENT_KIND_LABELS, DEPOSIT_METHOD_LABELS, REMAINING_DUE_TEXT, type PaymentRow } from '@/lib/deposit'
 import { resolveEmailLogo, originFromRequest } from '@/lib/emailLogo'
+import { greeting } from '@/lib/salutation'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,12 +36,6 @@ function createTransporter() {
     },
     tls: { rejectUnauthorized: false },
   })
-}
-
-function greeting(salutation: string | null, surname: string): string {
-  if (salutation === 'Herr') return `Sehr geehrter Herr ${surname}`
-  if (salutation === 'Frau') return `Sehr geehrte Frau ${surname}`
-  return `Sehr geehrte/r Frau/Herr ${surname}`
 }
 
 export async function POST(req: NextRequest) {
@@ -111,8 +106,7 @@ export async function POST(req: NextRequest) {
     }
 
     const guestName = (row.guest_name ?? '').trim()
-    const surname   = guestName.split(/\s+/).slice(-1)[0] || guestName
-    const hello     = greeting(row.salutation ?? null, surname)
+    const hello     = greeting(row.salutation ?? null, guestName)
     const lastPayment = dep.payments[dep.payments.length - 1]
 
     // ── Wording ─────────────────────────────────────────────────────────────

@@ -18,6 +18,7 @@ import DateInput from '@/components/ui/DateInput'
 import TimeInput from '@/components/ui/TimeInput'
 import CountryInput from '@/components/ui/CountryInput'
 import { findOrCreateCustomer } from '@/lib/customers'
+import { SALUTATIONS } from '@/lib/salutation'
 import DepositEditor, { type DepositState, EMPTY_DEPOSIT, depositPayload } from '@/components/Deposit/DepositEditor'
 
 // ── Family room definitions ────────────────────────────────────────────────────
@@ -70,6 +71,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
   const [familyKey,   setFamilyKey]   = useState<string>('')
 
   // ── Form state ──────────────────────────────────────────────────
+  const [salutation,   setSalutation]   = useState('')
   const [guestName,    setGuestName]    = useState('')
   const [guestPhone,   setGuestPhone]   = useState('')
   const [guestEmail,   setGuestEmail]   = useState('')
@@ -260,7 +262,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         const familyId = crypto.randomUUID()
         // Central customer record — keeps Kunden page & invoices in sync
         const customerId = await findOrCreateCustomer(supabase, {
-          name: guestName, email: guestEmail, phone: guestPhone,
+          name: guestName, salutation, email: guestEmail, phone: guestPhone,
           street: guestStreet, postcode: guestPostcode, city: guestCity, country: guestCountry,
         })
         const addressFields = {
@@ -272,6 +274,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         }
         const familyExtra = {
           ...requestedDeposit(),
+          salutation:        salutation || null,
           family_booking_id: familyId,
           internal_notes:    internalNotes || null,
           child_count:       children,
@@ -338,7 +341,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
       // Central customer record — an address typed here must also reach the
       // Kunden page and any invoice created later.
       const customerId = await findOrCreateCustomer(supabase, {
-        name: guestName, email: guestEmail, phone: guestPhone,
+        name: guestName, salutation, email: guestEmail, phone: guestPhone,
         street: guestStreet, postcode: guestPostcode, city: guestCity, country: guestCountry,
       })
 
@@ -353,6 +356,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
         extras.billing_address = buildBillingAddress(guestStreet, guestPostcode, guestCity, guestCountry)
       }
       extras.child_count = children
+      extras.salutation  = salutation || null
       if (customerId) extras.customer_id = customerId
       Object.assign(extras, requestedDeposit())
       if (Object.keys(extras).length > 0) {
@@ -443,16 +447,26 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
           Gastinformationen
         </h2>
 
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">
-            Vollständiger Name <span className="text-red-500">*</span>
-          </label>
-          <input type="text" required value={guestName}
-            onChange={e => setGuestName(e.target.value)}
-            className={fieldClass('guest_name')} placeholder="Max Mustermann" />
-          {fieldErrors.guest_name && (
-            <p className="mt-1 text-xs text-red-600">{fieldErrors.guest_name}</p>
-          )}
+        <div className="grid grid-cols-[7.5rem_1fr] gap-3">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Anrede</label>
+            <select value={salutation} onChange={e => setSalutation(e.target.value)}
+              className={fieldClass('salutation')}>
+              <option value="">—</option>
+              {SALUTATIONS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              Vollständiger Name <span className="text-red-500">*</span>
+            </label>
+            <input type="text" required value={guestName}
+              onChange={e => setGuestName(e.target.value)}
+              className={fieldClass('guest_name')} placeholder="Max Mustermann" />
+            {fieldErrors.guest_name && (
+              <p className="mt-1 text-xs text-red-600">{fieldErrors.guest_name}</p>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
