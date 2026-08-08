@@ -5,6 +5,7 @@ import { createClient }  from '@/lib/supabase/client'
 import { collapseBookingUnits, FAMILY_TYPE_NAME, storedDay, storedTime } from '@/lib/reservations'
 import { buildRecipient, BILL_TO_OPTIONS, type BillTo, type RecipientSource } from '@/lib/recipient'
 import { summarizeLedger, type PaymentRow } from '@/lib/deposit'
+import { BREAKFAST_VAT_RATE } from '@/lib/invoiceFromReservation'
 import { format }        from 'date-fns'
 import { de }            from 'date-fns/locale'
 import {
@@ -428,6 +429,7 @@ function EditModal({
       guest_count:                parseInt(guestCount) || 1,
       child_count:                parseInt(childCount) || 0,
       breakfast_price_per_person: parseFloat(bfstPrice) || 10,
+      breakfast_vat_rate:         BREAKFAST_VAT_RATE,
       room_service_total:         parseFloat(svcTotal) || 0,
       discount:                   parseFloat(discount) || 0,
       notes:                      notes || null,
@@ -1044,6 +1046,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       guest_count:                parseInt(guestCount) || 1,
       child_count:                parseInt(childCount) || 0,
       breakfast_price_per_person: parseFloat(bfstPrice) || 10,
+      breakfast_vat_rate:         BREAKFAST_VAT_RATE,
       room_service_total:         parseFloat(svcTotal) || 0,
       discount:                   parseFloat(discount) || 0,
       notes:                      notes || null,

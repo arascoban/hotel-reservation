@@ -15,6 +15,13 @@ import { buildRecipient, type BillTo } from './recipient'
 /** Breakfast is billed per person and night and split out of the room price. */
 export const BREAKFAST_PRICE_PER_PERSON = 10
 
+/**
+ * Breakfast carries the standard rate — only the overnight stay itself gets
+ * the reduced 7 % (Aufteilungsgebot). Stored per invoice so an issued one
+ * keeps the rate it was written with.
+ */
+export const BREAKFAST_VAT_RATE = 19
+
 export interface InvoiceRef {
   id: string
   invoice_number: number
@@ -199,6 +206,7 @@ export async function createInvoiceFromReservation(
     guest_count:        adults,
     child_count:        children,
     breakfast_price_per_person: BREAKFAST_PRICE_PER_PERSON,
+    breakfast_vat_rate:         BREAKFAST_VAT_RATE,
     room_service_total: 0,
     discount:           0,
     notes:              first.notes ?? null,

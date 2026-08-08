@@ -20,8 +20,10 @@ function eur(n: number) {
   return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 }
 
-const BREAKFAST_VAT = 0.07
-const SERVICE_VAT   = 0.19
+/** Reduced rate on the overnight stay. */
+const LODGING_VAT = 0.07
+/** Breakfast and room service are taxed at the standard rate. */
+const STANDARD_VAT = 0.19
 
 const PAY_LABELS: Record<string, string> = {
   cash:          'Bar erhalten',
@@ -140,13 +142,21 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
   const room2PricePerNight = room2DisplayNights > 0 ? room2AccommodationGross / room2DisplayNights : room2AccommodationGross
 
   // Net amounts at applicable VAT rates
-  const acc_net     = accommodationGross / (1 + BREAKFAST_VAT)
-  const room2AccNet = hasRoom2 ? room2AccommodationGross / (1 + BREAKFAST_VAT) : 0
-  const bfst_net    = breakfastGross > 0 ? breakfastGross / (1 + BREAKFAST_VAT) : 0
-  const svc_net     = serviceTotal > 0   ? serviceTotal   / (1 + SERVICE_VAT)   : 0
+  // … while breakfast carries the rate the invoice was issued with: changing
+  // it in code must never redraw an invoice a guest already holds.
+  const bfstVatPct  = Number(inv.breakfast_vat_rate ?? 7)
+  const bfstVat     = bfstVatPct / 100
+
+  const acc_net     = accommodationGross / (1 + LODGING_VAT)
+  const room2AccNet = hasRoom2 ? room2AccommodationGross / (1 + LODGING_VAT) : 0
+  const bfst_net    = breakfastGross > 0 ? breakfastGross / (1 + bfstVat) : 0
+  const svc_net     = serviceTotal > 0   ? serviceTotal   / (1 + STANDARD_VAT) : 0
+  const bfstVatAmt  = breakfastGross - bfst_net
   const sumNetto      = acc_net + room2AccNet + bfst_net + svc_net + custom7Net + custom19Net
-  const vat7          = (accommodationGross - acc_net) + (room2AccommodationGross - room2AccNet) + (breakfastGross - bfst_net) + (custom7Gross - custom7Net)
+  const vat7          = (accommodationGross - acc_net) + (room2AccommodationGross - room2AccNet)
+                      + (custom7Gross - custom7Net) + (bfstVatPct === 7 ? bfstVatAmt : 0)
   const vat19         = (serviceTotal - svc_net) + (custom19Gross - custom19Net)
+                      + (bfstVatPct === 19 ? bfstVatAmt : 0)
   const sumBrutto     = grandTotal + room2Gross
   const discountAmt   = (inv.discount ?? 0) as number
   const hasDiscount   = discountAmt > 0
@@ -377,7 +387,7 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
 
               {/* Group booking: one row per room */}
               {isGroup && groupRooms.map((g, i) => {
-                const gNet = g.price / (1 + BREAKFAST_VAT)
+                const gNet = g.price / (1 + LODGING_VAT)
                 const perNight = g.nights > 0 ? g.price / g.nights : g.price
                 return (
                   <tr key={`${g.room_number}-${i}`} className="border-b border-slate-100">
@@ -445,6 +455,7 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
                   <td className="px-3 py-1.5 text-slate-400 text-xs align-top">{POS.breakfast}</td>
                   <td className="px-3 py-1.5 text-slate-800 align-top">
                     <span className="font-medium">Frühstück</span>
+                    <span className="text-slate-500"> | Ohne Getränke</span>
                     <span className="block text-xs text-slate-400 mt-0.5">
                       {hasRoom2
                         ? `Zi. ${inv.room_number}: ${adultCount} Pers. × ${nights} Nächte · Zi. ${inv.room2_number}: ${room2AdultCount} Pers. × ${room2DisplayNights} Nächte`
@@ -454,7 +465,7 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
                   </td>
                   <td className="px-3 py-1.5 text-center text-slate-600 align-top">{bfstAnz}</td>
                   <td className="px-3 py-1.5 text-right text-slate-600 align-top">{eur(bfstEinzel)}</td>
-                  <td className="px-3 py-1.5 text-center text-slate-500 text-xs align-top">7 %</td>
+                  <td className="px-3 py-1.5 text-center text-slate-500 text-xs align-top">{bfstVatPct} %</td>
                   <td className="px-3 py-1.5 text-right text-slate-600 align-top">{eur(bfst_net)}</td>
                   <td className="px-3 py-1.5 text-right font-semibold text-slate-800 align-top">{eur(breakfastGross)}</td>
                 </tr>
