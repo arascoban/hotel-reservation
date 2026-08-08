@@ -133,6 +133,26 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
     : adultCount * nights + (hasRoom2 ? room2AdultCount * room2DisplayNights : 0)
   const bfstEinzel = breakfastPPP
 
+  // How the quantity comes about. Rooms of a group can have their own dates,
+  // so state it per stay length — "7 Pers. × 2 Nächte · 13 Pers. × 3 Nächte" —
+  // instead of one figure that does not match the Anz. column.
+  const bfstDescription = (() => {
+    const nn = (n: number) => `${n} Nacht${n !== 1 ? 'e' : ''}`
+    if (isGroup) {
+      const byNights = new Map<number, number>()
+      for (const g of groupRooms) byNights.set(g.nights, (byNights.get(g.nights) ?? 0) + g.adults)
+      return [...byNights.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([n, persons]) => `${persons} Pers. × ${nn(n)}`)
+        .join(' · ')
+    }
+    if (hasRoom2) {
+      return `Zi. ${inv.room_number}: ${adultCount} Pers. × ${nn(nights)}`
+           + ` · Zi. ${inv.room2_number}: ${room2AdultCount} Pers. × ${nn(room2DisplayNights)}`
+    }
+    return `${adultCount} Pers. × ${nn(nights)}`
+  })()
+
   // Accommodation = room price minus its breakfast share
   const accommodationGross      = (isGroup ? groupGross : totalPrice) - room1BreakfastGross
   const room2AccommodationGross = hasRoom2 ? room2Gross - room2BreakfastGross : 0
@@ -462,12 +482,7 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
                   <td className="px-3 py-1.5 text-slate-800 align-top">
                     <span className="font-medium">Frühstück</span>
                     <span className="text-slate-500"> | Ohne Getränke</span>
-                    <span className="block text-xs text-slate-400 mt-0.5">
-                      {hasRoom2
-                        ? `Zi. ${inv.room_number}: ${adultCount} Pers. × ${nights} Nächte · Zi. ${inv.room2_number}: ${room2AdultCount} Pers. × ${room2DisplayNights} Nächte`
-                        : `${adultCount} Pers. × ${nights} Nacht${nights !== 1 ? 'e' : ''}`
-                      }
-                    </span>
+                    <span className="block text-xs text-slate-400 mt-0.5">{bfstDescription}</span>
                   </td>
                   <td className="px-3 py-1.5 text-center text-slate-600 align-top">{bfstAnz}</td>
                   <td className="px-3 py-1.5 text-right text-slate-600 align-top">{eur(bfstEinzel)}</td>
