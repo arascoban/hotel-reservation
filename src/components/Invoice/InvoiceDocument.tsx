@@ -388,15 +388,20 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
 
               {/* Group booking: one row per room */}
               {isGroup && groupRooms.map((g, i) => {
-                const gNet = g.price / (1 + LODGING_VAT)
-                const perNight = g.nights > 0 ? g.price / g.nights : g.price
+                // The stored room price includes breakfast, which is billed on
+                // its own line below — so this row shows the accommodation
+                // alone. Otherwise the rooms add up to more than the total.
+                const gBreakfast = hasBreakfast ? g.adults * g.nights * breakfastPPP : 0
+                const gGross     = g.price - gBreakfast
+                const gNet       = gGross / (1 + LODGING_VAT)
+                const perNight   = g.nights > 0 ? gGross / g.nights : gGross
                 return (
                   <tr key={`${g.room_number}-${i}`} className="border-b border-slate-100">
                     <td className="px-3 py-1.5 text-slate-400 text-xs align-top">{i + 1}</td>
                     <td className="px-3 py-1.5 text-slate-800 align-top">
                       <span className="font-medium">{g.room_name || 'Übernachtung'}</span>
                       <span className="block text-xs text-slate-400 mt-0.5">
-                        Zimmer Nr. {g.room_number} · {format(new Date(g.checkin_at), 'dd.MM.yyyy')} – {format(new Date(g.checkout_at), 'dd.MM.yyyy')}
+                        Zimmer Nr. {g.room_number} · {storedDate(g.checkin_at)} – {storedDate(g.checkout_at)}
                         {' · '}{g.adults} Erw.{g.children > 0 ? ` + ${g.children} Kind${g.children !== 1 ? 'er' : ''}` : ''}
                       </span>
                     </td>
@@ -404,7 +409,7 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
                     <td className="px-3 py-1.5 text-right text-slate-600 align-top">{eur(perNight)}</td>
                     <td className="px-3 py-1.5 text-center text-slate-500 text-xs align-top">7 %</td>
                     <td className="px-3 py-1.5 text-right text-slate-600 align-top">{eur(gNet)}</td>
-                    <td className="px-3 py-1.5 text-right font-semibold text-slate-800 align-top">{eur(g.price)}</td>
+                    <td className="px-3 py-1.5 text-right font-semibold text-slate-800 align-top">{eur(gGross)}</td>
                   </tr>
                 )
               })}
