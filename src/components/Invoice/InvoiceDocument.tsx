@@ -157,6 +157,7 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
                       + (custom7Gross - custom7Net) + (bfstVatPct === 7 ? bfstVatAmt : 0)
   const vat19         = (serviceTotal - svc_net) + (custom19Gross - custom19Net)
                       + (bfstVatPct === 19 ? bfstVatAmt : 0)
+  const vatTotal      = vat7 + vat19
   const sumBrutto     = grandTotal + room2Gross
   const discountAmt   = (inv.discount ?? 0) as number
   const hasDiscount   = discountAmt > 0
@@ -533,16 +534,25 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
                     <td className="py-1.5 text-slate-500">Summe Netto</td>
                     <td className="py-1.5 text-right font-medium text-slate-700">{eur(sumNetto)}</td>
                   </tr>
+                  {/* One line per rate that actually applies, then the sum.
+                      The 19 % line used to be tied to room service and 19 %
+                      line items, so breakfast at 19 % never showed up. */}
                   {vat7 > 0 && (
-                  <tr className="border-b border-slate-100">
-                    <td className="py-1.5 text-slate-500">MwSt. 7 %</td>
-                    <td className="py-1.5 text-right font-medium text-slate-700">{eur(vat7)}</td>
-                  </tr>
+                    <tr className="border-b border-slate-100">
+                      <td className="py-1.5 text-slate-500">MwSt. 7 %</td>
+                      <td className="py-1.5 text-right font-medium text-slate-700">{eur(vat7)}</td>
+                    </tr>
                   )}
-                  {(serviceTotal > 0 || custom19Gross > 0) && (
+                  {vat19 > 0 && (
                     <tr className="border-b border-slate-100">
                       <td className="py-1.5 text-slate-500">MwSt. 19 %</td>
                       <td className="py-1.5 text-right font-medium text-slate-700">{eur(vat19)}</td>
+                    </tr>
+                  )}
+                  {vatTotal > 0 && (
+                    <tr className="border-b border-slate-200">
+                      <td className="py-1.5 text-slate-600 font-medium">MwSt. gesamt</td>
+                      <td className="py-1.5 text-right font-semibold text-slate-800">{eur(vatTotal)}</td>
                     </tr>
                   )}
                   {hasDiscount && (
