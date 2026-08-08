@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/cn'
 import {
   buildCheckinTimestamp, buildCheckoutTimestamp, createReservationSafe, ReservationError,
-  collapseBookingUnits, FAMILY_TYPE_NAME,
+  collapseBookingUnits, FAMILY_TYPE_NAME, storedDay,
 } from '@/lib/reservations'
 import { syncCustomerFromReservation, findOrCreateCustomer } from '@/lib/customers'
 import { SALUTATIONS } from '@/lib/salutation'
@@ -221,8 +221,8 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
         adults:      (r.guest_count ?? 1) - (r.child_count ?? 0),
         children:    r.child_count ?? 0,
         price:       r.total_price != null ? String(r.total_price) : '',
-        checkin:     r.checkin_at.slice(0, 10),
-        checkout:    r.checkout_at.slice(0, 10),
+        checkin:     storedDay(r.checkin_at),
+        checkout:    storedDay(r.checkout_at),
         remove:      false,
       }
     }))
@@ -412,12 +412,11 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
 
   /** Soft-delete every room of the booking — recoverable, unlike removing a
    *  single room, and invoices already issued keep their payments. */
+  /** Deleting removes the whole booking for good — issued invoices stay. */
   async function deleteGroup() {
     if (!confirmDelete) { setConfirmDelete(true); return }
     setActing(true); setConfirmDelete(false)
-    await supabase.from('reservations')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('group_booking_id', groupId)
+    await supabase.from('reservations').delete().eq('group_booking_id', groupId)
     setActing(false)
     onUpdated(); onClose()
   }

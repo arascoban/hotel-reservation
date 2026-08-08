@@ -18,8 +18,9 @@ import {
   getSourceColor,
   getRoomFloor,
   capacitySafeCount,
+  storedTime,
+  storedDay,
 } from '@/lib/reservations'
-import { useAdmin } from '@/hooks/useAdmin'
 import { cn } from '@/lib/cn'
 import DateInput from '@/components/ui/DateInput'
 import TimeInput from '@/components/ui/TimeInput'
@@ -79,7 +80,6 @@ interface Props {
 
 export default function ReservationDetailModal({ reservationId, onClose, onUpdated }: Props) {
   const supabase = createClient()
-  const { isAdmin } = useAdmin()
 
   const [reservation,          setReservation]          = useState<ReservationWithRoom | null>(null)
   const [loading,              setLoading]              = useState(true)
@@ -87,7 +87,6 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
   const [saving,               setSaving]               = useState(false)
   const [error,                setError]                = useState<string | null>(null)
   const [confirmDelete,        setConfirmDelete]        = useState(false)
-  const [confirmPermDelete,    setConfirmPermDelete]    = useState(false)
   const [confirmCancel,        setConfirmCancel]        = useState(false)
   const [sendingEmail,         setSendingEmail]         = useState(false)
   const [emailSent,            setEmailSent]            = useState(false)
@@ -151,15 +150,12 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
       setEditNotes(r.notes ?? '')
       setEditInternalNotes(r.internal_notes ?? '')
       setEditTotalPrice(r.total_price?.toString() ?? '')
-      setEditCheckin(r.checkin_at.slice(0, 10))
-      setEditCheckout(r.checkout_at.slice(0, 10))
-      // Extract HH:MM from ISO timestamp to pre-fill time inputs
-      const toHHMM = (iso: string) => {
-        const d = new Date(iso)
-        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-      }
-      setEditCheckinTime(toHHMM(r.checkin_at))
-      setEditCheckoutTime(toHHMM(r.checkout_at))
+      setEditCheckin(storedDay(r.checkin_at))
+      setEditCheckout(storedDay(r.checkout_at))
+      // Read the wall time straight off the string: converting through
+      // new Date() shifted it, and saving then stored the shifted value.
+      setEditCheckinTime(storedTime(r.checkin_at))
+      setEditCheckoutTime(storedTime(r.checkout_at))
       setEditGuestCount(r.guest_count)
       setEditChildCount(r.child_count ?? 0)
       setEditDeposit(depositFromRow(r))
@@ -341,43 +337,21 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
     fetchReservation()
   }
 
-  // ── Soft delete (hides from employees, admin sees it still) ──
-  async function handleSoftDelete() {
+  // ── Delete ──────────────────────────────────────────────────
+  // Deleting removes the reservation for good: there is no hidden state and
+  // no second confirmation step. Issued invoices are unaffected — their link
+  // to the booking simply falls away (ON DELETE SET NULL), and payments that
+  // already belong to an invoice stay with it.
+  async function handleDelete() {
     if (!confirmDelete) { setConfirmDelete(true); return }
-    const now = new Date().toISOString()
 
-    const { error } = await supabase
-      .from('reservations')
-      .update({ deleted_at: now })
-      .eq('id', reservationId)
-
-    // Also soft-delete linked family reservation
-    if (!error && reservation?.family_booking_id) {
-      await supabase
-        .from('reservations')
-        .update({ deleted_at: now })
-        .eq('family_booking_id', reservation.family_booking_id)
-        .neq('id', reservationId)
-    }
+    // A family booking is one booking over two rooms — both rows go.
+    const q = supabase.from('reservations').delete()
+    const { error } = reservation?.family_booking_id
+      ? await q.eq('family_booking_id', reservation.family_booking_id)
+      : await q.eq('id', reservationId)
 
     if (error) { setError('Reservierung konnte nicht gelöscht werden.'); return }
-    onUpdated()
-    onClose()
-  }
-
-  // ── Permanent delete (admin only) ───────────────────────────
-  async function handlePermanentDelete() {
-    if (!confirmPermDelete) { setConfirmPermDelete(true); return }
-
-    if (reservation?.family_booking_id) {
-      await supabase
-        .from('reservations')
-        .delete()
-        .eq('family_booking_id', reservation.family_booking_id)
-    } else {
-      await supabase.from('reservations').delete().eq('id', reservationId)
-    }
-
     onUpdated()
     onClose()
   }
@@ -947,11 +921,11 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
             )
           )}
 
-          {/* Soft delete */}
+          {/* Delete — permanent, no second step */}
           {confirmDelete ? (
             <div className="flex items-center gap-3">
-              <span className="text-sm text-red-700 font-medium">Reservierung wirklich löschen?</span>
-              <button onClick={handleSoftDelete}
+              <span className="text-sm text-red-700 font-medium">Endgültig löschen? Das lässt sich nicht rückgängig machen.</span>
+              <button onClick={handleDelete}
                 className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700 transition-colors">
                 Ja, löschen
               </button>
@@ -970,30 +944,6 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
         </div>
       )}
 
-      {/* Admin: Permanent delete for already-deleted reservations */}
-      {isDeleted && isAdmin && (
-        <div className="px-5 pb-5 pt-3 border-t border-slate-100">
-          {confirmPermDelete ? (
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-red-700 font-medium">Endgültig und unwiderruflich löschen?</span>
-              <button onClick={handlePermanentDelete}
-                className="rounded-lg bg-red-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-800 transition-colors">
-                Ja, endgültig löschen
-              </button>
-              <button onClick={() => setConfirmPermDelete(false)}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
-                Abbrechen
-              </button>
-            </div>
-          ) : (
-            <button onClick={() => setConfirmPermDelete(true)}
-              className="flex items-center gap-1.5 text-sm text-red-700 hover:text-red-800 font-semibold transition-colors">
-              <Trash2 className="w-3.5 h-3.5" />
-              Endgültig löschen (Admin)
-            </button>
-          )}
-        </div>
-      )}
     </ModalShell>
   )
 }

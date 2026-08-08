@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient }  from '@/lib/supabase/client'
-import { collapseBookingUnits, FAMILY_TYPE_NAME } from '@/lib/reservations'
+import { collapseBookingUnits, FAMILY_TYPE_NAME, storedDay, storedTime } from '@/lib/reservations'
 import { buildRecipient, BILL_TO_OPTIONS, type BillTo, type RecipientSource } from '@/lib/recipient'
+import { summarizeLedger, type PaymentRow } from '@/lib/deposit'
 import { format }        from 'date-fns'
 import { de }            from 'date-fns/locale'
 import {
@@ -83,6 +84,9 @@ interface Invoice {
   deposit_email_sent_at: string | null
   group_rooms: GroupRoomLine[] | null
   group_booking_id: string | null
+  bill_to: string | null
+  company_name: string | null
+  vat_id: string | null
   created_at: string
   created_by: string | null
 }
@@ -153,12 +157,11 @@ function fmtNum(n: number, year?: number) {
 
 /** Convert an ISO string (UTC) to a local datetime-local string */
 function toLocalDatetime(isoStr: string): string {
-  const d = new Date(isoStr)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  // Pin to the hotel's zone: going through the runtime's local time shifted
+  // the value, and saving stored the shift.
+  return `${storedDay(isoStr)}T${storedTime(isoStr)}`
 }
 
-/** Today at a given hour, formatted for datetime-local input */
 function todayAt(hour: number): string {
   const d = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -174,6 +177,15 @@ function tomorrowAt(hour: number): string {
 }
 
 // ── Address helpers ───────────────────────────────────────────────────────────
+
+/** Gross total of an invoice — rooms, extras and line items, less discount. */
+function invoiceTotal(inv: Invoice): number {
+  const custom = Array.isArray(inv.line_items)
+    ? inv.line_items.reduce((s, i) => s + i.qty * i.unit_price, 0)
+    : 0
+  return inv.total_price + (inv.room2_total_price ?? 0) + (inv.room_service_total ?? 0)
+       + custom - (inv.discount ?? 0)
+}
 
 function buildAddress(r: Reservation): string {
   const parts = [
@@ -1012,6 +1024,8 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     const payload: Record<string, unknown> = {
       invoice_number:             numData as number,
       reservation_id:             reservationId,
+      group_booking_id:           groupId,
+      group_rooms:                groupRooms.length > 0 ? groupRooms : null,
       salutation:                 salutation || null,
       guest_name:                 guestName,
       bill_to:                    billTo,
@@ -1681,18 +1695,60 @@ export default function InvoicesPage() {
   const [showCreate,   setShowCreate]   = useState(false)
   const [previewInv,   setPreviewInv]   = useState<Invoice | null>(null)
 
+  // ── Filters ──────────────────────────────────────────────────────────────
+  const [query,    setQuery]    = useState('')
+  const [payState, setPayState] = useState<'all' | 'paid' | 'open'>('all')
+  const [method,   setMethod]   = useState<string>('all')
+  const [sort,     setSort]     = useState<'number_desc' | 'number_asc' | 'amount_desc' | 'amount_asc'>('number_desc')
+  const [showStorno, setShowStorno] = useState(true)
+  /** What has been received per invoice — decides paid vs. open. */
+  const [paidByInvoice, setPaidByInvoice] = useState<Record<string, number>>({})
+
   const load = useCallback(async () => {
     setLoading(true)
-    const [{ data: inv }, { data: settings }] = await Promise.all([
+    const [{ data: inv }, { data: settings }, { data: pays }] = await Promise.all([
       supabase.from('invoices').select('*').order('invoice_number', { ascending: false }),
       supabase.from('invoice_settings').select('next_number').eq('id', 1).single(),
+      supabase.from('payments').select('*').not('invoice_id', 'is', null),
     ])
     setInvoices((inv ?? []) as Invoice[])
     if (settings) setNextNumber(settings.next_number)
+
+    const byInvoice: Record<string, PaymentRow[]> = {}
+    for (const p of (pays ?? []) as PaymentRow[]) {
+      const key = (p as unknown as { invoice_id: string }).invoice_id
+      ;(byInvoice[key] ??= []).push(p)
+    }
+    setPaidByInvoice(Object.fromEntries(
+      Object.entries(byInvoice).map(([id, rows]) => [id, summarizeLedger(rows, 0).totalPaid]),
+    ))
     setLoading(false)
   }, [supabase])
 
   useEffect(() => { load() }, [load])
+
+  /** Filtered and sorted — what the list actually renders. */
+  const visible = (() => {
+    const q = query.trim().toLowerCase()
+    const rows = invoices.filter(inv => {
+      if (!showStorno && inv.cancelled_at) return false
+      if (method !== 'all' && inv.payment_method !== method) return false
+      if (payState !== 'all') {
+        const paid = paidByInvoice[inv.id] ?? 0
+        const settled = paid > 0 && paid + 0.004 >= invoiceTotal(inv)
+        if (payState === 'paid' ? !settled : settled) return false
+      }
+      if (!q) return true
+      return inv.guest_name.toLowerCase().includes(q)
+        || fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear()).toLowerCase().includes(q)
+        || (inv.company_name ?? '').toLowerCase().includes(q)
+        || (inv.room_number ?? '').toLowerCase().includes(q)
+    })
+    const dir = sort.endsWith('_asc') ? 1 : -1
+    return rows.sort((a, b) => sort.startsWith('amount')
+      ? (invoiceTotal(a) - invoiceTotal(b)) * dir
+      : (a.invoice_number - b.invoice_number) * dir)
+  })()
 
   async function saveSettings() {
     const num = parseInt(settingsVal)
@@ -1746,7 +1802,7 @@ export default function InvoicesPage() {
               Rechnungen
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              {invoices.length} Rechnung{invoices.length !== 1 ? 'en' : ''} ·
+              {visible.length}{visible.length !== invoices.length && ` von ${invoices.length}`} Rechnung{invoices.length !== 1 ? 'en' : ''} ·
               Nächste: <span className="font-mono font-semibold">{fmtNum(nextNumber)}</span>
             </p>
           </div>
@@ -1791,19 +1847,63 @@ export default function InvoicesPage() {
         </div>
       )}
 
+
+      {/* ── Filters ─────────────────────────────────────────────────── */}
+      <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input value={query} onChange={e => setQuery(e.target.value)}
+            placeholder="Nummer, Name, Firma oder Zimmer suchen …"
+            className="w-full rounded-xl border border-slate-300 pl-9 pr-3 h-11 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <select value={payState} onChange={e => setPayState(e.target.value as typeof payState)}
+            className="rounded-xl border border-slate-300 px-3 h-11 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="all">Alle Zahlungen</option>
+            <option value="paid">Bezahlt</option>
+            <option value="open">Offen</option>
+          </select>
+
+          <select value={method} onChange={e => setMethod(e.target.value)}
+            className="rounded-xl border border-slate-300 px-3 h-11 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="all">Alle Zahlungsarten</option>
+            {Object.entries(PAY_LABELS).map(([v, label]) => (
+              <option key={v} value={v}>{label}</option>
+            ))}
+          </select>
+
+          <select value={sort} onChange={e => setSort(e.target.value as typeof sort)}
+            className="rounded-xl border border-slate-300 px-3 h-11 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="number_desc">Neueste zuerst</option>
+            <option value="number_asc">Älteste zuerst</option>
+            <option value="amount_desc">Betrag: hoch → niedrig</option>
+            <option value="amount_asc">Betrag: niedrig → hoch</option>
+          </select>
+        </div>
+
+        <label className="inline-flex items-center gap-2 text-sm text-slate-600">
+          <input type="checkbox" checked={showStorno} onChange={e => setShowStorno(e.target.checked)}
+            className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+          Stornierte Rechnungen anzeigen
+        </label>
+      </div>
+
       {/* List */}
       {loading ? (
         <div className="text-center py-20 text-slate-400 text-sm">Lädt…</div>
-      ) : invoices.length === 0 ? (
+      ) : visible.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 p-16 text-center">
           <FileText className="w-8 h-8 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-500 text-sm">Noch keine Rechnungen erstellt.</p>
+          <p className="text-slate-500 text-sm">
+            {invoices.length === 0 ? 'Noch keine Rechnungen erstellt.' : 'Keine Rechnung passt zu diesem Filter.'}
+          </p>
         </div>
       ) : (
         <>
         {/* ── Mobile: cards (< lg) ──────────────────────────────────── */}
         <div className="lg:hidden space-y-2.5">
-          {invoices.map(inv => {
+          {visible.map(inv => {
             const customTotal = Array.isArray(inv.line_items)
               ? inv.line_items.reduce((s, i) => s + i.qty * i.unit_price, 0)
               : 0
@@ -1920,7 +2020,7 @@ export default function InvoicesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {invoices.map(inv => {
+              {visible.map(inv => {
                 const customTotal = Array.isArray(inv.line_items)
                   ? inv.line_items.reduce((s, i) => s + i.qty * i.unit_price, 0)
                   : 0

@@ -7,6 +7,7 @@ import SendEmailButton   from '@/app/(dashboard)/invoices/[id]/SendEmailButton'
 import StornoButton      from '@/app/(dashboard)/invoices/[id]/StornoButton'
 import DepositEmailButton from '@/components/Deposit/DepositEmailButton'
 import { summarizeLedger, formatDeDate, REMAINING_DUE_TEXT, PAYMENT_KIND_LABELS, DEPOSIT_METHOD_LABELS, type PaymentRow } from '@/lib/deposit'
+import { storedDate, storedTime } from '@/lib/reservations'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +16,7 @@ function fmtNum(n: number, year?: number) {
   return `R${y}_${String(n).padStart(3, '0')}`
 }
 function eur(n: number) {
+  // Non-breaking space so the € never wraps away from its amount.
   return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
 }
 
@@ -181,8 +183,8 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
     : `${adultCount} Erw.`
 
   // ── Email props for SendEmailButton ──────────────────────────────────────
-  const checkinStr   = format(checkin,  'dd.MM.yyyy')
-  const checkoutStr  = format(checkout, 'dd.MM.yyyy')
+  const checkinStr   = storedDate(inv.checkin_at)
+  const checkoutStr  = storedDate(inv.checkout_at)
   const guestSurname = inv.guest_name.trim().split(/\s+/).slice(-1)[0] || inv.guest_name
   const invoiceRef   = fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())
 
@@ -403,7 +405,7 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
                 <td className="px-3 py-1.5 text-slate-800 align-top">
                   <span className="font-medium">{inv.room_name || 'Übernachtung'}</span>
                   <span className="block text-xs text-slate-400 mt-0.5">
-                    Zimmer Nr. {inv.room_number} · {format(checkin, 'dd.MM.yyyy')} {format(checkin, 'HH:mm')} Uhr – {format(checkout, 'dd.MM.yyyy')} {format(checkout, 'HH:mm')} Uhr · {guestLabel}
+                    Zimmer Nr. {inv.room_number} · {storedDate(inv.checkin_at)} {storedTime(inv.checkin_at)} Uhr – {storedDate(inv.checkout_at)} {storedTime(inv.checkout_at)} Uhr · {guestLabel}
                   </span>
                   {inv.early_departure && (
                     <span className="inline-block mt-1 text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">
@@ -426,7 +428,7 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
                   <td className="px-3 py-1.5 text-slate-800 align-top">
                     <span className="font-medium">{inv.room2_name || 'Zweites Zimmer'}</span>
                     <span className="block text-xs text-slate-400 mt-0.5">
-                      Zimmer Nr. {inv.room2_number} · {format(room2CheckinDate, 'dd.MM.yyyy')} {format(room2CheckinDate, 'HH:mm')} Uhr – {format(room2CheckoutDate, 'dd.MM.yyyy')} {format(room2CheckoutDate, 'HH:mm')} Uhr · {room2GuestLabel}
+                      Zimmer Nr. {inv.room2_number} · {storedDate(inv.room2_checkin_at ?? inv.checkin_at)} {storedTime(inv.room2_checkin_at ?? inv.checkin_at)} Uhr – {storedDate(inv.room2_checkout_at ?? inv.checkout_at)} {storedTime(inv.room2_checkout_at ?? inv.checkout_at)} Uhr · {room2GuestLabel}
                     </span>
                   </td>
                   <td className="px-3 py-1.5 text-center text-slate-600 align-top">{room2DisplayNights}</td>

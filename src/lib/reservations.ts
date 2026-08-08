@@ -289,49 +289,89 @@ export const DEFAULT_CHECKIN_HOUR  = 13
 /** Hotel check-out time (local): 12:00 */
 export const DEFAULT_CHECKOUT_HOUR = 12
 
+export const HOTEL_TZ = 'Europe/Berlin'
+
 /**
- * Builds a full checkin timestamp from a date string.
+ * UTC offset the hotel is on for a given local date — "+01:00" or "+02:00".
+ *
+ * These timestamps used to be written with a hard-coded "+02:00". That is only
+ * right in summer: a 13:00 check-in in December was stored as 13:00+02:00, so
+ * every screen that converts to local time showed 12:00, and saving again
+ * pushed it another hour. Ask the calendar instead of assuming.
+ */
+export function hotelOffset(date: string, time: string): string {
+  // Probe the wall time as if it were UTC. Berlin switches at 01:00 UTC, so
+  // for the times a hotel actually uses this always lands on the right side.
+  const probe = new Date(`${date}T${time}:00Z`)
+  if (Number.isNaN(probe.getTime())) return '+01:00'
+  const name = new Intl.DateTimeFormat('en-US', { timeZone: HOTEL_TZ, timeZoneName: 'longOffset' })
+    .formatToParts(probe).find(p => p.type === 'timeZoneName')?.value
+  return name?.match(/GMT([+-]\d{2}:\d{2})/)?.[1] ?? '+01:00'
+}
+
+/**
+ * The check-in/check-out time as the hotel sees it — always Europe/Berlin.
+ *
+ * Never format a stored timestamp with `new Date()` + a local formatter: the
+ * invoice renders on the server, which runs in UTC, so a 13:00 check-in came
+ * out as 11:00. Pinning the zone makes the output the same everywhere,
+ * whatever offset the database hands back.
+ */
+export function storedTime(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return new Intl.DateTimeFormat('de-DE', {
+    timeZone: HOTEL_TZ, hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(d)
+}
+
+/** Same, as "10.12.2026". */
+export function storedDate(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return new Intl.DateTimeFormat('de-DE', {
+    timeZone: HOTEL_TZ, day: '2-digit', month: '2-digit', year: 'numeric',
+  }).format(d)
+}
+
+/** "yyyy-MM-dd" in the hotel's zone — for date inputs. */
+export function storedDay(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10)
+  const p = new Intl.DateTimeFormat('en-CA', {
+    timeZone: HOTEL_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(d)
+  return p
+}
+
+/**
+ * Builds a full check-in timestamp from a date string.
  * @param date   yyyy-MM-dd date string
  * @param time   Optional HH:MM override (e.g. '14:30'). Falls back to DEFAULT_CHECKIN_HOUR.
  */
-export function buildCheckinTimestamp(date: string, time?: string, timezoneOffset = '+02:00'): string {
+export function buildCheckinTimestamp(date: string, time?: string, timezoneOffset?: string): string {
   const t = time ?? `${String(DEFAULT_CHECKIN_HOUR).padStart(2, '0')}:00`
-  return `${date}T${t}:00${timezoneOffset}`
+  return `${date}T${t}:00${timezoneOffset ?? hotelOffset(date, t)}`
 }
 
 /**
- * Builds a full checkout timestamp from a date string.
+ * Builds a full check-out timestamp from a date string.
  * @param date   yyyy-MM-dd date string
  * @param time   Optional HH:MM override (e.g. '10:00'). Falls back to DEFAULT_CHECKOUT_HOUR.
  */
-export function buildCheckoutTimestamp(date: string, time?: string, timezoneOffset = '+02:00'): string {
+export function buildCheckoutTimestamp(date: string, time?: string, timezoneOffset?: string): string {
   const t = time ?? `${String(DEFAULT_CHECKOUT_HOUR).padStart(2, '0')}:00`
-  return `${date}T${t}:00${timezoneOffset}`
+  return `${date}T${t}:00${timezoneOffset ?? hotelOffset(date, t)}`
 }
 
-/** Formats an ISO string as DD/MM/YYYY */
+/** Formats an ISO string as DD/MM/YYYY in the hotel's zone. */
 export function formatDate(isoString: string): string {
-  const d = new Date(isoString)
-  return [
-    String(d.getDate()).padStart(2, '0'),
-    String(d.getMonth() + 1).padStart(2, '0'),
-    d.getFullYear(),
-  ].join('/')
+  return storedDate(isoString).replace(/\./g, '/')
 }
 
-/** Formats an ISO string as DD/MM/YYYY HH:MM (24-hour) */
+/** Formats an ISO string as DD/MM/YYYY HH:MM in the hotel's zone. */
 export function formatDateTime(isoString: string): string {
-  const d   = new Date(isoString)
-  const date = [
-    String(d.getDate()).padStart(2, '0'),
-    String(d.getMonth() + 1).padStart(2, '0'),
-    d.getFullYear(),
-  ].join('/')
-  const time = [
-    String(d.getHours()).padStart(2, '0'),
-    String(d.getMinutes()).padStart(2, '0'),
-  ].join(':')
-  return `${date} ${time}`
+  return `${formatDate(isoString)} ${storedTime(isoString)}`
 }
 
 /** @deprecated Use formatDateTime instead */

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/cn'
 import { formatDate, getSourceLabel, getSourceColor, collapseBookingUnits, type BookingUnit } from '@/lib/reservations'
@@ -8,8 +9,9 @@ import { eur } from '@/lib/deposit'
 import ReservationDetailModal from '@/components/Reservations/ReservationDetailModal'
 import GroupEditModal from '@/components/Reservations/GroupEditModal'
 import DateInput from '@/components/ui/DateInput'
+import { createInvoiceFromReservation } from '@/lib/invoiceFromReservation'
 import {
-  CalendarRange, Loader2, Users, Layers, ChevronRight, Search, Mail, Pencil,
+  CalendarRange, Loader2, Users, Layers, ChevronRight, Search, Mail, Pencil, FileText,
 } from 'lucide-react'
 import type { ReservationStatus, PaymentStatus } from '@/types/database'
 
@@ -73,6 +75,11 @@ const PAY_LABELS: Record<PaymentStatus, string> = {
 
 function iso(d: Date) { return d.toISOString().slice(0, 10) }
 
+/** "R26_007" — same shape the Rechnungen page uses. */
+function fmtInvoiceNo(n: number): string {
+  return `R${String(new Date().getFullYear()).slice(-2)}_${String(n).padStart(3, '0')}`
+}
+
 /** Collapse reservation rows into the bookings they actually belong to. */
 function groupIntoBookings(rows: Row[]): Booking[] {
   const byKey = new Map<string, Row[]>()
@@ -114,6 +121,7 @@ function groupIntoBookings(rows: Row[]): Booking[] {
 
 export default function ReservationsBrowser() {
   const supabase = createClient()
+  const router   = useRouter()
 
   const today = new Date()
   const inAMonth = new Date(); inAMonth.setMonth(inAMonth.getMonth() + 1)
@@ -128,6 +136,10 @@ export default function ReservationsBrowser() {
   const [loading, setLoading] = useState(true)
   const [openId,  setOpenId]  = useState<string | null>(null)
   const [editGroupId, setEditGroupId] = useState<string | null>(null)
+  /** Invoice number already issued per booking key. */
+  const [invoices,    setInvoices]    = useState<Record<string, number>>({})
+  const [invoiceBusy, setInvoiceBusy] = useState<string | null>(null)
+  const [invoiceError, setInvoiceError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -149,6 +161,68 @@ export default function ReservationsBrowser() {
   }, [supabase, mode, from, to])
 
   useEffect(() => { load() }, [load])
+
+  // Which bookings already have an invoice — the button opens those instead of
+  // issuing a second one. One query for the page, matched up locally.
+  useEffect(() => {
+    if (rows.length === 0) { setInvoices({}); return }
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase
+        .from('invoices')
+        .select('invoice_number, reservation_id, group_booking_id, family_booking_id')
+        .or([
+          `reservation_id.in.(${rows.map(r => r.id).join(',')})`,
+          ...[...new Set(rows.map(r => r.group_booking_id).filter(Boolean))]
+            .map(g => `group_booking_id.eq.${g}`),
+          ...[...new Set(rows.map(r => r.family_booking_id).filter(Boolean))]
+            .map(f => `family_booking_id.eq.${f}`),
+        ].join(','))
+      if (cancelled) return
+
+      const byReservation = new Map<string, number>()
+      const byGroup       = new Map<string, number>()
+      const byFamily      = new Map<string, number>()
+      for (const inv of (data ?? []) as any[]) {
+        if (inv.reservation_id)    byReservation.set(inv.reservation_id, inv.invoice_number)
+        if (inv.group_booking_id)  byGroup.set(inv.group_booking_id, inv.invoice_number)
+        if (inv.family_booking_id) byFamily.set(inv.family_booking_id, inv.invoice_number)
+      }
+
+      const found: Record<string, number> = {}
+      for (const b of groupIntoBookings(rows)) {
+        const num =
+          (b.primary.group_booking_id  ? byGroup.get(b.primary.group_booking_id)   : undefined)
+          ?? (b.primary.family_booking_id ? byFamily.get(b.primary.family_booking_id) : undefined)
+          ?? b.rows.map(r => byReservation.get(r.id)).find(n => n != null)
+        if (num != null) found[b.key] = num
+      }
+      setInvoices(found)
+    })()
+    return () => { cancelled = true }
+  }, [rows, supabase])
+
+  /** A group is one booking — open it as a whole, not one of its rooms. */
+  function openBooking(b: Booking) {
+    if (b.kind === 'group' && b.primary.group_booking_id) setEditGroupId(b.primary.group_booking_id)
+    else setOpenId(b.primary.id)
+  }
+
+  /** Create the booking's invoice, or open the one it already has. */
+  async function handleInvoice(b: Booking) {
+    setInvoiceBusy(b.key); setInvoiceError(null)
+    try {
+      const { data: user } = await supabase.auth.getUser()
+      const { invoice } = await createInvoiceFromReservation(
+        supabase, b.primary.id, user.user?.email ?? null,
+      )
+      setInvoices(prev => ({ ...prev, [b.key]: invoice.invoice_number }))
+      router.push(`/invoices/${invoice.id}`)
+    } catch (e) {
+      setInvoiceError(e instanceof Error ? e.message : 'Rechnung konnte nicht erstellt werden.')
+      setInvoiceBusy(null)
+    }
+  }
 
   const bookings = groupIntoBookings(rows).filter(b =>
     !query.trim() || b.primary.guest_name.toLowerCase().includes(query.trim().toLowerCase()),
@@ -177,6 +251,12 @@ export default function ReservationsBrowser() {
           )}
         </p>
       </div>
+
+      {invoiceError && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+          {invoiceError}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
@@ -235,7 +315,7 @@ export default function ReservationsBrowser() {
             <div key={b.key}
               className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
 
-              <button onClick={() => setOpenId(b.primary.id)}
+              <button onClick={() => openBooking(b)}
                 className="w-full text-left p-4 hover:bg-blue-50/30 active:bg-slate-50 transition-colors">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -297,16 +377,31 @@ export default function ReservationsBrowser() {
               </div>
               </button>
 
-              {/* A group is edited as a whole: rooms, dates, prices at once */}
-              {b.kind === 'group' && b.primary.group_booking_id && (
-                <div className="border-t border-slate-100">
+              <div className="border-t border-slate-100 flex divide-x divide-slate-100">
+                {/* A group is edited as a whole: rooms, dates, prices at once */}
+                {b.kind === 'group' && b.primary.group_booking_id && (
                   <button
                     onClick={() => setEditGroupId(b.primary.group_booking_id)}
-                    className="w-full inline-flex items-center justify-center gap-1.5 h-11 text-xs font-medium text-purple-700 hover:bg-purple-50 active:bg-purple-100 transition-colors">
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-11 text-xs font-medium text-purple-700 hover:bg-purple-50 active:bg-purple-100 transition-colors">
                     <Pencil className="w-3.5 h-3.5" /> Gruppenbuchung bearbeiten
                   </button>
-                </div>
-              )}
+                )}
+                <button
+                  onClick={() => handleInvoice(b)}
+                  disabled={invoiceBusy === b.key}
+                  className={cn(
+                    'flex-1 inline-flex items-center justify-center gap-1.5 h-11 text-xs font-medium transition-colors disabled:opacity-50',
+                    invoices[b.key]
+                      ? 'text-slate-600 hover:bg-slate-50 active:bg-slate-100'
+                      : 'text-blue-700 hover:bg-blue-50 active:bg-blue-100',
+                  )}>
+                  {invoiceBusy === b.key
+                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Erstellt …</>
+                    : invoices[b.key]
+                      ? <><FileText className="w-3.5 h-3.5" /> Rechnung {fmtInvoiceNo(invoices[b.key]!)} öffnen</>
+                      : <><FileText className="w-3.5 h-3.5" /> Rechnung erstellen</>}
+                </button>
+              </div>
             </div>
           ))}
         </div>

@@ -20,6 +20,7 @@ import TimeInput from '@/components/ui/TimeInput'
 import CountryInput from '@/components/ui/CountryInput'
 import { findOrCreateCustomer } from '@/lib/customers'
 import { SALUTATIONS } from '@/lib/salutation'
+import { useDefaultTimes } from '@/hooks/useDefaultTimes'
 import DepositEditor, { type DepositState, EMPTY_DEPOSIT, depositPayload } from '@/components/Deposit/DepositEditor'
 
 // ── Family room definitions ────────────────────────────────────────────────────
@@ -82,6 +83,14 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
   const [checkoutDate, setCheckoutDate] = useState(defaultCheckout ?? '')
   const [checkinTime,  setCheckinTime]  = useState('13:00')
   const [checkoutTime, setCheckoutTime] = useState('12:00')
+  // Pre-fill from Einstellungen, but never over a time already chosen here.
+  const defaults = useDefaultTimes()
+  const [timesTouched, setTimesTouched] = useState(false)
+  useEffect(() => {
+    if (!defaults.ready || timesTouched) return
+    setCheckinTime(defaults.checkinTime)
+    setCheckoutTime(defaults.checkoutTime)
+  }, [defaults.ready, defaults.checkinTime, defaults.checkoutTime, timesTouched])
   const [roomId,       setRoomId]       = useState(defaultRoomId   ?? '')
   const [breakfast,    setBreakfast]    = useState(false)
   const [source,       setSource]       = useState<ReservationSource>('phone')
@@ -558,7 +567,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
                 onChange={setCheckinDate}
                 className={cn('flex-1', fieldErrors.checkin_at && 'border-red-400 bg-red-50')}
               />
-              <TimeInput value={checkinTime} onChange={setCheckinTime} className="w-28" />
+              <TimeInput value={checkinTime} onChange={v => { setTimesTouched(true); setCheckinTime(v) }} className="w-28" />
             </div>
             {fieldErrors.checkin_at && (
               <p className="mt-1 text-xs text-red-600">{fieldErrors.checkin_at}</p>
@@ -578,7 +587,7 @@ export default function ReservationForm({ defaultRoomId, defaultCheckin, default
                 min={checkinDate}
                 className={cn('flex-1', fieldErrors.checkout_at && 'border-red-400 bg-red-50')}
               />
-              <TimeInput value={checkoutTime} onChange={setCheckoutTime} className="w-28" />
+              <TimeInput value={checkoutTime} onChange={v => { setTimesTouched(true); setCheckoutTime(v) }} className="w-28" />
             </div>
             {fieldErrors.checkout_at && (
               <p className="mt-1 text-xs text-red-600">{fieldErrors.checkout_at}</p>

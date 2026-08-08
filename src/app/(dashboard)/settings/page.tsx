@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAdmin } from '@/hooks/useAdmin'
 import { cn } from '@/lib/cn'
-import { SlidersHorizontal, ShieldCheck, Loader2, Eye, EyeOff, Wallet, BedDouble } from 'lucide-react'
+import { SlidersHorizontal, ShieldCheck, Loader2, Eye, EyeOff, Wallet, BedDouble, Clock } from 'lucide-react'
 
 interface RoomTypeRow {
   id:           string
@@ -32,6 +32,9 @@ export default function SettingsPage() {
   const [saving,  setSaving]  = useState<string | null>(null)
   const [msg,     setMsg]     = useState('')
   const [depositPct,    setDepositPct]    = useState('30')
+  const [checkinTime,   setCheckinTime]   = useState('13:00')
+  const [checkoutTime,  setCheckoutTime]  = useState('12:00')
+  const [savingTimes,   setSavingTimes]   = useState(false)
   const [savingDeposit, setSavingDeposit] = useState(false)
   const [roomTypes,     setRoomTypes]     = useState<RoomTypeRow[]>([])
   const [prices,        setPrices]        = useState<Record<string, string>>({})
@@ -60,9 +63,17 @@ export default function SettingsPage() {
     }
 
     const { data: settings } = await supabase
-      .from('invoice_settings').select('default_deposit_percent').eq('id', 1).single()
-    const pct = (settings as { default_deposit_percent?: number } | null)?.default_deposit_percent
-    if (pct != null) setDepositPct(String(pct))
+      .from('invoice_settings')
+      .select('default_deposit_percent, default_checkin_time, default_checkout_time')
+      .eq('id', 1).single()
+    const st = settings as {
+      default_deposit_percent?: number
+      default_checkin_time?: string | null
+      default_checkout_time?: string | null
+    } | null
+    if (st?.default_deposit_percent != null) setDepositPct(String(st.default_deposit_percent))
+    if (st?.default_checkin_time)  setCheckinTime(st.default_checkin_time.slice(0, 5))
+    if (st?.default_checkout_time) setCheckoutTime(st.default_checkout_time.slice(0, 5))
 
     setLoading(false)
   }, [supabase])
@@ -113,6 +124,16 @@ export default function SettingsPage() {
       .from('invoice_settings').update({ default_deposit_percent: pct }).eq('id', 1)
     if (!error) { setMsg('✓ Gespeichert'); setTimeout(() => setMsg(''), 2000) }
     setSavingDeposit(false)
+  }
+
+  async function saveTimes() {
+    setSavingTimes(true)
+    const { error } = await supabase.from('invoice_settings').update({
+      default_checkin_time:  checkinTime,
+      default_checkout_time: checkoutTime,
+    }).eq('id', 1)
+    if (!error) { setMsg('✓ Gespeichert'); setTimeout(() => setMsg(''), 2000) }
+    setSavingTimes(false)
   }
 
   useEffect(() => { load() }, [load])
@@ -374,6 +395,38 @@ export default function SettingsPage() {
           <p className="text-xs text-slate-400 flex-1 min-w-[200px]">
             0 % bedeutet: keine Anzahlung vorschlagen.
           </p>
+        </div>
+      </div>
+
+      {/* ── Default arrival / departure times ──────────────────────────── */}
+      <div className="mt-8">
+        <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-1">
+          <Clock className="w-5 h-5 text-slate-500" />
+          An- &amp; Abreisezeiten
+        </h2>
+        <p className="text-slate-500 text-sm mb-4">
+          Vorbelegung für neue Reservierungen — pro Buchung jederzeit änderbar.
+        </p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 flex items-end gap-3 flex-wrap">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">
+              Check-in
+            </label>
+            <input type="time" value={checkinTime} onChange={e => setCheckinTime(e.target.value)}
+              className="w-32 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1 uppercase tracking-wide">
+              Check-out
+            </label>
+            <input type="time" value={checkoutTime} onChange={e => setCheckoutTime(e.target.value)}
+              className="w-32 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <button onClick={saveTimes} disabled={savingTimes}
+            className="rounded-xl bg-blue-600 text-white px-5 py-2 text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+            {savingTimes && <Loader2 className="w-4 h-4 animate-spin" />}
+            {savingTimes ? 'Speichern…' : 'Speichern'}
+          </button>
         </div>
       </div>
 

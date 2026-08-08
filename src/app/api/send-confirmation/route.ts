@@ -5,17 +5,13 @@ import { formatDate } from '@/lib/reservations'
 import { summarizeLedger, summarizeDeposit, formatDeDate, eur as depEur, PAYMENT_KIND_LABELS, DEPOSIT_METHOD_LABELS, type PaymentRow } from '@/lib/deposit'
 import { resolveEmailLogo, originFromRequest } from '@/lib/emailLogo'
 import { greetingOrFriendly } from '@/lib/salutation'
-import { collapseBookingUnits, FAMILY_TYPE_NAME } from '@/lib/reservations'
+import { collapseBookingUnits, FAMILY_TYPE_NAME, storedDate, storedTime } from '@/lib/reservations'
 import { buildRecipient, type BillTo } from '@/lib/recipient'
 
-// Parse time directly from the stored ISO string to avoid UTC conversion on the server.
-// Timestamps are stored as +02:00 — new Date() would shift them by -2h in UTC Node.js.
-// "2025-06-01T13:00:00+02:00" → "01.06.2025 13:00"
+// Always render check-in/check-out in the hotel's zone — this route runs on
+// the server, which is UTC, so anything else shows the guest a shifted time.
 function localDT(iso: string): string {
-  const [datePart, rest] = iso.split('T')
-  const [y, m, d] = datePart.split('-')
-  const time = rest.slice(0, 5)
-  return `${d}.${m}.${y} ${time}`
+  return `${storedDate(iso)} ${storedTime(iso)}`
 }
 import { differenceInCalendarDays } from 'date-fns'
 

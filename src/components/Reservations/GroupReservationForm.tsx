@@ -11,6 +11,7 @@ import type { ReservationSource, PaymentMethod, PaymentStatus } from '@/types/da
 import { cn } from '@/lib/cn'
 import { findOrCreateCustomer } from '@/lib/customers'
 import { SALUTATIONS } from '@/lib/salutation'
+import { useDefaultTimes } from '@/hooks/useDefaultTimes'
 import { BILL_TO_OPTIONS, type BillTo } from '@/lib/recipient'
 import DepositEditor, { type DepositState, EMPTY_DEPOSIT, depositPayload } from '@/components/Deposit/DepositEditor'
 import DateInput from '@/components/ui/DateInput'
@@ -131,6 +132,13 @@ export default function GroupReservationForm() {
   const [checkoutDate, setCheckoutDate] = useState('')
   const [checkinTime,  setCheckinTime]  = useState('13:00')
   const [checkoutTime, setCheckoutTime] = useState('12:00')
+  const defaults = useDefaultTimes()
+  const [timesTouched, setTimesTouched] = useState(false)
+  useEffect(() => {
+    if (!defaults.ready || timesTouched) return
+    setCheckinTime(defaults.checkinTime)
+    setCheckoutTime(defaults.checkoutTime)
+  }, [defaults.ready, defaults.checkinTime, defaults.checkoutTime, timesTouched])
 
   // ── Rooms ───────────────────────────────────────────────────────
   const [available, setAvailable] = useState<RoomOption[]>([])
@@ -549,7 +557,7 @@ export default function GroupReservationForm() {
             </label>
             <div className="flex gap-2">
               <DateInput required value={checkinDate} onChange={setCheckinDate} className="flex-1" />
-              <TimeInput value={checkinTime} onChange={setCheckinTime} className="w-28" />
+              <TimeInput value={checkinTime} onChange={v => { setTimesTouched(true); setCheckinTime(v) }} className="w-28" />
             </div>
           </div>
           <div>
@@ -558,7 +566,7 @@ export default function GroupReservationForm() {
             </label>
             <div className="flex gap-2">
               <DateInput required value={checkoutDate} onChange={setCheckoutDate} min={checkinDate} className="flex-1" />
-              <TimeInput value={checkoutTime} onChange={setCheckoutTime} className="w-28" />
+              <TimeInput value={checkoutTime} onChange={v => { setTimesTouched(true); setCheckoutTime(v) }} className="w-28" />
             </div>
           </div>
         </div>
