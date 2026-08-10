@@ -274,7 +274,7 @@ function buildEmailHtml(opts: {
                       </td>
                       <td width="20%" style="text-align:center;vertical-align:middle;">
                         <p style="margin:0;font-size:20px;font-weight:800;color:#0f172a;">${nights}</p>
-                        <p style="margin:2px 0 0;font-size:11px;color:#94a3b8;">Nacht${nights !== 1 ? 'e' : ''}</p>
+                        <p style="margin:2px 0 0;font-size:11px;color:#94a3b8;">${nights === 1 ? 'Nacht' : 'Nächte'}</p>
                       </td>
                       <td width="40%" style="text-align:right;">
                         <p style="margin:0;font-size:12px;color:#64748b;">Check-out</p>
@@ -404,6 +404,82 @@ function buildRoomsBlock(opts: {
                   </table>
                 </td>
               </tr>`
+}
+
+/**
+ * Plain-text version of the confirmation.
+ *
+ * An HTML-only mail is a spam signal in its own right (SpamAssassin scores
+ * MIME_HTML_ONLY), and this was the only one of the three mails without a
+ * text part. Sent alongside the HTML as multipart/alternative — clients that
+ * render HTML never show it.
+ */
+function buildEmailText(opts: {
+  greeting:       string
+  recipientLines: string[]
+  rooms:          Array<{ label: string; type: string; from: string; to: string; guests: string; price: number | null }>
+  breakfast:      boolean
+  checkinAt:      string
+  checkoutAt:     string
+  nights:         number
+  total:          number | null
+  lockers:        Array<{ roomNumber: string; pin: string }>
+  payments:       Array<{ date: string; label: string; amount: number; refund: boolean }>
+  remaining:      number | null
+  requiredDeposit: number | null
+  depositDue:     string | null
+  notes:          string | null
+  reservationId:  string
+}): string {
+  const L: string[] = []
+  L.push(`${opts.greeting},`, '')
+  L.push('vielen Dank für Ihre Buchung! Wir freuen uns auf Ihren Aufenthalt und', 'bestätigen Ihre Reservierung wie folgt:', '')
+  if (opts.recipientLines.length > 0) L.push(...opts.recipientLines, '')
+
+  L.push(opts.rooms.length > 1 ? 'ZIMMER' : 'ZIMMER')
+  for (const rm of opts.rooms) {
+    L.push(`  ${rm.label} · ${rm.type}`)
+    L.push(`    ${rm.from} – ${rm.to} · ${rm.guests}${rm.price != null ? ` · ${depEur(rm.price)}` : ''}`)
+  }
+  if (opts.breakfast) L.push('  Frühstück inklusive')
+  L.push('')
+
+  L.push('AUFENTHALT')
+  L.push(`  Check-in:  ${localDT(opts.checkinAt)} Uhr`)
+  L.push(`  Check-out: ${localDT(opts.checkoutAt)} Uhr`)
+  L.push(`  ${opts.nights} ${opts.nights === 1 ? 'Nacht' : 'Nächte'}`)
+  if (opts.total != null) L.push(`  Gesamtpreis: ${depEur(opts.total)}`)
+  L.push('')
+
+  if (opts.lockers.length > 0) {
+    L.push('SCHLÜSSELABHOLUNG')
+    L.push('  Ihre Zimmerschlüssel liegen in den Schließfächern an der Rezeption.')
+    for (const l of opts.lockers) L.push(`    Schließfach ${l.roomNumber} · PIN ${l.pin}`)
+    L.push('  Bitte bewahren Sie diese Codes vertraulich auf.', '')
+  }
+
+  if (opts.payments.length > 0) {
+    L.push('ZAHLUNGEN')
+    for (const p of opts.payments) {
+      L.push(`  ${p.date} · ${p.label} · ${p.refund ? '+' : '−'} ${depEur(p.amount)}`)
+    }
+    if (opts.remaining != null) L.push(`  Restbetrag: ${depEur(opts.remaining)}`)
+    L.push('')
+  } else if (opts.requiredDeposit != null) {
+    L.push('ANZAHLUNG')
+    L.push(`  Erforderliche Anzahlung: ${depEur(opts.requiredDeposit)}`)
+    if (opts.depositDue) L.push(`  Bitte überweisen Sie den Betrag bis zum ${opts.depositDue}.`)
+    L.push('  Bankverbindung: HASPA HAMBURG · Aaron Eddie Cetin')
+    L.push('  IBAN: DE33 2005 0550 1501 0613 43 · BIC: HASPDEHHXXX', '')
+  }
+
+  if (opts.notes) L.push('NOTIZEN', `  ${opts.notes}`, '')
+
+  L.push(`Buchungs-Nr. #${opts.reservationId.slice(0, 8).toUpperCase()}`, '')
+  L.push('Hotel-Pension Jägerstieg')
+  L.push('Von Eichendorf-Str. 16 · 37539 Bad Grund')
+  L.push('Tel: +49 5327 2828 · info@jaegerstieg.de')
+  return L.join('\n')
 }
 
 // ── POST /api/send-confirmation ────────────────────────────────────────────────
@@ -621,6 +697,57 @@ export async function POST(req: NextRequest) {
         .filter(l => l.roomNumber && l.pin),
     })
 
+    const keyList = includeKeys
+      ? (isGroup
+          ? groupRows
+              .map(g => ({ roomNumber: g.rooms?.room_number ?? '', pin: g.rooms?.locker_pin ?? '' }))
+              .filter(l => l.roomNumber && l.pin)
+          : (r.rooms.locker_pin ? [{ roomNumber: r.rooms.room_number, pin: r.rooms.locker_pin }] : []))
+      : []
+
+    const text = buildEmailText({
+      greeting:       greetingOrFriendly(r.salutation ?? null, r.guest_name),
+      recipientLines,
+      rooms: isGroup
+        ? units.map(u => {
+            const g = u.rows[0]
+            const kids = g.child_count ?? 0
+            return {
+              label: `Zimmer ${u.rows.map((x: any) => x.rooms?.room_number ?? '').filter(Boolean).join(' + ')}`,
+              type:  u.isFamily ? familyTypeName : (g.rooms?.room_types?.name ?? g.rooms?.name ?? ''),
+              from:  localDT(g.checkin_at).slice(0, 10),
+              to:    localDT(g.checkout_at).slice(0, 10),
+              guests: `${(g.guest_count ?? 1) - kids} Erw.${kids > 0 ? ` + ${kids} Kind${kids !== 1 ? 'er' : ''}` : ''}`,
+              price: g.total_price ?? null,
+            }
+          })
+        : [{
+            label: r.rooms.name,
+            type:  r.rooms.room_types.name,
+            from:  localDT(r.checkin_at).slice(0, 10),
+            to:    localDT(r.checkout_at).slice(0, 10),
+            guests: `${r.guest_count} Person${r.guest_count !== 1 ? 'en' : ''}`,
+            price: r.total_price ?? null,
+          }],
+      breakfast:  isGroup ? groupRows.every(g => g.breakfast_included) : r.breakfast_included,
+      checkinAt:  stayFrom,
+      checkoutAt: stayTo,
+      nights,
+      total:      isGroup ? billTotal : r.total_price,
+      lockers:    keyList,
+      payments:   dep.payments.map(pm => ({
+        date:   formatDeDate(pm.paid_on),
+        label:  `${PAYMENT_KIND_LABELS[pm.kind]} · ${DEPOSIT_METHOD_LABELS[pm.method] ?? pm.method}`,
+        amount: Number(pm.amount),
+        refund: pm.kind === 'refund',
+      })),
+      remaining:       dep.payments.length > 0 ? dep.remaining : null,
+      requiredDeposit: dep.payments.length === 0 && reqDeposit.required ? reqDeposit.requiredAmount : null,
+      depositDue:      depositRow.deposit_due_date ? formatDeDate(depositRow.deposit_due_date) : null,
+      notes:           r.notes ?? null,
+      reservationId:   r.id,
+    })
+
     const transporter = createTransporter()
 
     await transporter.sendMail({
@@ -632,6 +759,7 @@ export async function POST(req: NextRequest) {
       subject: isGroup
         ? `Buchungsbestätigung – ${isFamilyOnly ? 'Familienzimmer' : 'Gruppenbuchung'} · ${units.length} Zimmer · ${formatDate(stayFrom)}–${formatDate(stayTo)}`
         : `Buchungsbestätigung – ${r.rooms.name} · ${formatDate(stayFrom)}–${formatDate(stayTo)}`,
+      text,
       html,
       attachments: logo.attachments,
     })

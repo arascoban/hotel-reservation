@@ -572,7 +572,7 @@ export default function GroupReservationForm() {
         </div>
         {sharedNights > 0 && (
           <p className="text-sm text-slate-500">
-            {sharedNights} Nacht{sharedNights !== 1 ? 'e' : ''}
+            {sharedNights} {sharedNights === 1 ? 'Nacht' : 'Nächte'}
           </p>
         )}
       </section>
@@ -659,7 +659,7 @@ export default function GroupReservationForm() {
                             <span className="ml-1.5 font-normal text-xs text-slate-400">{u.typeName}</span>
                           </p>
                           <p className="text-2xs text-slate-400">
-                            {n} Nacht{n !== 1 ? 'e' : ''} · max. {u.maxAdults} Erw.
+                            {n} {n === 1 ? 'Nacht' : 'Nächte'} · max. {u.maxAdults} Erw.
                             {u.maxChildren > 0 && ` + ${u.maxChildren} Ki.`}
                             {u.isFamily && ' · belegt beide Zimmer'}
                           </p>

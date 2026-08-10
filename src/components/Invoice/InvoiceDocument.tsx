@@ -137,7 +137,7 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
   // so state it per stay length — "7 Pers. × 2 Nächte · 13 Pers. × 3 Nächte" —
   // instead of one figure that does not match the Anz. column.
   const bfstDescription = (() => {
-    const nn = (n: number) => `${n} Nacht${n !== 1 ? 'e' : ''}`
+    const nn = (n: number) => `${n} ${n === 1 ? 'Nacht' : 'Nächte'}`
     if (isGroup) {
       const byNights = new Map<number, number>()
       for (const g of groupRooms) byNights.set(g.nights, (byNights.get(g.nights) ?? 0) + g.adults)
@@ -383,9 +383,9 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
               <div>
                 <p className="text-sm font-bold text-amber-800">Vorzeitige Abreise</p>
                 <p className="text-xs text-amber-700 mt-0.5">
-                  Ursprünglich {inv.original_nights} Nacht{inv.original_nights !== 1 ? 'e' : ''} gebucht
+                  Ursprünglich {inv.original_nights} {inv.original_nights === 1 ? 'Nacht' : 'Nächte'} gebucht
                   {inv.original_price != null && ` (${eur(inv.original_price)})`}.
-                  Tatsächlich {nights} Nacht{nights !== 1 ? 'e' : ''} geblieben.
+                  Tatsächlich {nights} {nights === 1 ? 'Nacht' : 'Nächte'} geblieben.
                 </p>
               </div>
             </div>
