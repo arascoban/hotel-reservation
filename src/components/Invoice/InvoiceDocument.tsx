@@ -646,12 +646,20 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
                   <p className="font-bold text-amber-800 text-center">
                     {ledger.partly ? 'Restbetrag ausstehend' : 'Zahlung ausstehend'}
                   </p>
-                  <p className="text-amber-700 text-center mt-0.5">
-                    Offener Betrag: <strong>{eur(amountDue)}</strong>
-                  </p>
-                  <p className="text-2xs text-amber-600 text-center mt-1 leading-tight">
-                    {REMAINING_DUE_TEXT}
-                  </p>
+                  {/* The open amount and the payment term only make sense once
+                      part of the invoice has been paid. With nothing received
+                      the full sum is already on the line above, and there is no
+                      "Restbetrag" to speak of. */}
+                  {ledger.partly && (
+                    <>
+                      <p className="text-amber-700 text-center mt-0.5">
+                        Offener Betrag: <strong>{eur(amountDue)}</strong>
+                      </p>
+                      <p className="text-2xs text-amber-600 text-center mt-1 leading-tight">
+                        {REMAINING_DUE_TEXT}
+                      </p>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div className="mt-2.5 px-4 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm text-center">
