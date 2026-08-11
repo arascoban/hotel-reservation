@@ -422,7 +422,7 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
       {/* ── Toolbar ─────────────────────────────────────────────────────────── */}
       {showToolbar && (
       <div className="no-print flex flex-wrap items-center gap-2 px-4 sm:px-6 pt-4 pb-3 bg-white border-b border-slate-200 sticky top-0 z-10">
-        <InvoiceActions invoiceRef={invoiceRef} />
+        <InvoiceActions invoiceRef={invoiceRef} invoiceId={inv.id} />
         <a href="/invoices" className="text-sm text-slate-500 hover:text-slate-700">← Rechnungen</a>
         <SendEmailButton
           invoiceRef={invoiceRef}

@@ -9,6 +9,8 @@ const nextConfig = {
   outputFileTracingIncludes: {
     '/api/send-confirmation':         ['./public/logo.png'],
     '/api/deposit/send-confirmation': ['./public/logo.png'],
+    // The vector PDF embeds the logo and the fonts from disk.
+    '/api/invoices/[id]/pdf':         ['./public/logo.png', './public/fonts/*.ttf'],
   },
   async headers() {
     return [
