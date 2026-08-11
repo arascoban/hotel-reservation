@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound }      from 'next/navigation'
 import { format }        from 'date-fns'
 import { de }            from 'date-fns/locale'
-import PrintButton       from '@/app/(dashboard)/reservations/[id]/print/PrintButton'
+import InvoiceActions    from '@/components/Invoice/InvoiceActions'
 import SendEmailButton   from '@/app/(dashboard)/invoices/[id]/SendEmailButton'
 import StornoButton      from '@/app/(dashboard)/invoices/[id]/StornoButton'
 import DepositEmailButton from '@/components/Deposit/DepositEmailButton'
@@ -390,8 +390,9 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
           .print-outer { background: white !important; padding: 0 !important; margin: 0 !important; }
           .page {
             width: 210mm !important;
-            min-height: 0 !important;
-            height: auto !important;
+            /* A hair under A4 so rounding cannot spill a blank page. */
+            height: 296mm !important;
+            min-height: 296mm !important;
             padding: 9mm !important;
             box-shadow: none !important;
             border: none !important;
@@ -421,7 +422,7 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
       {/* ── Toolbar ─────────────────────────────────────────────────────────── */}
       {showToolbar && (
       <div className="no-print flex flex-wrap items-center gap-2 px-4 sm:px-6 pt-4 pb-3 bg-white border-b border-slate-200 sticky top-0 z-10">
-        <PrintButton />
+        <InvoiceActions invoiceRef={invoiceRef} />
         <a href="/invoices" className="text-sm text-slate-500 hover:text-slate-700">← Rechnungen</a>
         <SendEmailButton
           invoiceRef={invoiceRef}
@@ -481,7 +482,9 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
           {/* Content sits above the watermark */}
           <div className="relative z-10 flex flex-col flex-1">
 
-          {isFirst ? (
+          {/* Only the first sheet carries the letterhead — the items simply
+              continue on the following ones. */}
+          {isFirst && (
           <>
           {/* ══ HEADER ════════════════════════════════════════════════════════ */}
           <div className="flex items-start justify-between mb-3">
@@ -560,23 +563,6 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
               </div>
             </div>
           )}
-          </>
-          ) : (
-          <>
-          {/* ══ CONTINUATION HEADER ═══════════════════════════════════════════ */}
-          {/* No logo here: the capture re-draws the logo at a fixed position on
-              the first sheet, and a second one would land in the wrong place. */}
-          <div className="flex items-end justify-between mb-3">
-            <div>
-              <p className="text-2xl font-black tracking-tight text-slate-900">RECHNUNG</p>
-              <p className="text-xs text-slate-500 mt-0.5">Hotel-Pension Jägerstieg · {inv.guest_name}</p>
-            </div>
-            <div className="text-right text-sm text-slate-500">
-              <p>Nr.&nbsp;<strong className="text-slate-800 font-mono tracking-wide">{invoiceRef}</strong></p>
-              <p className="text-xs mt-0.5">Fortsetzung · Seite {pageIdx + 1} von {pageCount}</p>
-            </div>
-          </div>
-          <div className="border-t-2 border-slate-800 mb-3" />
           </>
           )}
 

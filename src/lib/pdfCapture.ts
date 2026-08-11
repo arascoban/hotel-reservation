@@ -51,14 +51,17 @@ async function getLogoDataUrl(root: HTMLElement): Promise<string> {
 /**
  * Capture every `.page` (the rendered A4 sheets) into one PDF, one sheet per
  * page, and return it as base64. Throws when no invoice is on the page.
+ *
+ * `doc` lets the caller capture an invoice shown in a same-origin iframe —
+ * the preview on the Rechnungen page renders it that way.
  */
-export async function captureInvoicePdf(): Promise<string> {
+export async function captureInvoicePdf(doc: Document = document): Promise<string> {
   const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
     import('html2canvas'),
     import('jspdf'),
   ])
 
-  const sheets = Array.from(document.querySelectorAll('.page')) as HTMLElement[]
+  const sheets = Array.from(doc.querySelectorAll('.page')) as HTMLElement[]
   if (sheets.length === 0) throw new Error('Rechnungsseite nicht gefunden')
 
   const logoDataUrl = await getLogoDataUrl(sheets[0])
@@ -111,4 +114,23 @@ export async function captureInvoicePdf(): Promise<string> {
   }
 
   return pdf.output('datauristring').split(',')[1]
+}
+
+/** Hand the captured PDF to the browser as a download. */
+export function downloadPdf(base64: string, filename: string): void {
+  const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0))
+  const url   = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
+  const a     = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  // Give the download a tick to start before the blob goes away.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+}
+
+/** Capture and save in one step. */
+export async function saveInvoicePdf(filename: string, doc: Document = document): Promise<void> {
+  downloadPdf(await captureInvoicePdf(doc), filename)
 }

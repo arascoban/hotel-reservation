@@ -5,12 +5,14 @@ import { createClient }  from '@/lib/supabase/client'
 import { collapseBookingUnits, FAMILY_TYPE_NAME, storedDay, storedTime } from '@/lib/reservations'
 import { buildRecipient, BILL_TO_OPTIONS, type BillTo, type RecipientSource } from '@/lib/recipient'
 import { summarizeLedger, type PaymentRow } from '@/lib/deposit'
+import { saveInvoicePdf } from '@/lib/pdfCapture'
 import { BREAKFAST_VAT_RATE } from '@/lib/invoiceFromReservation'
 import { format }        from 'date-fns'
 import { de }            from 'date-fns/locale'
 import {
   FileText, Settings, ChevronRight, Hash, Trash2, Edit2,
   Plus, Search, X, Save, Loader2, Users, Calendar, Ban, RotateCcw, ExternalLink,
+  Printer, Download,
 } from 'lucide-react'
 import { useAdmin }      from '@/hooks/useAdmin'
 import { cn }            from '@/lib/cn'
@@ -1607,8 +1609,32 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
  * document — no second layout to keep in sync.
  */
 function PreviewModal({ inv, onClose }: { inv: Invoice; onClose: () => void }) {
-  const [loading, setLoading] = useState(true)
+  const [loading,   setLoading]   = useState(true)
+  const [savingPdf, setSavingPdf] = useState(false)
+  const frameRef = useRef<HTMLIFrameElement | null>(null)
   const ref = fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())
+
+  /** Print the sheets themselves, not the modal around them. */
+  function handlePrint() {
+    const win = frameRef.current?.contentWindow
+    if (!win) return
+    win.focus()
+    win.print()
+  }
+
+  /** Same capture the e-mail uses, reading the sheets out of the iframe. */
+  async function handleSavePdf() {
+    const doc = frameRef.current?.contentDocument
+    if (!doc) return
+    setSavingPdf(true)
+    try {
+      await saveInvoicePdf(`Rechnung_${ref}.pdf`, doc)
+    } catch {
+      // Falls back to the full page, where the same buttons live.
+      window.open(`/invoices/${inv.id}`, '_blank')
+    }
+    setSavingPdf(false)
+  }
 
   // Close on Escape and stop the page behind from scrolling
   useEffect(() => {
@@ -1656,6 +1682,7 @@ function PreviewModal({ inv, onClose }: { inv: Invoice; onClose: () => void }) {
           )}
           {/* /invoice-preview renders the sheet alone — no sidebar, no toolbar */}
           <iframe
+            ref={frameRef}
             src={`/invoice-preview/${inv.id}`}
             title={`Rechnung ${ref}`}
             onLoad={() => setLoading(false)}
@@ -1665,10 +1692,20 @@ function PreviewModal({ inv, onClose }: { inv: Invoice; onClose: () => void }) {
 
         {/* Actions — full-width targets on phones */}
         <div className="flex items-center gap-2 px-4 sm:px-5 py-3 border-t border-slate-200 flex-shrink-0 bg-white">
+          <button onClick={handlePrint}
+            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 h-11 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+            <Printer className="w-4 h-4" />
+            Drucken
+          </button>
+          <button onClick={handleSavePdf} disabled={savingPdf}
+            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 text-white px-4 h-11 text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 transition-colors">
+            {savingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {savingPdf ? 'Wird erstellt …' : 'PDF speichern'}
+          </button>
           <Link href={`/invoices/${inv.id}`} target="_blank"
             className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 text-white px-4 h-11 text-sm font-semibold hover:bg-slate-700 transition-colors">
             <ExternalLink className="w-4 h-4" />
-            Öffnen &amp; Drucken
+            Öffnen
           </Link>
           <button onClick={onClose}
             className="flex-1 sm:flex-none inline-flex items-center justify-center rounded-xl border border-slate-300 px-4 h-11 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
