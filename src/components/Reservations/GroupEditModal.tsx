@@ -513,7 +513,7 @@ export default function GroupEditModal({ groupId, onClose, onUpdated }: Props) {
                               ? 'border-blue-500 bg-blue-50 text-blue-700'
                               : 'border-slate-200 text-slate-600 hover:bg-slate-50',
                           )}>
-                          {o.value === 'company' ? customerCompany : o.label}
+                          {o.label}
                         </button>
                       ))}
                     </div>

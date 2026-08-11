@@ -7,11 +7,12 @@
  * on the paperwork either way.
  */
 
-export type BillTo = 'person' | 'company'
+export type BillTo = 'person' | 'company' | 'company_only'
 
 export const BILL_TO_OPTIONS: { value: BillTo; label: string }[] = [
-  { value: 'person',  label: 'Kunde' },
-  { value: 'company', label: 'Firma' },
+  { value: 'person',       label: 'Kunde' },
+  { value: 'company',      label: 'Firma' },
+  { value: 'company_only', label: 'Firma ohne Namen' },
 ]
 
 export interface RecipientSource {
@@ -54,7 +55,8 @@ function addressLines(street?: string | null, postcode?: string | null, city?: s
  * Resolve the address block.
  *
  * - billed to the company → the company is the addressee and the guest is
- *   named below it, so the post still reaches the right desk
+ *   named below it, so the post still reaches the right desk. 'company_only'
+ *   drops that line for guests who do not want their name on the paperwork.
  * - billed to the person  → the guest is the addressee, and the company is
  *   still named underneath whenever one is on file
  *
@@ -69,11 +71,12 @@ export function buildRecipient(src: RecipientSource, billTo: BillTo | null | und
   const personAddress  = addressLines(src.street, src.postcode, src.city, src.country)
   const companyAddress = addressLines(src.companyStreet, src.companyPostcode, src.companyCity, src.companyCountry)
 
-  const toCompany = billTo === 'company' && !!company
+  const toCompany = (billTo === 'company' || billTo === 'company_only') && !!company
   const lines: string[] = []
 
   if (toCompany) {
-    if (person) lines.push(`z. Hd. ${person}`)
+    // 'company_only' leaves the guest's name off the document entirely.
+    if (person && billTo === 'company') lines.push(`z. Hd. ${person}`)
     lines.push(...(companyAddress.length > 0 ? companyAddress : personAddress))
   } else {
     // A company on file is named even when the guest is the addressee.

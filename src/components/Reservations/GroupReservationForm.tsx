@@ -514,12 +514,13 @@ export default function GroupReservationForm() {
                       ? 'border-blue-500 bg-blue-50 text-blue-700'
                       : 'border-slate-200 text-slate-600 hover:bg-slate-50',
                   )}>
-                  {o.value === 'company' ? companyName : o.label}
+                  {o.label}
                 </button>
               ))}
             </div>
             <p className="mt-1 text-xs text-slate-400">
-              Bestimmt, wer auf Buchungsbestätigung und Rechnung als Empfänger steht.
+              {companyName} · „Firma ohne Namen" lässt den Kundennamen auf
+              Buchungsbestätigung und Rechnung weg.
             </p>
           </div>
         )}

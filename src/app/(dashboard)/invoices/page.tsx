@@ -1285,12 +1285,13 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                           ? 'border-blue-500 bg-blue-50 text-blue-700'
                           : 'border-slate-200 text-slate-600 hover:bg-slate-50',
                       )}>
-                      {o.value === 'company' ? companyName : o.label}
+                      {o.label}
                     </button>
                   ))}
                 </div>
                 <p className="mt-1 text-xs text-slate-400">
-                  Die Firma wird in der Anschrift in beiden Fällen genannt.
+                  {companyName} · „Kunde" nennt die Firma zusätzlich in der Anschrift,
+                  „Firma" den Kunden als z. Hd., „Firma ohne Namen" lässt ihn weg.
                 </p>
               </Field>
             )}
@@ -1508,12 +1509,13 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
                           ? 'border-blue-500 bg-blue-50 text-blue-700'
                           : 'border-slate-200 text-slate-600 hover:bg-slate-50',
                       )}>
-                      {o.value === 'company' ? companyName : o.label}
+                      {o.label}
                     </button>
                   ))}
                 </div>
                 <p className="mt-1 text-xs text-slate-400">
-                  Die Firma wird in der Anschrift in beiden Fällen genannt.
+                  {companyName} · „Kunde" nennt die Firma zusätzlich in der Anschrift,
+                  „Firma" den Kunden als z. Hd., „Firma ohne Namen" lässt ihn weg.
                 </p>
               </Field>
             )}

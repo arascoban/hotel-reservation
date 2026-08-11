@@ -626,13 +626,13 @@ export default function ReservationDetailModal({ reservationId, onClose, onUpdat
                         ? 'border-blue-500 bg-blue-50 text-blue-700'
                         : 'border-slate-200 text-slate-600 hover:bg-slate-50',
                     )}>
-                    {o.value === 'company' ? customerCompany : o.label}
+                    {o.label}
                   </button>
                 ))}
               </div>
             ) : (
               <span className="text-sm text-slate-900">
-                {(r as any).bill_to === 'company' ? customerCompany : r.guest_name}
+                {String((r as any).bill_to ?? '').startsWith('company') ? customerCompany : r.guest_name}
               </span>
             )}
           </InfoField>
