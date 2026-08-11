@@ -19,6 +19,13 @@
  *    fails when the extra request does.
  */
 
+/**
+ * Pixels rendered per CSS pixel. The sheet is 794px wide (A4 at 96 dpi), so
+ * this is the output resolution: 3 → 2382px → 288 dpi, near print standard.
+ * Raising it further sharpens the text at a roughly linear cost in size.
+ */
+const CAPTURE_SCALE = 3
+
 /** Logo box geometry in mm, measured from the invoice layout at 794px width. */
 const LOGO = { x: 13.2, y: 12.2, w: 39.7, h: 19.0 }
 
@@ -74,14 +81,20 @@ export async function captureInvoicePdf(doc: Document = document): Promise<strin
     if (i > 0) pdf.addPage()
 
     const canvas = await html2canvas(sheets[i], {
-      scale:           2,
+      // 794px is A4 at 96 dpi, so the multiplier is the output resolution:
+      // ×2 gave 192 dpi, below print standard, and the text looked soft.
+      // ×3 lands at 288 dpi.
+      scale:           CAPTURE_SCALE,
       useCORS:         true,
       allowTaint:      false,
       backgroundColor: '#ffffff',
       logging:         false,
       imageTimeout:    0,
     })
-    const img = canvas.toDataURL('image/jpeg', 0.92)
+    // PNG, not JPEG: JPEG is lossy in exactly the wrong way for a document —
+    // it rings around the sharp edges of glyphs. On a mostly-white page it is
+    // also the *larger* of the two, because flate compresses flat areas away.
+    const img = canvas.toDataURL('image/png')
 
     // A sheet is always exactly one page — never a full page plus a sliver.
     // Draw it as large as fits, keeping the aspect ratio, and centre whatever
@@ -101,7 +114,7 @@ export async function captureInvoicePdf(doc: Document = document): Promise<strin
       w = pdfH / imgRatio
     }
     const x = (pdfW - w) / 2
-    pdf.addImage(img, 'JPEG', x, 0, w, h)
+    pdf.addImage(img, 'PNG', x, 0, w, h, undefined, 'FAST')
 
     // Re-draw the logo, tracking whatever scale the fit above ended up using.
     // Only the first sheet carries one — continuation sheets head with text,
