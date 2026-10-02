@@ -8,6 +8,7 @@ import StornoButton      from '@/app/(dashboard)/invoices/[id]/StornoButton'
 import DepositEmailButton from '@/components/Deposit/DepositEmailButton'
 import { summarizeLedger, formatDeDate, REMAINING_DUE_TEXT, PAYMENT_KIND_LABELS, DEPOSIT_METHOD_LABELS, type PaymentRow } from '@/lib/deposit'
 import { storedDate, storedTime } from '@/lib/reservations'
+import { footerOfInvoice } from '@/lib/invoiceFooter'
 
 export const dynamic = 'force-dynamic'
 
@@ -217,6 +218,8 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
   const checkinStr   = storedDate(inv.checkin_at)
   const checkoutStr  = storedDate(inv.checkout_at)
   const guestSurname = inv.guest_name.trim().split(/\s+/).slice(-1)[0] || inv.guest_name
+  // The footer this invoice was issued with — later edits never reach it.
+  const footer       = footerOfInvoice(inv)
   const invoiceRef   = fmtNum(inv.invoice_number, new Date(inv.created_at).getFullYear())
 
   // ── Line items ────────────────────────────────────────────────────────────
@@ -516,7 +519,7 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
                 <p className="text-slate-600">Verwaltung und Vertrieb G. Cetin Holding GmbH</p>
                 <p className="text-slate-500">Von Eichendorf-Str. 16, 37539 Bad Grund</p>
                 <p className="text-slate-500">Tel: +49 5327 2828 · info@jaegerstieg.de</p>
-                <p className="text-slate-600 font-medium">CEO: A. Eddie Çetin</p>
+                <p className="text-slate-600 font-medium">CEO: {footer.signerName}</p>
               </div>
             </div>
           </div>
@@ -730,9 +733,9 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
             <div className="flex items-end justify-between mb-3">
               <div>
                 <p className="text-lg text-slate-700" style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>
-                  A. Eddie Çetin
+                  {footer.signerName}
                 </p>
-                <p className="text-xs text-slate-500 mt-0.5">Geschäftsführer</p>
+                <p className="text-xs text-slate-500 mt-0.5">{footer.signerTitle}</p>
               </div>
               <div className="text-right text-xs text-slate-400">
                 <p>Rechnung Nr. {invoiceRef}{pageCount > 1 && ` · Seite ${pageIdx + 1} von ${pageCount}`}</p>
@@ -744,16 +747,16 @@ export default async function InvoiceDocument({ id, showToolbar = false }: Props
             {/* Bank details + legal — compact single-border block */}
             <div className="border-t border-slate-100 pt-2 grid grid-cols-2 gap-x-8 text-xs text-slate-500">
               <div className="space-y-0">
-                <p className="font-semibold text-slate-700">Bankverbindung: HASPA HAMBURG</p>
-                <p>Konto Inhaber: Aaron Eddie Cetin</p>
-                <p>IBAN: DE33 2005 0550 1501 0613 43</p>
-                <p>BIC: HASPDEHHXXX</p>
+                <p className="font-semibold text-slate-700">Bankverbindung: {footer.bankName}</p>
+                <p>Konto Inhaber: {footer.accountHolder}</p>
+                <p>IBAN: {footer.iban}</p>
+                <p>BIC: {footer.bic}</p>
               </div>
               <div className="space-y-0">
                 <p className="font-semibold text-slate-700">Rechtliche Angaben</p>
-                <p>Amtsgericht Oldenburg HRB 200157</p>
-                <p>St.Nr.: 35 / 202 / 02346</p>
-                <p>USt-IdNr.: DE406004895</p>
+                <p>{footer.register}</p>
+                <p>St.Nr.: {footer.taxNumber}</p>
+                <p>USt-IdNr.: {footer.vatId}</p>
               </div>
             </div>
 

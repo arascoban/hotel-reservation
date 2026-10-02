@@ -11,6 +11,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { collapseBookingUnits, FAMILY_TYPE_NAME } from './reservations'
 import { buildRecipient, type BillTo } from './recipient'
+import { loadCurrentFooter } from './invoiceFooter'
 
 /** Breakfast is billed per person and night and split out of the room price. */
 export const BREAKFAST_PRICE_PER_PERSON = 10
@@ -213,6 +214,8 @@ export async function createInvoiceFromReservation(
     line_items:         [],
     created_by:         createdBy ?? null,
     created_at:         new Date().toISOString(),
+    // Bank + legal details as they stand today, frozen on this invoice.
+    footer:             await loadCurrentFooter(supabase),
   }
 
   const { data: inv, error } = await supabase

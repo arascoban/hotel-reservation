@@ -6,6 +6,7 @@ import { collapseBookingUnits, FAMILY_TYPE_NAME, storedDay, storedTime } from '@
 import { buildRecipient, BILL_TO_OPTIONS, type BillTo, type RecipientSource } from '@/lib/recipient'
 import { summarizeLedger, type PaymentRow } from '@/lib/deposit'
 import { saveInvoicePdf } from '@/lib/pdfCapture'
+import { loadCurrentFooter } from '@/lib/invoiceFooter'
 import { BREAKFAST_VAT_RATE } from '@/lib/invoiceFromReservation'
 import { format }        from 'date-fns'
 import { de }            from 'date-fns/locale'
@@ -1063,6 +1064,8 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       room2_child_count:          hasRoom2                     ? parseInt(room2ChildCount2) || 0         : null,
       created_by:                 user.user?.email ?? null,
       created_at:                 new Date().toISOString(),
+      // Bank + legal details as they stand today, frozen on this invoice.
+      footer:                     await loadCurrentFooter(supabase),
     }
 
     const { data: inv, error: err } = await supabase
@@ -1128,6 +1131,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
       room2_child_count:          null,
       created_by:                 user.user?.email ?? null,
       created_at:                 nowIso,
+      footer:                     await loadCurrentFooter(supabase),
     }
 
     const { data: inv, error: err } = await supabase

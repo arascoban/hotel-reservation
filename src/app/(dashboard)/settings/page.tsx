@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAdmin } from '@/hooks/useAdmin'
 import { cn } from '@/lib/cn'
-import { SlidersHorizontal, ShieldCheck, Loader2, Eye, EyeOff, Wallet, BedDouble, Clock } from 'lucide-react'
+import { LEGACY_FOOTER, FOOTER_COLUMNS, footerFromSettings, type InvoiceFooter } from '@/lib/invoiceFooter'
+import { SlidersHorizontal, ShieldCheck, Loader2, Eye, EyeOff, Wallet, BedDouble, Clock, Landmark } from 'lucide-react'
 
 interface RoomTypeRow {
   id:           string
@@ -35,6 +36,10 @@ export default function SettingsPage() {
   const [checkinTime,   setCheckinTime]   = useState('13:00')
   const [checkoutTime,  setCheckoutTime]  = useState('12:00')
   const [savingTimes,   setSavingTimes]   = useState(false)
+  // Invoice footer — what *new* invoices print; issued ones keep their copy.
+  const [footer,        setFooter]        = useState<InvoiceFooter>(LEGACY_FOOTER)
+  const [savedFooter,   setSavedFooter]   = useState<InvoiceFooter>(LEGACY_FOOTER)
+  const [savingFooter,  setSavingFooter]  = useState(false)
   const [savingDeposit, setSavingDeposit] = useState(false)
   const [roomTypes,     setRoomTypes]     = useState<RoomTypeRow[]>([])
   const [prices,        setPrices]        = useState<Record<string, string>>({})
@@ -74,6 +79,11 @@ export default function SettingsPage() {
     if (st?.default_deposit_percent != null) setDepositPct(String(st.default_deposit_percent))
     if (st?.default_checkin_time)  setCheckinTime(st.default_checkin_time.slice(0, 5))
     if (st?.default_checkout_time) setCheckoutTime(st.default_checkout_time.slice(0, 5))
+
+    const { data: fRow } = await supabase
+      .from('invoice_settings').select(FOOTER_COLUMNS).eq('id', 1).maybeSingle()
+    const f = footerFromSettings(fRow)
+    setFooter(f); setSavedFooter(f)
 
     setLoading(false)
   }, [supabase])
@@ -124,6 +134,24 @@ export default function SettingsPage() {
       .from('invoice_settings').update({ default_deposit_percent: pct }).eq('id', 1)
     if (!error) { setMsg('✓ Gespeichert'); setTimeout(() => setMsg(''), 2000) }
     setSavingDeposit(false)
+  }
+
+  async function saveFooter() {
+    setSavingFooter(true)
+    const t = (v: string) => v.trim()
+    const { error } = await supabase.from('invoice_settings').update({
+      footer_bank_name:      t(footer.bankName),
+      footer_account_holder: t(footer.accountHolder),
+      footer_iban:           t(footer.iban),
+      footer_bic:            t(footer.bic),
+      footer_register:       t(footer.register),
+      footer_tax_number:     t(footer.taxNumber),
+      footer_vat_id:         t(footer.vatId),
+      footer_signer_name:    t(footer.signerName),
+      footer_signer_title:   t(footer.signerTitle),
+    }).eq('id', 1)
+    if (!error) { setSavedFooter(footer); setMsg('✓ Gespeichert'); setTimeout(() => setMsg(''), 2000) }
+    setSavingFooter(false)
   }
 
   async function saveTimes() {
@@ -427,6 +455,66 @@ export default function SettingsPage() {
             {savingTimes && <Loader2 className="w-4 h-4 animate-spin" />}
             {savingTimes ? 'Speichern…' : 'Speichern'}
           </button>
+        </div>
+      </div>
+
+      {/* ── Invoice footer ─────────────────────────────────────────────── */}
+      <div className="mt-8">
+        <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-1">
+          <Landmark className="w-5 h-5 text-slate-500" />
+          Rechnungs-Fußzeile
+        </h2>
+        <p className="text-slate-500 text-sm mb-4">
+          Bankverbindung und rechtliche Angaben für <strong>neue</strong> Rechnungen.
+          Bereits ausgestellte Rechnungen behalten die Angaben, mit denen sie erstellt wurden.
+        </p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-5">
+          {([
+            ['Bankverbindung', [
+              ['bankName',      'Bank'],
+              ['accountHolder', 'Kontoinhaber'],
+              ['iban',          'IBAN'],
+              ['bic',           'BIC'],
+            ]],
+            ['Rechtliche Angaben', [
+              ['register',  'Handelsregister'],
+              ['taxNumber', 'Steuernummer'],
+              ['vatId',     'USt-IdNr.'],
+            ]],
+            ['Unterschrift', [
+              ['signerName',  'Name'],
+              ['signerTitle', 'Funktion'],
+            ]],
+          ] as [string, [keyof InvoiceFooter, string][]][]).map(([group, rows]) => (
+            <div key={group}>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{group}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {rows.map(([key, label]) => (
+                  <div key={key}>
+                    <label className="block text-xs text-slate-500 mb-1">{label}</label>
+                    <input
+                      value={footer[key]}
+                      onChange={e => setFooter(f => ({ ...f, [key]: e.target.value }))}
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="flex items-center gap-3 pt-1">
+            <button onClick={saveFooter}
+              disabled={savingFooter || JSON.stringify(footer) === JSON.stringify(savedFooter)}
+              className="rounded-xl bg-blue-600 text-white px-5 py-2 text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+              {savingFooter && <Loader2 className="w-4 h-4 animate-spin" />}
+              {savingFooter ? 'Speichern…' : 'Speichern'}
+            </button>
+            {JSON.stringify(footer) !== JSON.stringify(savedFooter) && (
+              <button onClick={() => setFooter(savedFooter)} className="text-sm text-slate-500 hover:text-slate-700">
+                Verwerfen
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
