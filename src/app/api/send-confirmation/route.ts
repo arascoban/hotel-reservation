@@ -7,6 +7,7 @@ import { resolveEmailLogo, originFromRequest } from '@/lib/emailLogo'
 import { greetingOrFriendly } from '@/lib/salutation'
 import { collapseBookingUnits, FAMILY_TYPE_NAME, storedDate, storedTime } from '@/lib/reservations'
 import { buildRecipient, type BillTo } from '@/lib/recipient'
+import { loadCurrentFooter, type InvoiceFooter } from '@/lib/invoiceFooter'
 
 // Always render check-in/check-out in the hotel's zone — this route runs on
 // the server, which is UTC, so anything else shows the guest a shifted time.
@@ -428,6 +429,8 @@ function buildEmailText(opts: {
   remaining:      number | null
   requiredDeposit: number | null
   depositDue:     string | null
+  /** Bank details from Einstellungen → Rechnungs-Fußzeile. */
+  bank:           InvoiceFooter
   notes:          string | null
   reservationId:  string
 }): string {
@@ -469,8 +472,8 @@ function buildEmailText(opts: {
     L.push('ANZAHLUNG')
     L.push(`  Erforderliche Anzahlung: ${depEur(opts.requiredDeposit)}`)
     if (opts.depositDue) L.push(`  Bitte überweisen Sie den Betrag bis zum ${opts.depositDue}.`)
-    L.push('  Bankverbindung: HASPA HAMBURG · Aaron Eddie Cetin')
-    L.push('  IBAN: DE33 2005 0550 1501 0613 43 · BIC: HASPDEHHXXX', '')
+    L.push(`  Bankverbindung: ${opts.bank.bankName} · ${opts.bank.accountHolder}`)
+    L.push(`  IBAN: ${opts.bank.iban} · BIC: ${opts.bank.bic}`, '')
   }
 
   if (opts.notes) L.push('NOTIZEN', `  ${opts.notes}`, '')
@@ -490,6 +493,9 @@ export async function POST(req: NextRequest) {
 
     // Fetch reservation
     const supabase = await createClient()
+    // A confirmation is written fresh each time, so it always carries the
+    // bank details currently set under Einstellungen.
+    const bank = await loadCurrentFooter(supabase)
     const { data: resData, error: resErr } = await supabase
       .from('reservations')
       .select('*, rooms(*, room_types(*))')
@@ -592,8 +598,8 @@ export async function POST(req: NextRequest) {
                         Zur verbindlichen Bestätigung Ihrer Buchung bitten wir um eine Anzahlung.${due}
                       </p>
                       <p style="margin:8px 0 0;font-size:12px;color:#1e40af;line-height:1.5;">
-                        <strong>Bankverbindung:</strong> HASPA HAMBURG · Aaron Eddie Cetin<br />
-                        IBAN: DE33 2005 0550 1501 0613 43 · BIC: HASPDEHHXXX
+                        <strong>Bankverbindung:</strong> ${bank.bankName} · ${bank.accountHolder}<br />
+                        IBAN: ${bank.iban} · BIC: ${bank.bic}
                       </p>
                     </td></tr>
                   </table>
@@ -744,6 +750,7 @@ export async function POST(req: NextRequest) {
       remaining:       dep.payments.length > 0 ? dep.remaining : null,
       requiredDeposit: dep.payments.length === 0 && reqDeposit.required ? reqDeposit.requiredAmount : null,
       depositDue:      depositRow.deposit_due_date ? formatDeDate(depositRow.deposit_due_date) : null,
+      bank,
       notes:           r.notes ?? null,
       reservationId:   r.id,
     })
